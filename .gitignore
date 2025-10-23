@@ -1,0 +1,7 @@
+__pycache__/
+.env
+config/.env
+logs/
+data/cache/
+data/neurohub.db
+

@@ -1,0 +1,48 @@
+app:
+  name: NeuroHub
+  timezone: Asia/Tokyo
+  env: dev
+
+paths:
+  base: ./
+  cache_asr: ./data/cache/asr
+  cache_tts: ./data/cache/tts
+  cache_mpv: ./data/cache/mpv
+  database: ./data/neurohub.db
+
+llm:
+  default: ollama
+  gemini:
+    api_url: https://generativelanguage.googleapis.com/v1beta/models
+    model: gemini-1.5-pro-latest
+    temperature:
+    max_output_tokens:
+    timeout_sec:
+  ollama:
+    host: http://127.0.0.1:11434
+    models: []
+    selected_model: 
+    temperature:
+    num_ctx:
+    num_thread:
+
+asr:
+  engine:
+  model:
+  timeout_sec:
+
+tts:
+  engine:
+  model: ./models/piper/ja-kokoro-high.onnx
+  out_wav: ./data/cache/tts/out.wav
+  speed:
+
+mpv:
+  audio_device:
+  default_volume:
+  ipc_dir: ./data/cache/mpv
+  common_opts:
+
+logging:
+  level:
+  dir: ./logs
