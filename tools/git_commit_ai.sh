@@ -1,171 +1,210 @@
 #!/usr/bin/env bash
 # git-commit-ai.sh
 # --------------------------------------------
-# config.yaml（NeuroHub）からモデル/ホストを取得して、
-# Ollama でコミットメッセージを自動生成する。
+# NeuroHub の config.yaml / .env から設定を拾い、
+# 1) Gemini が使えれば Gemini でコミットメッセージ生成
+# 2) ダメなら Ollama にフォールバック
 #
 # 使い方:
-#   bash git-commit-ai.sh
-#   bash git-commit-ai.sh -y                # 確認なしでコミット
-#   bash git-commit-ai.sh --lang ja --max 20
+#   bash tools/git_commit_ai.sh
+#   bash tools/git_commit_ai.sh -y                # 確認なしでコミット
+#   bash tools/git_commit_ai.sh --lang ja --max 20
 #
 # 依存:
+#   - curl, jq
 #   - ollama
-#   - yq (あれば優先。無ければawkで代替)
+#   - yq（任意。あれば厳密に YAML 解析）
 # --------------------------------------------
 
 set -euo pipefail
 
 AUTO_YES=0
-LANG="ja"
-MAX=20
+LANG_CODE="ja"
+MAX_LEN=20
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -y|--yes) AUTO_YES=1; shift ;;
-    --lang) LANG="${2:-ja}"; shift 2 ;;
-    --max) MAX="${2:-20}"; shift 2 ;;
+    --lang) LANG_CODE="${2:-ja}"; shift 2 ;;
+    --max) MAX_LEN="${2:-20}"; shift 2 ;;
     -h|--help)
       echo "Usage: $0 [-y|--yes] [--lang ja|en] [--max N]"
       exit 0
       ;;
-    *) echo "Unknown arg: $1"; exit 2 ;;
+    *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
 done
 
-# --- Git ルート ---
-if ! ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
-  echo "❌ Git repo 内で実行してください。"
+# --- Git ルート（今いるリポジトリ） ---
+if ! GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  echo "❌ Git リポジトリ内で実行してください。" >&2
   exit 1
 fi
 
-# --- config.yaml の場所（NeuroHub構成を想定） ---
-CONF_YAML="$ROOT/config/config.yaml"
-if [[ ! -f "$CONF_YAML" ]]; then
-  # NeuroHub/_archive から単体で使うケースにも対応
-  ALT1="$ROOT/NeuroHub/config/config.yaml"
-  ALT2="$ROOT/../NeuroHub/config/config.yaml"
-  if   [[ -f "$ALT1" ]]; then CONF_YAML="$ALT1"
-  elif [[ -f "$ALT2" ]]; then CONF_YAML="$ALT2"
+# --- NeuroHub の config を探す ---
+# 優先度: $NEUROHUB_CONFIG -> $NEUROHUB_ROOT/config -> カレントから上へ config/ -> ~/NeuroHub/config
+find_config_dir() {
+  if [[ -n "${NEUROHUB_CONFIG:-}" && -d "${NEUROHUB_CONFIG}" ]]; then
+    printf '%s\n' "${NEUROHUB_CONFIG}"
+    return
+  fi
+  if [[ -n "${NEUROHUB_ROOT:-}" && -d "${NEUROHUB_ROOT}/config" ]]; then
+    printf '%s\n' "${NEUROHUB_ROOT}/config"
+    return
+  fi
+  local base="$PWD"
+  while :; do
+    if [[ -f "$base/config/config.yaml" ]]; then
+      printf '%s\n' "$base/config"
+      return
+    fi
+    [[ "$base" == "/" ]] && break
+    base="$(dirname "$base")"
+  done
+  if [[ -f "$HOME/NeuroHub/config/config.yaml" ]]; then
+    printf '%s\n' "$HOME/NeuroHub/config"
+    return
+  fi
+  # 最後の手段: Git ルートに対しても試す
+  if [[ -f "$GIT_ROOT/config/config.yaml" ]]; then
+    printf '%s\n' "$GIT_ROOT/config"
+    return
+  fi
+}
+CONF_DIR="$(find_config_dir || true)"
+CONF_YAML="${CONF_DIR:-}/config.yaml"
+CONF_ENV="${CONF_DIR:-}/.env"
+
+# --- 既定値 ---
+OLLAMA_HOST_VAL="http://127.0.0.1:11434"
+OLLAMA_MODEL=""
+GEM_API_URL="https://generativelanguage.googleapis.com/v1"
+GEM_MODEL="gemini-2.5-flash"
+GEM_API_KEY="${GEMINI_API_KEY:-}"  # 環境変数があれば先に採用
+
+# --- .env からキー読み込み（上書き） ---
+if [[ -f "$CONF_ENV" ]]; then
+  # GEMINI_API_KEY
+  if grep -q '^GEMINI_API_KEY=' "$CONF_ENV"; then
+    val="$(grep '^GEMINI_API_KEY=' "$CONF_ENV" | tail -n1 | cut -d= -f2-)"
+    [[ -n "$val" ]] && GEM_API_KEY="$val"
+  fi
+  # OLLAMA_HOST
+  if grep -q '^OLLAMA_HOST=' "$CONF_ENV"; then
+    val="$(grep '^OLLAMA_HOST=' "$CONF_ENV" | tail -n1 | cut -d= -f2-)"
+    [[ -n "$val" ]] && OLLAMA_HOST_VAL="$val"
   fi
 fi
 
-# --- YAML から host / model を取得 ---
-OLLAMA_HOST_VAL="http://127.0.0.1:11434"
-MODEL=""
-
+# --- YAML から設定を取得 ---
 if [[ -f "$CONF_YAML" ]]; then
   if command -v yq >/dev/null 2>&1; then
-    # yq がある場合は厳密に取得
     OLLAMA_HOST_VAL="$(yq -r '.llm.ollama.host // "http://127.0.0.1:11434"' "$CONF_YAML")"
-    MODEL="$(yq -r '.llm.ollama.selected_model // ""' "$CONF_YAML")"
-    if [[ -z "$MODEL" ]]; then
-      # models 配列の先頭にフォールバック
-      MODEL="$(yq -r '.llm.ollama.models[0] // ""' "$CONF_YAML")"
+    OLLAMA_MODEL="$(yq -r '.llm.ollama.selected_model // ""' "$CONF_YAML")"
+    if [[ -z "$OLLAMA_MODEL" ]]; then
+      OLLAMA_MODEL="$(yq -r '.llm.ollama.models[0] // ""' "$CONF_YAML")"
     fi
+    GEM_API_URL="$(yq -r '.llm.gemini.api_url // "https://generativelanguage.googleapis.com/v1"' "$CONF_YAML")"
+    GEM_MODEL="$(yq -r '.llm.gemini.model // "gemini-2.5-flash"' "$CONF_YAML")"
   else
-    # yq が無い場合: ollama: セクションだけを素朴にパース
-    in_ollama=0
+    # 簡易パース（インデント前提の緩いやつ）
+    in_ollama=0; in_gemini=0
     while IFS= read -r line; do
-      # 行頭からの空白数で見ていく（超簡易版）
       case "$line" in
-        "  ollama:"*) in_ollama=1; continue ;;
+        "  ollama:"*) in_ollama=1; in_gemini=0; continue ;;
+        "  gemini:"*) in_gemini=1; in_ollama=0; continue ;;
       esac
-      if [[ $in_ollama -eq 1 ]]; then
-        # ollama節の終わり検出（先頭2スペース以外のキーが来たら終わりとみなす）
-        if [[ "$line" =~ ^[a-z] || "$line" =~ ^[A-Za-z] ]]; then
-          in_ollama=0
-          continue
+      # セクション終了（次のトップ/同階層キーで抜ける）
+      if [[ "$line" =~ ^[a-zA-Z] ]]; then in_ollama=0; in_gemini=0; fi
+      if (( in_ollama )); then
+        if [[ "$line" =~ host:\ *(.*) ]]; then OLLAMA_HOST_VAL="${BASH_REMATCH[1]//\"/}"; fi
+        if [[ "$line" =~ selected_model:\ *(.*) ]]; then OLLAMA_MODEL="${BASH_REMATCH[1]//\"/}"; fi
+        if [[ -z "$OLLAMA_MODEL" && "$line" =~ ^[[:space:]]*-[[:space:]]*(.+)$ ]]; then
+          OLLAMA_MODEL="${BASH_REMATCH[1]}"
         fi
-        # host
-        if [[ "$line" =~ host:\ *(.*) ]]; then
-          val="${BASH_REMATCH[1]}"
-          OLLAMA_HOST_VAL="${val//\"/}"
-        fi
-        # selected_model
-        if [[ "$line" =~ selected_model:\ *(.*) ]]; then
-          val="${BASH_REMATCH[1]}"
-          MODEL="${val//\"/}"
-        fi
-        # models配列の先頭（selectedが空の時のみ拾う）
-        if [[ -z "$MODEL" && "$line" =~ ^[[:space:]]*-[[:space:]]*(.+)$ ]]; then
-          MODEL="${BASH_REMATCH[1]}"
-        fi
+      elif (( in_gemini )); then
+        if [[ "$line" =~ api_url:\ *(.*) ]]; then GEM_API_URL="${BASH_REMATCH[1]//\"/}"; fi
+        if [[ "$line" =~ model:\ *(.*) ]]; then GEM_MODEL="${BASH_REMATCH[1]//\"/}"; fi
       fi
     done < "$CONF_YAML"
-
-    # デフォルト値（最終手段）
-    [[ -z "${OLLAMA_HOST_VAL:-}" ]] && OLLAMA_HOST_VAL="http://127.0.0.1:11434"
   fi
 fi
 
-# host は .env > config.yaml の順で上書き
-if [[ -f "$ROOT/config/.env" ]]; then
-  # .env の OLLAMA_HOST があれば採用
-  if grep -q '^OLLAMA_HOST=' "$ROOT/config/.env"; then
-    env_host="$(grep '^OLLAMA_HOST=' "$ROOT/config/.env" | tail -n1 | cut -d= -f2-)"
-    [[ -n "$env_host" ]] && OLLAMA_HOST_VAL="$env_host"
-  fi
-fi
-
-# MODEL の最終フォールバック
-if [[ -z "$MODEL" ]]; then
-  # ollama list から先頭モデル
+# --- Ollama モデル最終フォールバック ---
+if [[ -z "$OLLAMA_MODEL" ]]; then
   if command -v ollama >/dev/null 2>&1; then
-    if curl -sS --max-time 2 "${OLLAMA_HOST_VAL%/}/api/tags" >/dev/null 2>&1; then
-      MODEL="$(ollama list 2>/dev/null | awk 'NR>1{print $1; exit}')"
+    if curl -sS --max-time 3 "${OLLAMA_HOST_VAL%/}/api/tags" >/dev/null 2>&1; then
+      OLLAMA_MODEL="$(ollama list 2>/dev/null | awk 'NR>1{print $1; exit}')"
     fi
   fi
 fi
-[[ -z "$MODEL" ]] && MODEL="qwen2.5:1.5b-instruct"
+[[ -z "$OLLAMA_MODEL" ]] && OLLAMA_MODEL="qwen2.5:1.5b-instruct"
 
-# --- Git ステージ確認 ---
+# --- Git ステージの確認 ---
 git add -A >/dev/null 2>&1 || true
 DIFF="$(git diff --cached || true)"
 if [[ -z "$DIFF" ]]; then
-  echo "⚠️ ステージされた変更がありません。"
+  echo "⚠️ ステージされた変更がありません。(\`git add -A\` 済み？)" >&2
   exit 1
 fi
 
-# --- 生成プロンプト ---
-if [[ "$LANG" == "ja" ]]; then
-  PROMPT="次の git diff から、短く要点をまとめたコミットメッセージ（日本語で${MAX}文字以内、句読点や余計な接頭辞なし、1行）を出力してください。"
+# --- プロンプト（言語別） ---
+if [[ "$LANG_CODE" == "ja" ]]; then
+  PROMPT="次の git diff から、短く要点をまとめたコミットメッセージ（日本語で${MAX_LEN}文字以内、句読点や接頭辞なし、1行）を出力してください。"
 else
-  PROMPT="From the following git diff, output a concise one-line commit message in ${LANG} within ${MAX} characters, no prefixes."
+  PROMPT="From the following git diff, output a concise one-line commit message in ${LANG_CODE} within ${MAX_LEN} characters, no prefixes or boilerplate."
+fi
+PAYLOAD_TEXT="$(printf "%s\n\n%s\n" "$PROMPT" "$DIFF")"
+
+# =========================
+# 1) Gemini で試す
+# =========================
+MESSAGE=""
+if [[ -n "${GEM_API_KEY:-}" ]]; then
+  # v1 generateContent
+  GEM_URL="${GEM_API_URL%/}/models/${GEM_MODEL}:generateContent?key=${GEM_API_KEY}"
+  GEM_REQ="$(jq -nc --arg t "$PAYLOAD_TEXT" '{contents:[{parts:[{text:$t}]}]}')"
+  GEM_RESP="$(curl -sS -H "Content-Type: application/json" -d "$GEM_REQ" "$GEM_URL" || true)"
+  # エラーなら candidates 無し
+  if jq -e '.error' >/dev/null 2>&1 <<<"$GEM_RESP"; then
+    GEM_STATUS="ERR"
+  else
+    GEM_STATUS="OK"
+    # 最初のテキスト候補
+    MESSAGE="$(jq -r '.candidates[0].content.parts[0].text // ""' <<<"$GEM_RESP" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | tr -d '\r' | head -n1)"
+  fi
+else
+  GEM_STATUS="NO_KEY"
 fi
 
-PAYLOAD="$(printf "%s\n\n%s\n" "$PROMPT" "$DIFF")"
-
-# --- 実行（環境変数でホスト指定） ---
-export OLLAMA_HOST="$OLLAMA_HOST_VAL"
-
-echo "🔗 OLLAMA_HOST=$OLLAMA_HOST"
-echo "🤖 MODEL=$MODEL"
-echo "⏳ Generating…"
-
-# ストリームせずに1行だけ抽出（余分な行を弾く）
-RAW="$(printf "%s" "$PAYLOAD" | ollama run "$MODEL" 2>/dev/null || true)"
-MESSAGE="$(printf "%s" "$RAW" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | head -n 1 | tr -d '\r')"
-
-# 万一空なら再試行（短縮プロンプト）
+# =========================
+# 2) Ollama フォールバック
+# =========================
 if [[ -z "$MESSAGE" ]]; then
-  RAW="$(printf "Write a one-line commit message in %s within %s chars.\n\n%s\n" "$LANG" "$MAX" "$DIFF" | ollama run "$MODEL" 2>/dev/null || true)"
+  export OLLAMA_HOST="$OLLAMA_HOST_VAL"
+  RAW="$(printf "%s" "$PAYLOAD_TEXT" | ollama run "$OLLAMA_MODEL" 2>/dev/null || true)"
   MESSAGE="$(printf "%s" "$RAW" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | head -n 1 | tr -d '\r')"
-fi
-
-# さらに保険：MAX超なら切り詰め
-if [[ -n "$MESSAGE" ]]; then
-  # 全角対応でざっくりカット（Bashではバイトになるため、ここは実用優先）
-  if (( ${#MESSAGE} > MAX )); then
-    MESSAGE="${MESSAGE:0:MAX}"
+  # さらに空なら短縮プロンプトで再試行
+  if [[ -z "$MESSAGE" ]]; then
+    RAW="$(printf "Write a one-line commit message in %s within %s chars.\n\n%s\n" "$LANG_CODE" "$MAX_LEN" "$DIFF" | ollama run "$OLLAMA_MODEL" 2>/dev/null || true)"
+    MESSAGE="$(printf "%s" "$RAW" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | head -n 1 | tr -d '\r')"
   fi
 fi
 
-if [[ -z "$MESSAGE" ]]; then
-  echo "❌ 生成に失敗しました。接続/モデルを確認してください。"
-  exit 2
+# --- MAX 文字超えは切り詰め（簡易・実用優先） ---
+if [[ -n "$MESSAGE" && ${#MESSAGE} -gt $MAX_LEN ]]; then
+  MESSAGE="${MESSAGE:0:$MAX_LEN}"
 fi
 
+if [[ -z "$MESSAGE" ]]; then
+  echo "❌ 生成に失敗しました。Gemini/Ollama の設定・接続をご確認ください。" >&2
+  exit 3
+fi
+
+echo
+echo "🔗 OLLAMA_HOST=$OLLAMA_HOST_VAL"
+echo "🤖 OLLAMA_MODEL=$OLLAMA_MODEL"
+echo "✨ GEMINI_MODEL=$GEM_MODEL  (status: ${GEM_STATUS})"
 echo
 echo "🧠 提案コミットメッセージ:"
 echo "--------------------------------"
