@@ -1,109 +1,191 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Gemini APIキー検証スクリプト
-- ~/.gemini/.env または NeuroHub/config/.env を使用
-- v1 API / gemini-2.5-flash 対応
+Gemini APIキー検証スクリプト（ライブラリ兼CLI）
+
+■ ポイント
+- パスはハードコードしない：
+  1) 環境変数 NEUROHUB_CONFIG（configディレクトリへの絶対パス）
+  2) 環境変数 NEUROHUB_ROOT（その直下の config/ を使う）
+  3) スクリプト位置から親に辿って config/config.yaml を探索
+  4) 最後の手段として CWD からも探索
+- YAML（config/config.yaml）が見つかれば gemini.api_url / gemini.model を取得
+- .env は 見つかった config/.env を最優先、無ければ ~/.gemini/.env
+- --prompt 未指定なら "hello"
+- ライブラリ関数 test_key(...) は (ok, status, body, reply_text) を返します
 """
 
-import os, sys, json, requests
+import os, sys, json
 from pathlib import Path
+from typing import Optional, Tuple
 
-AI_STUDIO_URL = "https://aistudio.google.com/app/apikey"
-API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent"
+# 依存
+try:
+    import requests
+except Exception:
+    print("[ERROR] requests が必要です: pip install requests", file=sys.stderr)
+    sys.exit(2)
 
-HOME = Path.home()
-CONF_DIR = HOME / ".gemini"
-CONF_FILE = CONF_DIR / ".env"
+try:
+    import yaml  # type: ignore
+except Exception:
+    yaml = None  # PyYAML無しでも最低限動く
 
-# NeuroHub 側の .env（存在すれば同期対象にする）
-NEUROHUB_ENV = HOME / "NeuroHub/config/.env"
+DEFAULTS = {
+    "api_url": "https://generativelanguage.googleapis.com/v1",
+    "model": "gemini-2.5-flash",
+}
 
-def load_key():
-    """環境変数→.env→NeuroHubの順でキーを探す"""
-    if os.environ.get("GEMINI_API_KEY"):
-        return os.environ["GEMINI_API_KEY"].strip()
-    for path in [CONF_FILE, NEUROHUB_ENV]:
-        if path.exists():
-            for line in path.read_text().splitlines():
-                if line.startswith("GEMINI_API_KEY="):
-                    return line.split("=", 1)[1].strip()
+# ----------------- config ディレクトリ探索 -----------------
+def _find_config_dir() -> Optional[Path]:
+    # 明示渡し（最優先）
+    env_conf = os.environ.get("NEUROHUB_CONFIG")
+    if env_conf:
+        p = Path(env_conf).expanduser().resolve()
+        if p.is_dir():
+            return p
+
+    # ルート→config
+    env_root = os.environ.get("NEUROHUB_ROOT")
+    if env_root:
+        p = Path(env_root).expanduser().resolve() / "config"
+        if p.is_dir():
+            return p
+
+    # このファイルの親から上方探索
+    here = Path(__file__).resolve()
+    for base in [here.parent, *here.parents]:
+        cand = base / "config"
+        if (cand / "config.yaml").exists():
+            return cand
+
+    # CWD からも一応
+    cwd = Path.cwd()
+    for base in [cwd, *cwd.parents]:
+        cand = base / "config"
+        if (cand / "config.yaml").exists():
+            return cand
+
     return None
 
-def test_key(key: str):
-    """APIキーで実際にテキスト生成を試す"""
+# ----------------- 小ユーティリティ -----------------
+def _read_env_file(path: Path) -> dict:
+    env = {}
+    if not path or not path.exists():
+        return env
+    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        s = line.strip()
+        if not s or s.startswith("#") or "=" not in s:
+            continue
+        k, v = s.split("=", 1)
+        env[k.strip()] = v.strip()
+    return env
+
+def _extract_text_from_body(body: str) -> Optional[str]:
     try:
-        payload = {
-            "contents": [
-                {"parts": [{"text": "こんにちは"}]}
-            ]
-        }
-        r = requests.post(
-            f"{API_URL}?key={key}",
-            headers={"Content-Type": "application/json"},
-            data=json.dumps(payload),
-            timeout=10
-        )
-        ok = r.status_code == 200 and "candidates" in r.text
-        return ok, r.status_code, r.text
-    except Exception as e:
-        return False, 0, str(e)
+        data = json.loads(body)
+    except Exception:
+        return None
+    try:
+        cands = data.get("candidates") or []
+        if not cands:
+            return None
+        parts = (cands[0].get("content") or {}).get("parts") or []
+        texts = [p.get("text") for p in parts if isinstance(p, dict) and p.get("text")]
+        return "".join(texts) if texts else None
+    except Exception:
+        return None
 
-def save_key(key: str):
-    """キーを保存＆NeuroHubにも反映"""
-    CONF_DIR.mkdir(mode=0o700, exist_ok=True)
-    for path in [CONF_FILE, NEUROHUB_ENV]:
+# ----------------- 公開関数 -----------------
+def load_key(conf_dir: Optional[Path] = None) -> Optional[str]:
+    """
+    GEMINI_API_KEY を取得。
+    優先順: 環境変数 → config/.env → ~/.gemini/.env
+    """
+    if os.environ.get("GEMINI_API_KEY"):
+        return os.environ["GEMINI_API_KEY"].strip()
+
+    if conf_dir:
+        key = _read_env_file(conf_dir / ".env").get("GEMINI_API_KEY")
+        if key:
+            return key.strip()
+
+    home_key = _read_env_file(Path.home() / ".gemini/.env").get("GEMINI_API_KEY")
+    return home_key.strip() if home_key else None
+
+def load_cfg(conf_dir: Optional[Path] = None) -> dict:
+    """
+    config.yaml（見つかった場合）→ 環境変数（GEMINI_API_URL / GEMINI_MODEL）→ デフォルト
+    """
+    api_url = DEFAULTS["api_url"]
+    model   = DEFAULTS["model"]
+
+    if conf_dir and (conf_dir / "config.yaml").exists() and yaml:
         try:
-            if not path.parent.exists():
-                path.parent.mkdir(parents=True, exist_ok=True)
-            lines = [f"GEMINI_API_KEY={key}\n"]
-            path.write_text("".join(lines))
-            os.chmod(path, 0o600)
-            print(f"[SAVED] {path}")
+            y = yaml.safe_load((conf_dir / "config.yaml").read_text(encoding="utf-8"))
+            if isinstance(y, dict):
+                llm = (y.get("llm") or {})
+                gem = (llm.get("gemini") or {})
+                if gem.get("api_url"): api_url = str(gem["api_url"]).strip()
+                if gem.get("model"):   model   = str(gem["model"]).strip()
         except Exception as e:
-            print(f"[WARN] failed to save to {path}: {e}")
+            print(f"[WARN] config.yaml 読み込み失敗: {e}", file=sys.stderr)
 
-def show_info(key: str):
-    masked = f"{key[:6]}...{key[-4:]}" if key else "[未設定]"
-    print(f"GEMINI_API_KEY = {masked}")
-    if key:
-        print(f"export GEMINI_API_KEY={key}")
-    print("===============================\n")
+    if os.environ.get("GEMINI_API_URL"):
+        api_url = os.environ["GEMINI_API_URL"].strip()
+    if os.environ.get("GEMINI_MODEL"):
+        model   = os.environ["GEMINI_MODEL"].strip()
 
-def check_api():
-    """キーをロード→検証→必要なら更新"""
-    print(AI_STUDIO_URL)
-    key = load_key()
+    return {"api_url": api_url, "model": model}
+
+def test_key(api_url: str, model: str, key: str, text: str = "hello", timeout: int = 10) -> Tuple[bool, int, str, Optional[str]]:
+    """
+    実リクエスト。
+    戻り値: (ok, status, body, reply_text)
+    - ok: status==200 かつ "candidates" を含む
+    - reply_text: 抜き出した最初のテキスト（なければ None）
+    """
+    url = f"{api_url.rstrip('/')}/models/{model}:generateContent?key={key}"
+    payload = {"contents":[{"parts":[{"text": text}]}]}
+    try:
+        r = requests.post(url, headers={"Content-Type": "application/json"},
+                          data=json.dumps(payload), timeout=timeout)
+        body = r.text
+        ok = (r.status_code == 200) and ("candidates" in body)
+        reply = _extract_text_from_body(body)
+        return ok, r.status_code, body, reply
+    except Exception as e:
+        return False, 0, str(e), None
+
+# ----------------- CLI -----------------
+def _main():
+    import argparse
+    ap = argparse.ArgumentParser(description="Gemini API キー検証（config探索版）")
+    ap.add_argument("--prompt", "-p", default="hello", help="テスト送信プロンプト（既定: hello）")
+    ap.add_argument("--timeout", type=int, default=10)
+    ap.add_argument("--debug", action="store_true")
+    args = ap.parse_args()
+
+    conf_dir = _find_config_dir()
+    key = load_key(conf_dir)
+    cfg = load_cfg(conf_dir)
+
+    if args.debug:
+        print(f"[debug] conf_dir={conf_dir}", file=sys.stderr)
+        print(f"[debug] api_url={cfg['api_url']} model={cfg['model']} has_key={bool(key)}", file=sys.stderr)
 
     if not key:
-        print("[WARN] APIキーが設定されていません。")
-    else:
-        ok, code, body = test_key(key)
-        if ok:
-            print(f"[OK] 現在のAPIキーで {code} 応答確認")
-            show_info(key)
-            print("[DONE]")
-            return True
-        else:
-            print(f"[WARN] 現在のAPIキーでは code={code}")
-            print(body[:200])
+        print("[WARN] GEMINI_API_KEY が見つかりません。")
+        return 1
 
-    print("GEMINI_API_KEY（ここに貼り付け）:")
-    new_key = sys.stdin.readline().strip()
-    if not new_key:
-        print("[ERROR] 空のキーです。")
-        return False
-
-    ok, code, body = test_key(new_key)
-    if ok:
-        save_key(new_key)
-        show_info(new_key)
-        print("[DONE]")
-        return True
+    ok, code, body, reply = test_key(cfg["api_url"], cfg["model"], key, text=args.prompt, timeout=args.timeout)
+    print(f"[RESULT] status={code}")
+    if reply:
+        print(f"[REPLY] {reply}")
     else:
-        print(f"[ERROR] 入力キー検証失敗 code={code}")
-        print(body[:300])
-        return False
+        print(body[:400])
+
+    return 0 if ok else 2
 
 if __name__ == "__main__":
-    sys.exit(0 if check_api() else 1)
+    sys.exit(_main())
