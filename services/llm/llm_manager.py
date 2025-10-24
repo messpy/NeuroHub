@@ -3,7 +3,7 @@
 """
 LLM Manager（Gemini→Ollama ゲート）
 - パスはハードコードしない。config探索で yaml/.env を取得
-- ルール: Gemini の応答が 404 以外なら Ollama 実行（キー無しも実行）
+- ルール: Gemini の応答が 200 以外（403,429,500等含む）ならフォールバックで Ollama 実行
 """
 
 import os, sys, json, argparse
@@ -57,6 +57,7 @@ def _find_config_dir() -> Optional[Path]:
 
     return None
 
+
 def _read_env_file(path: Path) -> dict:
     env = {}
     if not path or not path.exists():
@@ -68,6 +69,7 @@ def _read_env_file(path: Path) -> dict:
         k, v = s.split("=", 1)
         env[k.strip()] = v.strip()
     return env
+
 
 def load_all_config():
     """
@@ -117,9 +119,10 @@ def load_all_config():
 
     return cfg
 
+
 def main():
     ap = argparse.ArgumentParser(description="NeuroHub LLM Manager（Gemini→Ollama）")
-    ap.add_argument("-p","--prompt", required=True, help="Ollama へ送るプロンプト")
+    ap.add_argument("-p", "--prompt", required=True, help="Ollama へ送るプロンプト")
     ap.add_argument("--stream", action="store_true", help="Ollama 出力を逐次表示")
     ap.add_argument("--ollama-model", help="Ollama モデル（未指定時は YAML/.env から）")
     ap.add_argument("--debug", action="store_true")
@@ -138,22 +141,28 @@ def main():
             "ollama_model":    args.ollama_model or cfg["ollama_model"],
         }, ensure_ascii=False, indent=2), file=sys.stderr)
 
-    # --- Gate: Gemini の応答が 404 以外なら Ollama 実行（キー無しも実行） ---
+    # --- Gate: Gemini の応答が 200 以外ならフォールバックで Ollama 実行 ---
     if cfg["gemini_api_key"]:
-        ok, status, body, reply = gem_test_key(cfg["gemini_api_url"], cfg["gemini_model"], cfg["gemini_api_key"], text="hello")
-        if status == 404:
+        ok, status, body, reply = gem_test_key(
+            cfg["gemini_api_url"],
+            cfg["gemini_model"],
+            cfg["gemini_api_key"],
+            text="hello"
+        )
+
+        if status == 200:
+            print("[OK] Gemini 疎通 200 → Ollama 実行へ", file=sys.stderr)
+        elif status == 404:
             print("[INFO] Gemini 応答 404（モデル/権限なし）→ Ollama 実行をスキップします。", file=sys.stderr)
             if args.debug:
                 print((reply or body)[:600], file=sys.stderr)
             return 4
-        elif ok:
-            print("[OK] Gemini 疎通 200 → Ollama 実行へ", file=sys.stderr)
         else:
-            print(f"[WARN] Gemini 応答 code={status}（404以外）→ ポリシーにより Ollama 実行へ", file=sys.stderr)
+            print(f"[WARN] Gemini 応答 code={status}（200/404以外）→ フォールバックで Ollama 実行へ", file=sys.stderr)
             if args.debug:
                 print((reply or body)[:600], file=sys.stderr)
     else:
-        print("[WARN] GEMINI_API_KEY 不在 → ポリシーにより Ollama 実行へ", file=sys.stderr)
+        print("[WARN] GEMINI_API_KEY 不在 → フォールバックで Ollama 実行へ", file=sys.stderr)
 
     if args.dry_run:
         print("[DRY-RUN] 判定のみで終了（Ollama未実行）")
@@ -171,6 +180,7 @@ def main():
     except Exception as e:
         print(f"[ERROR] Ollama error: {e}", file=sys.stderr)
         return 7
+
 
 if __name__ == "__main__":
     sys.exit(main())

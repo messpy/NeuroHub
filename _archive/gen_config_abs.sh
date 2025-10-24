@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# NeuroHub: 絶対パス＆システム情報つき config.yaml 生成（_archive直下用）
-# 実行例: bash gen_config_abs.sh  /  bash gen_config_abs.sh --debug
+# NeuroHub: 絶対パス & システム情報つき config.yaml 生成（_archive 直下用）
+# 使い方: bash gen_config_abs.sh  /  bash gen_config_abs.sh --debug
 set -euo pipefail
 
 DEBUG=${1:-}
@@ -13,13 +13,13 @@ CONF_DIR="$ROOT/config"
 YAML="$CONF_DIR/config.yaml"
 ENVF="$CONF_DIR/.env"
 
-# 必要ディレクトリ
 mkdir -p "$CONF_DIR" \
          "$ROOT/data/cache/asr" "$ROOT/data/cache/tts" "$ROOT/data/cache/mpv" \
          "$ROOT/logs" "$ROOT/models/piper"
 
-# ---- 収集: システム情報（失敗しても続行） ----
 safe() { "$@" 2>/dev/null || true; }
+
+# ---- 基本システム情報 ----
 HOSTNAME_FQDN="$(safe hostname -f || hostname)"
 USER_NAME="$(safe id -un || whoami)"
 OS_NAME="$(safe awk -F= '/^PRETTY_NAME/ {gsub(/"/,"",$2); print $2}' /etc/os-release)"
@@ -33,12 +33,39 @@ MACHINE_ID="$(safe cat /etc/machine-id)"
 IPV4S_CSV="$(safe ip -4 -o addr show scope global | awk '{print $4}' | cut -d/ -f1 | paste -sd',' -)"
 CREATED_AT="$(date -Is)"
 
-# ---- Ollama（短タイムアウト、無ければ空） ----
+# ---- タイムゾーン ----
+TZ_AUTO="$(safe timedatectl show -p Timezone --value)"
+[[ -z "${TZ_AUTO}" || "${TZ_AUTO}" == "n/a" ]] && TZ_AUTO="$(safe cat /etc/timezone)"
+if [[ -z "${TZ_AUTO}" || "${TZ_AUTO}" == "n/a" ]]; then
+  ZL="$(safe readlink -f /etc/localtime)"
+  [[ -n "${ZL:-}" ]] && TZ_AUTO="${ZL#/usr/share/zoneinfo/}"
+fi
+[[ -z "${TZ_AUTO}" || "${TZ_AUTO}" == "n/a" ]] && TZ_AUTO="UTC"
+
+# ---- 言語/ロケール/入力系 ----
+LOCALECTL_OUT="$(safe localectl status)"
+SYS_LOCALE_LINE="$(printf '%s\n' "$LOCALECTL_OUT" | awk -F': ' '/System Locale/ {print $2}')"
+SYS_LOCALE_LANG="$(printf '%s' "${SYS_LOCALE_LINE:-}" | sed -n 's/.*\bLANG=\([^;]*\).*/\1/p')"
+
+LANG_VAL="${LC_ALL:-${LANG:-${SYS_LOCALE_LANG:-}}}"
+LANGUAGE_VAL="${LANGUAGE:-}"
+APP_LANGUAGE="$(printf '%s' "${LANG_VAL:-}" | sed 's/\..*//' | sed 's/_/-/')"
+
+VC_KEYMAP="$(printf '%s\n' "$LOCALECTL_OUT" | awk -F': ' '/VC Keymap/ {print $2}')"
+X11_LAYOUT="$(printf '%s\n' "$LOCALECTL_OUT" | awk -F': ' '/X1[1 ] Layout/ {print $2}')"
+[[ -z "$X11_LAYOUT" ]] && X11_LAYOUT="$(printf '%s\n' "$LOCALECTL_OUT" | awk -F': ' '/X11 Layout/ {print $2}')"
+X11_MODEL="$(printf '%s\n' "$LOCALECTL_OUT" | awk -F': ' '/X11 Model/ {print $2}')"
+X11_VARIANT="$(printf '%s\n' "$LOCALECTL_OUT" | awk -F': ' '/X11 Variant/ {print $2}')"
+X11_OPTIONS="$(printf '%s\n' "$LOCALECTL_OUT" | awk -F': ' '/X11 Options/ {print $2}')"
+DESKTOP_ENV="${XDG_CURRENT_DESKTOP:-}"
+DESKTOP_SESSION="${DESKTOP_SESSION:-${GDMSESSION:-}}"
+
+# ---- Ollama 検出 ----
 OLLAMA_HOST_VAL="${OLLAMA_HOST:-http://127.0.0.1:11434}"
-MODELS_BLOCK="    models: []"
+MODELS_BLOCK='    models: []'
 SELECTED=""
 if command -v curl >/dev/null 2>&1 && command -v ollama >/dev/null 2>&1; then
-  if curl -sS --max-time 2 "${OLLAMA_HOST_VAL%/}/api/tags" >/dev/null; then
+  if curl -sS --max-time 4 "${OLLAMA_HOST_VAL%/}/api/tags" >/dev/null; then
     mapfile -t MODELS < <(ollama list 2>/dev/null | awk 'NR>1 {print $1}') || true
     if ((${#MODELS[@]})); then
       SELECTED="${MODELS[0]}"
@@ -50,19 +77,17 @@ if command -v curl >/dev/null 2>&1 && command -v ollama >/dev/null 2>&1; then
   fi
 fi
 
-# IPv4 配列表現（空なら空配列）
-if [[ -n "${IPV4S_CSV}" ]]; then
-  IPV4_YAML="[${IPV4S_CSV}]"
-else
-  IPV4_YAML="[]"
-fi
+# ---- IPv4 配列化 ----
+if [[ -n "${IPV4S_CSV}" ]]; then IPV4_YAML="[${IPV4S_CSV}]"; else IPV4_YAML="[]"; fi
 
-# ---- YAML 本文（ヒアドキュメントは“展開なし”でテンプレ → 後から置換） ----
-read -r -d '' YAML_TMPL <<'EOF'
+# ---- YAML テンプレ（※cat で確実に代入）----
+YAML_TMPL="$(cat <<'EOF'
 app:
   name: NeuroHub
-  timezone: Asia/Tokyo
+  timezone: "__APP_TZ__"
   env: dev
+  language: "__APP_LANGUAGE__"
+  locale: "__LANG_VAL__"
 
 paths:
   base: __ROOT__
@@ -120,12 +145,28 @@ system:
   cpu_cores: __CPU_CORES__
   memory_mb: __MEM_MB__
   ipv4: __IPV4_YAML__
-  project_root: "__ROOT__
+  project_root: "__ROOT__"
+  locale:
+    LANG: "__LANG_VAL__"
+    LC_ALL: "__LC_ALL_VAL__"
+    LANGUAGE: "__LANGUAGE_VAL__"
+    system_locale_line: "__SYS_LOCALE_LINE__"
+  keyboard:
+    vc_keymap: "__VC_KEYMAP__"
+    x11_layout: "__X11_LAYOUT__"
+    x11_model: "__X11_MODEL__"
+    x11_variant: "__X11_VARIANT__"
+    x11_options: "__X11_OPTIONS__"
+  desktop:
+    current_desktop: "__DESKTOP_ENV__"
+    session: "__DESKTOP_SESSION__"
 EOF
+)"
 
-# 置換（安全に1回ずつ）
+# ---- 置換 ----
 OUT="$YAML_TMPL"
 OUT="${OUT//__ROOT__/$ROOT}"
+OUT="${OUT//__APP_TZ__/$TZ_AUTO}"
 OUT="${OUT//__OLLAMA_HOST_VAL__/$OLLAMA_HOST_VAL}"
 OUT="${OUT//__MODELS_BLOCK__/$MODELS_BLOCK}"
 OUT="${OUT//__SELECTED__/$SELECTED}"
@@ -140,12 +181,32 @@ OUT="${OUT//__CPU_MODEL__/$CPU_MODEL}"
 OUT="${OUT//__CPU_CORES__/$CPU_CORES}"
 OUT="${OUT//__MEM_MB__/$MEM_MB}"
 OUT="${OUT//__IPV4_YAML__/$IPV4_YAML}"
+OUT="${OUT//__APP_LANGUAGE__/${APP_LANGUAGE:-}}"
+OUT="${OUT//__LANG_VAL__/${LANG_VAL:-}}"
+OUT="${OUT//__LC_ALL_VAL__/${LC_ALL:-}}"
+OUT="${OUT//__LANGUAGE_VAL__/${LANGUAGE_VAL:-}}"
+OUT="${OUT//__SYS_LOCALE_LINE__/${SYS_LOCALE_LINE:-}}"
+OUT="${OUT//__VC_KEYMAP__/${VC_KEYMAP:-}}"
+OUT="${OUT//__X11_LAYOUT__/${X11_LAYOUT:-}}"
+OUT="${OUT//__X11_MODEL__/${X11_MODEL:-}}"
+OUT="${OUT//__X11_VARIANT__/${X11_VARIANT:-}}"
+OUT="${OUT//__X11_OPTIONS__/${X11_OPTIONS:-}}"
+OUT="${OUT//__DESKTOP_ENV__/${DESKTOP_ENV:-}}"
+OUT="${OUT//__DESKTOP_SESSION__/${DESKTOP_SESSION:-}}"
 
-# YAML 書き込み
-printf '%s\n' "$OUT" > "$YAML"
-echo "ok: wrote $YAML"
+# ---- OUTが空ならエラー ----
+if [[ -z "${OUT}" ]]; then
+  echo "[ERROR] OUT is empty; template expansion failed" >&2
+  exit 20
+fi
 
-# .env は「初回のみ作成」。存在する場合は一切変更しない
+# ---- YAML 原子的に上書き ----
+TMP="$(mktemp "${YAML}.tmp.XXXX")"
+printf '%s\n' "$OUT" > "$TMP"
+mv -f "$TMP" "$YAML"
+echo "ok: wrote $YAML (atomic)"
+
+# ---- .env は初回のみ作成 ----
 if [[ ! -f "$ENVF" ]]; then
   umask 077
   cat > "$ENVF" <<EOF
@@ -161,5 +222,4 @@ else
   echo "ok: kept existing $ENVF (no changes)"
 fi
 
-# 参考出力
 [[ -n "$SELECTED" ]] && echo "ollama.selected_model=$SELECTED" || echo "no local ollama models"
