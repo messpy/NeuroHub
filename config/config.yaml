@@ -4,11 +4,11 @@ app:
   env: dev
 
 paths:
-  base: ./
-  cache_asr: ./data/cache/asr
-  cache_tts: ./data/cache/tts
-  cache_mpv: ./data/cache/mpv
-  database: ./data/neurohub.db
+  base: /home/dellkenny/NeuroHub
+  cache_asr: /home/dellkenny/NeuroHub/data/cache/asr
+  cache_tts: /home/dellkenny/NeuroHub/data/cache/tts
+  cache_mpv: /home/dellkenny/NeuroHub/data/cache/mpv
+  database: /home/dellkenny/NeuroHub/data/neurohub.db
 
 llm:
   default: ollama
@@ -20,8 +20,9 @@ llm:
     timeout_sec:
   ollama:
     host: http://127.0.0.1:11434
-    models: []
-    selected_model: 
+    models:
+      - moondream:latest
+    selected_model: moondream:latest
     temperature:
     num_ctx:
     num_thread:
@@ -33,16 +34,30 @@ asr:
 
 tts:
   engine:
-  model: ./models/piper/ja-kokoro-high.onnx
-  out_wav: ./data/cache/tts/out.wav
+  model: /home/dellkenny/NeuroHub/models/piper/ja-kokoro-high.onnx
+  out_wav: /home/dellkenny/NeuroHub/data/cache/tts/out.wav
   speed:
 
 mpv:
   audio_device:
   default_volume:
-  ipc_dir: ./data/cache/mpv
+  ipc_dir: /home/dellkenny/NeuroHub/data/cache/mpv
   common_opts:
 
 logging:
-  level:
-  dir: ./logs
+  level: INFO
+  dir: /home/dellkenny/NeuroHub/logs
+
+system:
+  created_at: "2025-10-24T11:02:34+09:00"
+  machine_id: "2efdb06e8bb149ebb9fe4268c4a8465f"
+  hostname: "dellkenny-Inspiron-5547"
+  user: "dellkenny"
+  os: "Ubuntu 24.04.3 LTS"
+  kernel: "6.14.0-33-generic"
+  arch: "x86_64"
+  cpu_model: "Intel(R) Core(TM) i7-4510U CPU @ 2.00GHz"
+  cpu_cores: 4
+  memory_mb: 7823
+  ipv4: [192.168.3.101,100.119.137.7]
+  project_root: "/home/dellkenny/NeuroHub"
