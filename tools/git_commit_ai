@@ -1,0 +1,188 @@
+#!/usr/bin/env bash
+# git_commit_ai_auto_smart.sh (安全修正版・ログ追加 v2)
+# ------------------------------------------------------------
+# 完全自動AIコミット:
+#  - git add -A
+#  - Smart Grouping (簡易: ここでは1ファイル=1コミット版)
+#  - 機密情報を検出して除外
+#  - Gemini優先→失敗時Ollama
+#  - すべての進捗はstderrへ出力（log関数）
+# ------------------------------------------------------------
+
+set -euo pipefail
+log() { printf '%s\n' "$*" >&2; }
+
+log ">> git_commit_ai.sh start (pwd=$(pwd))"
+
+# ===== 基本設定 =====
+LANG_CODE="ja"
+MAX_LEN=40
+MAX_RETRY=3
+DIFF_HEAD_LINES=500
+
+# ===== Gitチェック =====
+if ! GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  log "Gitリポジトリ内で実行してください。"
+  exit 1
+fi
+log ">> GIT_ROOT=$GIT_ROOT"
+
+# ===== 設定探索 =====
+find_config_dir() {
+  if [[ -n "${NEUROHUB_CONFIG:-}" && -d "${NEUROHUB_CONFIG}" ]]; then echo "$NEUROHUB_CONFIG"; return; fi
+  if [[ -n "${NEUROHUB_ROOT:-}" && -d "${NEUROHUB_ROOT}/config" ]]; then echo "$NEUROHUB_ROOT/config"; return; fi
+  local base="$PWD"
+  while :; do
+    [[ -f "$base/config/config.yaml" ]] && echo "$base/config" && return
+    [[ "$base" == "/" ]] && break
+    base="$(dirname "$base")"
+  done
+  [[ -f "$HOME/NeuroHub/config/config.yaml" ]] && echo "$HOME/NeuroHub/config" && return
+  [[ -f "$GIT_ROOT/config/config.yaml" ]] && echo "$GIT_ROOT/config" && return
+}
+CONF_DIR="$(find_config_dir || true)"
+CONF_YAML="${CONF_DIR:-}/config.yaml"
+CONF_ENV="${CONF_DIR:-}/.env"
+log ">> CONF_DIR=${CONF_DIR:-none}"
+
+OLLAMA_HOST_VAL="http://127.0.0.1:11434"
+OLLAMA_MODEL=""
+GEM_API_URL="https://generativelanguage.googleapis.com/v1"
+GEM_MODEL="gemini-2.5-flash"
+GEM_API_KEY="${GEMINI_API_KEY:-}"
+
+if [[ -f "$CONF_ENV" ]]; then
+  if grep -q '^GEMINI_API_KEY=' "$CONF_ENV"; then
+    GEM_API_KEY="$(grep '^GEMINI_API_KEY=' "$CONF_ENV" | tail -n1 | cut -d= -f2-)"
+  fi
+  if grep -q '^OLLAMA_HOST=' "$CONF_ENV"; then
+    OLLAMA_HOST_VAL="$(grep '^OLLAMA_HOST=' "$CONF_ENV" | tail -n1 | cut -d= -f2-)"
+  fi
+fi
+
+if [[ -f "$CONF_YAML" ]] && command -v yq >/dev/null 2>&1; then
+  OLLAMA_HOST_VAL="$(yq -r '.llm.ollama.host // "http://127.0.0.1:11434"' "$CONF_YAML")"
+  OLLAMA_MODEL="$(yq -r '.llm.ollama.selected_model // ""' "$CONF_YAML")"
+  GEM_API_URL="$(yq -r '.llm.gemini.api_url // "https://generativelanguage.googleapis.com/v1"' "$CONF_YAML")"
+  GEM_MODEL="$(yq -r '.llm.gemini.model // "gemini-2.5-flash"' "$CONF_YAML")"
+fi
+[[ -z "$OLLAMA_MODEL" ]] && OLLAMA_MODEL="qwen2.5:1.5b-instruct"
+log ">> OLLAMA_HOST=$OLLAMA_HOST_VAL  OLLAMA_MODEL=$OLLAMA_MODEL  GEM_MODEL=$GEM_MODEL"
+
+# ===== センシティブ検出 =====
+SENSITIVE_PATH_GLOBS=(
+  '*.pem' '*.key' '*.crt' '*.p12' '*.pfx' '*.jks' '*.gpg'
+  '.env' '.env.*' '*credentials*' '*secrets*' '*id_rsa*' '.ssh/*'
+)
+SECRET_REGEXES=(
+  '-----BEGIN (RSA|DSA|EC|OPENSSH) PRIVATE KEY-----'
+  'AKIA[0-9A-Z]{16}'
+  'ghp_[0-9A-Za-z]{36,}'
+  'github_pat_[0-9A-Za-z_]{20,}'
+)
+
+is_sensitive_path() {
+  local f="$1"
+  for pat in "${SENSITIVE_PATH_GLOBS[@]}"; do
+    case "$f" in $pat) return 0 ;; esac
+  done
+  return 1
+}
+
+has_secret_in_diff() {
+  local f="$1"
+  local added
+  added="$(git diff --cached -- "$f" | sed -n 's/^+//p' || true)"
+  [[ -z "$added" ]] && return 1
+
+  local key_begin='-----BEGIN (RSA|DSA|EC|OPENSSH) PRIVATE KEY-----'
+  local key_end='-----END (RSA|DSA|EC|OPENSSH) PRIVATE KEY-----'
+  if grep -Eq -e "$key_begin" <<<"$added" && grep -Eq -e "$key_end" <<<"$added"; then
+    # " と ' と # を含まない（例示やコメントでない）場合のみ鍵とみなす
+    if ! grep -Eq "[\"'#]" <<<"$added"; then
+      return 0
+    fi
+  fi
+  local rx
+  for rx in "${SECRET_REGEXES[@]}"; do
+    [[ "$rx" == "$key_begin" ]] && continue
+    if grep -Eq -e "$rx" <<<"$added"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# ===== ステージング =====
+git add -A >/dev/null 2>&1 || true
+mapfile -t FILES < <(git diff --cached --name-only)
+log ">> staged files: ${#FILES[@]}"
+
+if (( ${#FILES[@]} == 0 )); then
+  log "コミット対象なし（git add の後に実行してね）"
+  exit 0
+fi
+
+# 除外
+SAFE_FILES=()
+for f in "${FILES[@]}"; do
+  if is_sensitive_path "$f" || has_secret_in_diff "$f"; then
+    log "⚠ センシティブ検出により除外: $f"
+  else
+    SAFE_FILES+=("$f")
+  fi
+done
+FILES=("${SAFE_FILES[@]}")
+log ">> safe files: ${#FILES[@]}"
+
+if (( ${#FILES[@]} == 0 )); then
+  log "すべてセンシティブ判定で除外されました"
+  exit 0
+fi
+
+# ===== AIプロンプト生成 =====
+make_base_prompt() {
+cat <<EOF
+次の差分から、NeuroHubスタイルのコミットメッセージを生成してください。
+
+:prefix: #Issue 内容
+例: :fix: #123 ログ出力の不具合修正
+EOF
+}
+
+generate_message_once() {
+  local prompt_full="$1" msg=""
+  if [[ -n "${GEM_API_KEY:-}" ]]; then
+    log "gemini生成中... (${GEM_MODEL})"
+    local url req resp
+    url="${GEM_API_URL%/}/models/${GEM_MODEL}:generateContent?key=${GEM_API_KEY}"
+    req="$(jq -nc --arg t "$prompt_full" '{contents:[{parts:[{text:$t}]}]}')"
+    resp="$(curl -sS -H "Content-Type: application/json" -d "$req" "$url" || true)"
+    if jq -e '.error' >/dev/null 2>&1 <<<"$resp"; then
+      log "Gemini失敗"
+    else
+      msg="$(jq -r '.candidates[0].content.parts[0].text // ""' <<<"$resp" | head -n1)"
+    fi
+  fi
+  if [[ -z "$msg" ]]; then
+    log "Ollama生成中... (${OLLAMA_MODEL})"
+    export OLLAMA_HOST="$OLLAMA_HOST_VAL"
+    msg="$(printf "%s" "$prompt_full" | ollama run "$OLLAMA_MODEL" 2>/dev/null | head -n1)"
+  fi
+  printf '%s\n' "$msg"
+}
+
+# ===== 実行 =====
+for f in "${FILES[@]}"; do
+  log ">> commit target: $f"
+  prompt="$(make_base_prompt)
+==== ファイル ====
+$(git diff --cached -- "$f" | head -n $DIFF_HEAD_LINES)"
+  msg="$(generate_message_once "$prompt")"
+  [[ -z "$msg" ]] && msg=":chore: 自動生成失敗 $f"
+  git commit -m "$msg" -- "$f" || true
+  log "✅ $f → $msg"
+done
+
+log "完了"
+
