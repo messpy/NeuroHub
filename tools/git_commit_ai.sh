@@ -37,7 +37,7 @@ done
 
 # --- Git ルート（今いるリポジトリ） ---
 if ! GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
-  echo "❌ Git リポジトリ内で実行してください。" >&2
+  echo "Git リポジトリ内で実行してください。" >&2
   exit 1
 fi
 
@@ -65,7 +65,6 @@ find_config_dir() {
     printf '%s\n' "$HOME/NeuroHub/config"
     return
   fi
-  # 最後の手段: Git ルートに対しても試す
   if [[ -f "$GIT_ROOT/config/config.yaml" ]]; then
     printf '%s\n' "$GIT_ROOT/config"
     return
@@ -107,14 +106,12 @@ if [[ -f "$CONF_YAML" ]]; then
     GEM_API_URL="$(yq -r '.llm.gemini.api_url // "https://generativelanguage.googleapis.com/v1"' "$CONF_YAML")"
     GEM_MODEL="$(yq -r '.llm.gemini.model // "gemini-2.5-flash"' "$CONF_YAML")"
   else
-    # 簡易パース（インデント前提の緩いやつ）
     in_ollama=0; in_gemini=0
     while IFS= read -r line; do
       case "$line" in
         "  ollama:"*) in_ollama=1; in_gemini=0; continue ;;
         "  gemini:"*) in_gemini=1; in_ollama=0; continue ;;
       esac
-      # セクション終了（次のトップ/同階層キーで抜ける）
       if [[ "$line" =~ ^[a-zA-Z] ]]; then in_ollama=0; in_gemini=0; fi
       if (( in_ollama )); then
         if [[ "$line" =~ host:\ *(.*) ]]; then OLLAMA_HOST_VAL="${BASH_REMATCH[1]//\"/}"; fi
@@ -140,13 +137,22 @@ if [[ -z "$OLLAMA_MODEL" ]]; then
 fi
 [[ -z "$OLLAMA_MODEL" ]] && OLLAMA_MODEL="qwen2.5:1.5b-instruct"
 
-# --- Git ステージの確認 ---
+# --- Git ステージの確認（自動 add はそのまま維持） ---
 git add -A >/dev/null 2>&1 || true
-DIFF="$(git diff --cached || true)"
-if [[ -z "$DIFF" ]]; then
-  echo "⚠️ ステージされた変更がありません。(\`git add -A\` 済み？)" >&2
+
+# 追加: ステージング済みファイル一覧を最初に表示
+STAGED_LIST="$(git diff --cached --name-only || true)"
+if [[ -z "$STAGED_LIST" ]]; then
+  echo "ステージされた変更がありません。（git add -A 済み？）" >&2
   exit 1
 fi
+echo "ステージング済みファイル:"
+echo "--------------------------------"
+echo "$STAGED_LIST"
+echo "--------------------------------"
+
+# 差分本文
+DIFF="$(git diff --cached || true)"
 
 # --- プロンプト（言語別） ---
 if [[ "$LANG_CODE" == "ja" ]]; then
@@ -161,16 +167,13 @@ PAYLOAD_TEXT="$(printf "%s\n\n%s\n" "$PROMPT" "$DIFF")"
 # =========================
 MESSAGE=""
 if [[ -n "${GEM_API_KEY:-}" ]]; then
-  # v1 generateContent
   GEM_URL="${GEM_API_URL%/}/models/${GEM_MODEL}:generateContent?key=${GEM_API_KEY}"
   GEM_REQ="$(jq -nc --arg t "$PAYLOAD_TEXT" '{contents:[{parts:[{text:$t}]}]}')"
   GEM_RESP="$(curl -sS -H "Content-Type: application/json" -d "$GEM_REQ" "$GEM_URL" || true)"
-  # エラーなら candidates 無し
   if jq -e '.error' >/dev/null 2>&1 <<<"$GEM_RESP"; then
     GEM_STATUS="ERR"
   else
     GEM_STATUS="OK"
-    # 最初のテキスト候補
     MESSAGE="$(jq -r '.candidates[0].content.parts[0].text // ""' <<<"$GEM_RESP" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | tr -d '\r' | head -n1)"
   fi
 else
@@ -184,41 +187,40 @@ if [[ -z "$MESSAGE" ]]; then
   export OLLAMA_HOST="$OLLAMA_HOST_VAL"
   RAW="$(printf "%s" "$PAYLOAD_TEXT" | ollama run "$OLLAMA_MODEL" 2>/dev/null || true)"
   MESSAGE="$(printf "%s" "$RAW" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | head -n 1 | tr -d '\r')"
-  # さらに空なら短縮プロンプトで再試行
   if [[ -z "$MESSAGE" ]]; then
     RAW="$(printf "Write a one-line commit message in %s within %s chars.\n\n%s\n" "$LANG_CODE" "$MAX_LEN" "$DIFF" | ollama run "$OLLAMA_MODEL" 2>/dev/null || true)"
     MESSAGE="$(printf "%s" "$RAW" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | head -n 1 | tr -d '\r')"
   fi
 fi
 
-# --- MAX 文字超えは切り詰め（簡易・実用優先） ---
+# --- MAX 文字超えは切り詰め ---
 if [[ -n "$MESSAGE" && ${#MESSAGE} -gt $MAX_LEN ]]; then
   MESSAGE="${MESSAGE:0:$MAX_LEN}"
 fi
 
 if [[ -z "$MESSAGE" ]]; then
-  echo "❌ 生成に失敗しました。Gemini/Ollama の設定・接続をご確認ください。" >&2
+  echo "生成に失敗しました。Gemini/Ollama の設定・接続をご確認ください。" >&2
   exit 3
 fi
 
 echo
-echo "🔗 OLLAMA_HOST=$OLLAMA_HOST_VAL"
-echo "🤖 OLLAMA_MODEL=$OLLAMA_MODEL"
-echo "✨ GEMINI_MODEL=$GEM_MODEL  (status: ${GEM_STATUS})"
+echo "OLLAMA_HOST=$OLLAMA_HOST_VAL"
+echo "OLLAMA_MODEL=$OLLAMA_MODEL"
+echo "GEMINI_MODEL=$GEM_MODEL  (status: ${GEM_STATUS})"
 echo
-echo "🧠 提案コミットメッセージ:"
+echo "提案コミットメッセージ:"
 echo "--------------------------------"
 echo "$MESSAGE"
 echo "--------------------------------"
 
 if (( AUTO_YES )); then
   git commit -m "$MESSAGE"
-  echo "✅ コミットしました。"
+  echo "コミットしました。"
   exit 0
 fi
 
 read -r -p "このメッセージでコミットしますか？ (y/N): " yn
 case "$yn" in
-  [Yy]*) git commit -m "$MESSAGE"; echo "✅ コミットしました。" ;;
+  [Yy]*) git commit -m "$MESSAGE"; echo "コミットしました。" ;;
   *) echo "キャンセルしました。";;
 esac
