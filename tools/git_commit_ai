@@ -163,6 +163,9 @@ log ">> target files (working tree): ${#FILES[@]}"
 # ===== 1ファイルずつ処理 =====
 for f in "${FILES[@]}"; do
   log ">> processing: $f"
+  printf "#######################"
+  printf "$f"
+  printf "#######################"
 
   # ステージ操作（個別）
   if [[ ! -e "$f" ]]; then
