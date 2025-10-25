@@ -4,3 +4,4 @@ Your new public key is:
 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJbl282Un0m5hhHUyYBX8d/Td4IzGkzH6kasOevDVLfT
 
 Error: listen tcp 127.0.0.1:11434: bind: address already in use
+Error: requires at least 1 arg(s), only received 0
