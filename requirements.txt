@@ -9,3 +9,5 @@ rich>=13.7.1
 pyopenjtalk
 soundfile
 numpy
+requests
+PyYAML
