@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-# git_commit_ai_individual.sh
+# git_commit_ai_individual_interactive.sh
 # ------------------------------------------------------------
-# 個別ステージ版:
-#  - 作業ツリーから対象ファイル一覧を作成（変更/新規/削除）
-#  - 1ファイルずつステージ → AIでメッセージ生成 → その1件だけコミット
-#  - センシティブ内容（鍵/トークン等）は diff で検出したらスキップ
-#  - Gemini 優先 → 失敗時 Ollama
-#  - 直近の重複メッセージを回避（再生成を最大 N 回）
+# 個別ステージ + 対話確認版:
+#  - 作業ツリーから対象ファイル一覧（変更/新規/削除）
+#  - 1ファイルずつステージ → AI生成（Gemini→Ollama）
+#  - 生成失敗時はユーザー入力にフォールバック
+#  - 各ファイルごとに「これでいいですか？」確認（編集/再生成/手入力/スキップ/中止）
+#  - センシティブ内容を追加行で検出した場合はスキップ
+#  - 進捗ログ + 区切り表示（####################### ファイル名 #######################）
 # ------------------------------------------------------------
 
 set -euo pipefail
 log() { printf '%s\n' "$*" >&2; }
 
-log ">> git_commit_ai_individual.sh start (pwd=$(pwd))"
+log ">> git_commit_ai_individual_interactive.sh start (pwd=$(pwd))"
 
 # ===== 基本設定 =====
 LANG_CODE="ja"
@@ -160,19 +161,24 @@ if (( ${#FILES[@]} == 0 )); then
 fi
 log ">> target files (working tree): ${#FILES[@]}"
 
+sep_line() {
+  printf '\n####################### %s #######################\n' "$1"
+}
+
 # ===== 1ファイルずつ処理 =====
 for f in "${FILES[@]}"; do
+  sep_line "$f"
   log ">> processing: $f"
-  printf "#######################"
-  printf "$f"
-  printf "#######################"
 
-  # ステージ操作（個別）
+  # ステージ操作（個別） + ログ/プリント
   if [[ ! -e "$f" ]]; then
     git rm -- "$f" >/dev/null 2>&1 || true
+    log "   -> staged (rm) $f"
   else
     git add -- "$f" >/dev/null 2>&1 || true
+    log "   -> staged (add) $f"
   fi
+  printf "#######################"; printf "%s" "$f"; printf "#######################\n"
 
   # ステージ済み差分を取得（その1件だけ）
   diff_text="$(git diff --cached -- "$f")"
@@ -198,21 +204,78 @@ $(printf "%s" "$diff_text" | head -n "$DIFF_HEAD_LINES")
 "
 
   # 生成（重複回避付き）
+  rejects=()
   message="$(generate_message_once "$prompt")"
   tries=0
   while { [[ -z "$message" ]] || is_dup_msg "$message"; } && (( tries < MAX_RETRY )); do
     [[ -z "$message" ]] && log "   -> 生成空、再試行..." || log "   -> 重複検出、再生成..."
+    rejects+=("$message")
     prompt+=$'\n'"※他ファイルと同一の1行目は不可。対象: $f"
     message="$(generate_message_once "$prompt")"
     ((tries++))
   done
 
-  [[ -z "$message" ]] && message=":chore: 自動生成失敗 $f"
+  # もしAIが空や不適切なら、ユーザー入力にフォールバック
+  if [[ -z "$message" ]]; then
+    echo
+    echo "ファイル: $f"
+    echo "AIで生成に失敗しました。手入力してください。"
+    read -r -p "コミットメッセージ: " message
+  fi
 
-  # コミット実行（この1件だけ）
-  git commit -m "$message" -- "$f" || true
-  mark_msg "$message"
-  log "✅ $f → $message"
+  # 対話確認ループ
+  while :; do
+    echo
+    echo "ファイル: $f"
+    echo "コミットメッセージ候補:"
+    echo "--------------------------------"
+    echo "$message"
+    echo "--------------------------------"
+    read -r -p "[Enter=確定 / e=編集 / r=再生成 / m=手入力 / s=スキップ / q=中止] " ans
+    case "${ans:-}" in
+      "" )
+        # 確定
+        git commit -m "$message" -- "$f" || true
+        mark_msg "$message"
+        log "✅ $f → $message"
+        break
+        ;;
+      e|E )
+        if [[ -n "${EDITOR:-}" ]]; then
+          tmpfile="$(mktemp)"
+          printf "%s" "$message" > "$tmpfile"
+          "$EDITOR" "$tmpfile"
+          message="$(cat "$tmpfile")"
+          rm -f "$tmpfile"
+        else
+          read -r -p "新しいメッセージ: " newmsg
+          [[ -n "$newmsg" ]] && message="$newmsg"
+        fi
+        ;;
+      r|R )
+        rejects+=("$message")
+        prompt+=$'\n'"※前案は不採用。もっと具体的に/重複回避。対象: $f"
+        newmsg="$(generate_message_once "$prompt")"
+        if [[ -n "$newmsg" ]]; then message="$newmsg"; else log "   -> 再生成失敗、保持"; fi
+        ;;
+      m|M )
+        read -r -p "手入力メッセージ: " newmsg
+        [[ -n "$newmsg" ]] && message="$newmsg"
+        ;;
+      s|S )
+        git restore --staged -- "$f" >/dev/null 2>&1 || true
+        log "   -> スキップ: $f（アンステージ済み）"
+        break
+        ;;
+      q|Q )
+        log "   -> ユーザー中止"
+        exit 1
+        ;;
+      * )
+        echo "入力が無効です。"
+        ;;
+    esac
+  done
 done
 
 log "完了"
