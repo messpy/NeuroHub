@@ -2,17 +2,15 @@
 # git-commit-ai.sh
 # --------------------------------------------
 # NeuroHubスタイルのコミットメッセージ支援スクリプト
-#  - config.yaml / .env から Gemini or Ollama を自動選択
-#  - 公式 + NeuroHub拡張Prefix (:add:, :fix:, etc)
-#  - 日本語形式, 絵文字なし
+# - config.yaml / .env を見て Gemini 優先 → Ollama フォールバック
+# - 日本語・絵文字なし・:prefix: 形式
+# - ステージ一覧表示後、即生成（確認プロンプトは廃止）
+# - Retryで不採用案を蓄積し、次回生成時に回避・改善させる
 #
 # 使い方:
 #   bash tools/git_commit_ai.sh
-#   bash tools/git_commit_ai.sh -y                # 確認なしでコミット
+#   bash tools/git_commit_ai.sh -y                # 生成後即コミット（編集/メニューもスキップ）
 #   bash tools/git_commit_ai.sh --lang ja --max 40
-#
-# 依存:
-#   curl, jq, ollama, (yqがあればより正確)
 # --------------------------------------------
 
 set -euo pipefail
@@ -20,6 +18,7 @@ set -euo pipefail
 AUTO_YES=0
 LANG_CODE="ja"
 MAX_LEN=40
+MAX_RETRY=5
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -28,8 +27,7 @@ while [[ $# -gt 0 ]]; do
     --max) MAX_LEN="${2:-40}"; shift 2 ;;
     -h|--help)
       echo "Usage: $0 [-y|--yes] [--lang ja|en] [--max N]"
-      exit 0
-      ;;
+      exit 0 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -57,14 +55,14 @@ CONF_DIR="$(find_config_dir || true)"
 CONF_YAML="${CONF_DIR:-}/config.yaml"
 CONF_ENV="${CONF_DIR:-}/.env"
 
-# --- デフォルト値 ---
+# --- 既定値 ---
 OLLAMA_HOST_VAL="http://127.0.0.1:11434"
 OLLAMA_MODEL=""
 GEM_API_URL="https://generativelanguage.googleapis.com/v1"
 GEM_MODEL="gemini-2.5-flash"
 GEM_API_KEY="${GEMINI_API_KEY:-}"
 
-# --- .env読込 ---
+# --- .env 読み込み ---
 if [[ -f "$CONF_ENV" ]]; then
   if grep -q '^GEMINI_API_KEY=' "$CONF_ENV"; then
     val="$(grep '^GEMINI_API_KEY=' "$CONF_ENV" | tail -n1 | cut -d= -f2-)"
@@ -76,8 +74,8 @@ if [[ -f "$CONF_ENV" ]]; then
   fi
 fi
 
-# --- YAML読込 ---
-if [[ -f "$CONF_YAML" && -z "$OLLAMA_MODEL" ]]; then
+# --- YAML（任意） ---
+if [[ -f "$CONF_YAML" ]]; then
   if command -v yq >/dev/null 2>&1; then
     OLLAMA_HOST_VAL="$(yq -r '.llm.ollama.host // "http://127.0.0.1:11434"' "$CONF_YAML")"
     OLLAMA_MODEL="$(yq -r '.llm.ollama.selected_model // ""' "$CONF_YAML")"
@@ -87,29 +85,26 @@ if [[ -f "$CONF_YAML" && -z "$OLLAMA_MODEL" ]]; then
 fi
 [[ -z "$OLLAMA_MODEL" ]] && OLLAMA_MODEL="qwen2.5:1.5b-instruct"
 
-# --- Git ステージ確認 ---
+# --- ステージング（自動）＆一覧表示 ---
 git add -A >/dev/null 2>&1 || true
 STAGED_LIST="$(git diff --cached --name-only || true)"
 if [[ -z "$STAGED_LIST" ]]; then
   echo "ステージされた変更がありません。（git add -A 済み？）" >&2
   exit 1
 fi
-
 echo "ステージング済みファイル:"
 echo "--------------------------------"
 echo "$STAGED_LIST"
 echo "--------------------------------"
 
-if (( ! AUTO_YES )); then
-  read -r -p "このファイル群を対象にコミットメッセージを生成します。続行しますか？ (y/N): " yn
-  case "$yn" in [Yy]*) ;; *) echo "キャンセルしました。"; exit 0;; esac
-fi
-
+# 差分
 DIFF="$(git diff --cached || true)"
 
-# --- NeuroHub形式プロンプト（絵文字なし） ---
-if [[ "$LANG_CODE" == "ja" ]]; then
-  PROMPT="次の git diff をもとに、NeuroHubスタイルのコミットメッセージを生成してください。
+# --- NeuroHub 形式ベースプロンプト ---
+make_base_prompt() {
+  if [[ "$LANG_CODE" == "ja" ]]; then
+cat <<'EOF'
+次の git diff をもとに、NeuroHubスタイルのコミットメッセージを生成してください。
 
 ==== Commit Message Format ====
 :prefix: #Issue番号 変更内容
@@ -143,80 +138,144 @@ if [[ "$LANG_CODE" == "ja" ]]; then
 ・句読点なし、敬語不要
 ・2行目以降に詳細説明が必要なら追記（任意）
 
-==== 対象差分 ====
-$DIFF
-"
-else
-  PROMPT="From the following git diff, generate a commit message in NeuroHub-style format:
+EOF
+  else
+cat <<'EOF'
+From the following git diff, generate a NeuroHub-style commit message.
+
+Format:
 :prefix: #Issue description
-Example:
+Examples:
 :add: #123 Add new API endpoint
-:fix: Correct encoding bug
+:fix: Correct log encoding bug
 
 Rules:
 - No emoji
 - Start with :prefix:
 - Description concise, imperative, within ${MAX_LEN} chars
-- Follow prefix list: add, fix, feat, docs, style, refactor, etc."
-fi
+- Optional body from 2nd line
+- Prefer accurate prefix: add, fix, feat, docs, style, refactor, perf, test, chore, etc.
 
-# --- Gemini or Ollama ---
-MESSAGE=""
-if [[ -n "${GEM_API_KEY:-}" ]]; then
-  GEM_URL="${GEM_API_URL%/}/models/${GEM_MODEL}:generateContent?key=${GEM_API_KEY}"
-  GEM_REQ="$(jq -nc --arg t "$PROMPT" '{contents:[{parts:[{text:$t}]}]}')"
-  GEM_RESP="$(curl -sS -H "Content-Type: application/json" -d "$GEM_REQ" "$GEM_URL" || true)"
-  if jq -e '.error' >/dev/null 2>&1 <<<"$GEM_RESP"; then
-    GEM_STATUS="ERR"
-  else
-    GEM_STATUS="OK"
-    MESSAGE="$(jq -r '.candidates[0].content.parts[0].text // ""' <<<"$GEM_RESP" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | head -n1)"
+EOF
   fi
-else
-  GEM_STATUS="NO_KEY"
-fi
+}
+
+# --- 生成関数（Rejectedを考慮） ---
+generate_message() {
+  local diff_text="$1"
+  shift
+  local rejects=("$@")
+
+  local BASE PROMPT_FULL
+  BASE="$(make_base_prompt)"
+
+  PROMPT_FULL="${BASE}
+==== 対象差分 ====
+${diff_text}
+"
+
+  if (( ${#rejects[@]} > 0 )); then
+    PROMPT_FULL+="
+==== 不採用例（この表現・言い回し・語尾は避け、より良く改善して1行目を出力） ====
+"
+    for r in "${rejects[@]}"; do
+      PROMPT_FULL+="- ${r}\n"
+    done
+  fi
+
+  # 送信（Gemini→Ollama）
+  local msg="" GEM_STATUS="NO_KEY"
+  if [[ -n "${GEM_API_KEY:-}" ]]; then
+    GEM_STATUS="TRY"
+    local url req resp
+    url="${GEM_API_URL%/}/models/${GEM_MODEL}:generateContent?key=${GEM_API_KEY}"
+    req="$(jq -nc --arg t "$PROMPT_FULL" '{contents:[{parts:[{text:$t}]}]}')"
+    resp="$(curl -sS -H "Content-Type: application/json" -d "$req" "$url" || true)"
+    if jq -e '.error' >/dev/null 2>&1 <<<"$resp"; then
+      GEM_STATUS="ERR"
+    else
+      GEM_STATUS="OK"
+      msg="$(jq -r '.candidates[0].content.parts[0].text // ""' <<<"$resp" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | head -n1)"
+    fi
+  fi
+  if [[ -z "$msg" ]]; then
+    export OLLAMA_HOST="$OLLAMA_HOST_VAL"
+    local raw
+    raw="$(printf "%s" "$PROMPT_FULL" | ollama run "$OLLAMA_MODEL" 2>/dev/null || true)"
+    msg="$(printf "%s" "$raw" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | head -n1)"
+  fi
+
+  # 長さ制約
+  if [[ -n "$msg" && ${#msg} -gt $MAX_LEN ]]; then
+    msg="${msg:0:$MAX_LEN}"
+  fi
+
+  printf '%s\n' "$msg"
+}
+
+# === 生成 → 確定/編集/再生成 ループ ===
+REJECTS=()
+MESSAGE="$(generate_message "$DIFF" "${REJECTS[@]}")"
 
 if [[ -z "$MESSAGE" ]]; then
-  export OLLAMA_HOST="$OLLAMA_HOST_VAL"
-  RAW="$(printf "%s" "$PROMPT" | ollama run "$OLLAMA_MODEL" 2>/dev/null || true)"
-  MESSAGE="$(printf "%s" "$RAW" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | head -n1)"
-fi
-
-if [[ -z "$MESSAGE" ]]; then
-  echo "生成に失敗しました。Gemini/Ollamaの設定を確認してください。" >&2
+  echo "生成に失敗しました。Gemini/Ollama の設定をご確認ください。" >&2
   exit 3
 fi
 
-if [[ ${#MESSAGE} -gt $MAX_LEN ]]; then MESSAGE="${MESSAGE:0:$MAX_LEN}"; fi
-
-echo
-echo "OLLAMA_HOST=$OLLAMA_HOST_VAL"
-echo "OLLAMA_MODEL=$OLLAMA_MODEL"
-echo "GEMINI_MODEL=$GEM_MODEL (status: ${GEM_STATUS:-none})"
-echo
-echo "AI提案メッセージ:"
-echo "--------------------------------"
-echo "$MESSAGE"
-echo "--------------------------------"
-
-FINAL_MSG="$MESSAGE"
-if (( ! AUTO_YES )); then
-  echo "Enterでそのまま採用、eで編集、nで中止。"
-  read -r -p "[Enter/e/n]: " choice
-  case "$choice" in
-    "" ) ;;
-    [Nn]* ) echo "キャンセルしました。"; exit 0 ;;
-    [Ee]* )
-      if read -e -p "Commit message: " -i "$MESSAGE" INPUT 2>/dev/null; then
-        FINAL_MSG="${INPUT:-$MESSAGE}"
-      else
-        read -r -p "Commit message: " INPUT
-        FINAL_MSG="${INPUT:-$MESSAGE}"
-      fi
-      if [[ ${#FINAL_MSG} -gt $MAX_LEN ]]; then FINAL_MSG="${FINAL_MSG:0:$MAX_LEN}"; fi
-      ;;
-  esac
+# -y なら即コミット
+if (( AUTO_YES )); then
+  git commit -m "$MESSAGE"
+  echo "コミットしました。"
+  exit 0
 fi
 
-git commit -m "$FINAL_MSG"
-echo "コミットしました。"
+retry_count=0
+while :; do
+  echo
+  echo "AI提案メッセージ:"
+  echo "--------------------------------"
+  echo "$MESSAGE"
+  echo "--------------------------------"
+  echo "[Enter=確定 / e=編集 / r=再生成 / n=中止]"
+  read -r -p "> " choice
+  case "$choice" in
+    "" )
+      git commit -m "$MESSAGE"
+      echo "コミットしました。"
+      break
+      ;;
+    [Nn]* )
+      echo "キャンセルしました。"
+      exit 0
+      ;;
+    [Ee]* )
+      TMPFILE=$(mktemp)
+      echo "$MESSAGE" > "$TMPFILE"
+      ${EDITOR:-nano} "$TMPFILE"
+      MESSAGE="$(head -n 1 "$TMPFILE" | tr -d '\r\n')"
+      rm -f "$TMPFILE"
+      [[ -z "$MESSAGE" ]] && echo "空行は不可です。" && continue
+      if [[ ${#MESSAGE} -gt $MAX_LEN ]]; then MESSAGE="${MESSAGE:0:$MAX_LEN}"; fi
+      git commit -m "$MESSAGE"
+      echo "コミットしました。"
+      break
+      ;;
+    [Rr]* )
+      REJECTS+=("$MESSAGE")
+      ((retry_count++))
+      if (( retry_count > MAX_RETRY )); then
+        echo "再生成回数が上限(${MAX_RETRY})に達しました。"
+        continue
+      fi
+      MESSAGE="$(generate_message "$DIFF" "${REJECTS[@]}")"
+      if [[ -z "$MESSAGE" ]]; then
+        echo "再生成に失敗しました。"
+        exit 3
+      fi
+      ;;
+    * )
+      # 予期しない入力は案内のみ
+      echo "Enter/e/r/n のいずれかを入力してください。"
+      ;;
+  esac
+done
