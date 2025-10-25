@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
-# git_commit_ai_auto_smart.sh (安全修正版・ログ追加 v2)
+# git_commit_ai_individual.sh
 # ------------------------------------------------------------
-# 完全自動AIコミット:
-#  - git add -A
-#  - Smart Grouping (簡易: ここでは1ファイル=1コミット版)
-#  - 機密情報を検出して除外
-#  - Gemini優先→失敗時Ollama
-#  - すべての進捗はstderrへ出力（log関数）
+# 個別ステージ版:
+#  - 作業ツリーから対象ファイル一覧を作成（変更/新規/削除）
+#  - 1ファイルずつステージ → AIでメッセージ生成 → その1件だけコミット
+#  - センシティブ内容（鍵/トークン等）は diff で検出したらスキップ
+#  - Gemini 優先 → 失敗時 Ollama
+#  - 直近の重複メッセージを回避（再生成を最大 N 回）
 # ------------------------------------------------------------
 
 set -euo pipefail
 log() { printf '%s\n' "$*" >&2; }
 
-log ">> git_commit_ai.sh start (pwd=$(pwd))"
+log ">> git_commit_ai_individual.sh start (pwd=$(pwd))"
 
 # ===== 基本設定 =====
 LANG_CODE="ja"
 MAX_LEN=40
-MAX_RETRY=3
+MAX_RETRY=2
 DIFF_HEAD_LINES=500
 
 # ===== Gitチェック =====
@@ -30,7 +30,7 @@ log ">> GIT_ROOT=$GIT_ROOT"
 # ===== 設定探索 =====
 find_config_dir() {
   if [[ -n "${NEUROHUB_CONFIG:-}" && -d "${NEUROHUB_CONFIG}" ]]; then echo "$NEUROHUB_CONFIG"; return; fi
-  if [[ -n "${NEUROHUB_ROOT:-}" && -d "${NEUROHUB_ROOT}/config" ]]; then echo "$NEUROHUB_ROOT/config"; return; fi
+  if [[ -n "${NEUROHUB_ROOT:-}" && -d "${NEUROHUB_ROOT}/config" ]] ; then echo "$NEUROHUB_ROOT/config"; return; fi
   local base="$PWD"
   while :; do
     [[ -f "$base/config/config.yaml" ]] && echo "$base/config" && return
@@ -45,12 +45,14 @@ CONF_YAML="${CONF_DIR:-}/config.yaml"
 CONF_ENV="${CONF_DIR:-}/.env"
 log ">> CONF_DIR=${CONF_DIR:-none}"
 
+# 既定
 OLLAMA_HOST_VAL="http://127.0.0.1:11434"
 OLLAMA_MODEL=""
 GEM_API_URL="https://generativelanguage.googleapis.com/v1"
 GEM_MODEL="gemini-2.5-flash"
 GEM_API_KEY="${GEMINI_API_KEY:-}"
 
+# .env
 if [[ -f "$CONF_ENV" ]]; then
   if grep -q '^GEMINI_API_KEY=' "$CONF_ENV"; then
     GEM_API_KEY="$(grep '^GEMINI_API_KEY=' "$CONF_ENV" | tail -n1 | cut -d= -f2-)"
@@ -60,6 +62,7 @@ if [[ -f "$CONF_ENV" ]]; then
   fi
 fi
 
+# config.yaml（任意）
 if [[ -f "$CONF_YAML" ]] && command -v yq >/dev/null 2>&1; then
   OLLAMA_HOST_VAL="$(yq -r '.llm.ollama.host // "http://127.0.0.1:11434"' "$CONF_YAML")"
   OLLAMA_MODEL="$(yq -r '.llm.ollama.selected_model // ""' "$CONF_YAML")"
@@ -69,11 +72,7 @@ fi
 [[ -z "$OLLAMA_MODEL" ]] && OLLAMA_MODEL="qwen2.5:1.5b-instruct"
 log ">> OLLAMA_HOST=$OLLAMA_HOST_VAL  OLLAMA_MODEL=$OLLAMA_MODEL  GEM_MODEL=$GEM_MODEL"
 
-# ===== センシティブ検出 =====
-SENSITIVE_PATH_GLOBS=(
-  '*.pem' '*.key' '*.crt' '*.p12' '*.pfx' '*.jks' '*.gpg'
-  '.env' '.env.*' '*credentials*' '*secrets*' '*id_rsa*' '.ssh/*'
-)
+# ===== センシティブ内容検出（内容ベースのみ） =====
 SECRET_REGEXES=(
   '-----BEGIN (RSA|DSA|EC|OPENSSH) PRIVATE KEY-----'
   'AKIA[0-9A-Z]{16}'
@@ -81,15 +80,7 @@ SECRET_REGEXES=(
   'github_pat_[0-9A-Za-z_]{20,}'
 )
 
-is_sensitive_path() {
-  local f="$1"
-  for pat in "${SENSITIVE_PATH_GLOBS[@]}"; do
-    case "$f" in $pat) return 0 ;; esac
-  done
-  return 1
-}
-
-has_secret_in_diff() {
+has_secret_in_cached_diff() { # $1=file（ステージ済みの追加行をスキャン）
   local f="$1"
   local added
   added="$(git diff --cached -- "$f" | sed -n 's/^+//p' || true)"
@@ -98,7 +89,6 @@ has_secret_in_diff() {
   local key_begin='-----BEGIN (RSA|DSA|EC|OPENSSH) PRIVATE KEY-----'
   local key_end='-----END (RSA|DSA|EC|OPENSSH) PRIVATE KEY-----'
   if grep -Eq -e "$key_begin" <<<"$added" && grep -Eq -e "$key_end" <<<"$added"; then
-    # " と ' と # を含まない（例示やコメントでない）場合のみ鍵とみなす
     if ! grep -Eq "[\"'#]" <<<"$added"; then
       return 0
     fi
@@ -113,46 +103,28 @@ has_secret_in_diff() {
   return 1
 }
 
-# ===== ステージング =====
-git add -A >/dev/null 2>&1 || true
-mapfile -t FILES < <(git diff --cached --name-only)
-log ">> staged files: ${#FILES[@]}"
-
-if (( ${#FILES[@]} == 0 )); then
-  log "コミット対象なし（git add の後に実行してね）"
-  exit 0
-fi
-
-# 除外
-SAFE_FILES=()
-for f in "${FILES[@]}"; do
-  if is_sensitive_path "$f" || has_secret_in_diff "$f"; then
-    log "⚠ センシティブ検出により除外: $f"
-  else
-    SAFE_FILES+=("$f")
-  fi
-done
-FILES=("${SAFE_FILES[@]}")
-log ">> safe files: ${#FILES[@]}"
-
-if (( ${#FILES[@]} == 0 )); then
-  log "すべてセンシティブ判定で除外されました"
-  exit 0
-fi
-
-# ===== AIプロンプト生成 =====
+# ===== AI プロンプト =====
 make_base_prompt() {
 cat <<EOF
 次の差分から、NeuroHubスタイルのコミットメッセージを生成してください。
 
+==== Format ====
 :prefix: #Issue 内容
-例: :fix: #123 ログ出力の不具合修正
+例:
+:add: #123 新規API追加
+:fix: #45 ログ出力の不具合修正
+
+==== ルール ====
+・絵文字は使わない
+・1行目は :prefix: #issue(optional) を必ず先頭に
+・変更内容は日本語で簡潔に（${MAX_LEN}文字以内）
+・句読点なし、敬語不要
 EOF
 }
 
 generate_message_once() {
   local prompt_full="$1" msg=""
-  if [[ -n "${GEM_API_KEY:-}" ]]; then
+  if [[ -n "${GEM_API_KEY:-}" ]] && command -v jq >/dev/null 2>&1; then
     log "gemini生成中... (${GEM_MODEL})"
     local url req resp
     url="${GEM_API_URL%/}/models/${GEM_MODEL}:generateContent?key=${GEM_API_KEY}"
@@ -161,27 +133,83 @@ generate_message_once() {
     if jq -e '.error' >/dev/null 2>&1 <<<"$resp"; then
       log "Gemini失敗"
     else
-      msg="$(jq -r '.candidates[0].content.parts[0].text // ""' <<<"$resp" | head -n1)"
+      msg="$(jq -r '.candidates[0].content.parts[0].text // ""' <<<"$resp" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | head -n1)"
     fi
   fi
   if [[ -z "$msg" ]]; then
     log "Ollama生成中... (${OLLAMA_MODEL})"
     export OLLAMA_HOST="$OLLAMA_HOST_VAL"
-    msg="$(printf "%s" "$prompt_full" | ollama run "$OLLAMA_MODEL" 2>/dev/null | head -n1)"
+    local raw; raw="$(printf "%s" "$prompt_full" | ollama run "$OLLAMA_MODEL" 2>/dev/null || true)"
+    msg="$(printf "%s" "$raw" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | head -n1)"
   fi
+  [[ -n "$msg" && ${#msg} -gt $MAX_LEN ]] && msg="${msg:0:$MAX_LEN}"
   printf '%s\n' "$msg"
 }
 
-# ===== 実行 =====
+# ===== 重複メッセージ回避 =====
+declare -A USED_MSGS=()
+is_dup_msg() { [[ -n "${USED_MSGS[$1]:-}" ]]; }
+mark_msg() { USED_MSGS["$1"]=1; }
+
+# ===== 対象ファイル一覧（個別ステージ方針） =====
+mapfile -t FILES < <( { git ls-files -m; git ls-files -o --exclude-standard; git ls-files -d; } | sort -u )
+
+if (( ${#FILES[@]} == 0 )); then
+  log "コミット対象なし（作業ツリーに変更がありません）"
+  exit 0
+fi
+log ">> target files (working tree): ${#FILES[@]}"
+
+# ===== 1ファイルずつ処理 =====
 for f in "${FILES[@]}"; do
-  log ">> commit target: $f"
+  log ">> processing: $f"
+
+  # ステージ操作（個別）
+  if [[ ! -e "$f" ]]; then
+    git rm -- "$f" >/dev/null 2>&1 || true
+  else
+    git add -- "$f" >/dev/null 2>&1 || true
+  fi
+
+  # ステージ済み差分を取得（その1件だけ）
+  diff_text="$(git diff --cached -- "$f")"
+  if [[ -z "$diff_text" ]]; then
+    log "   -> 変更なし（スキップ）"
+    continue
+  fi
+
+  # センシティブ内容チェック（内容ベースのみ）
+  if has_secret_in_cached_diff "$f"; then
+    log "⚠  センシティブパターン検出、スキップ: $f"
+    git restore --staged -- "$f" >/dev/null 2>&1 || true
+    continue
+  fi
+
+  # プロンプト組み立て
   prompt="$(make_base_prompt)
-==== ファイル ====
-$(git diff --cached -- "$f" | head -n $DIFF_HEAD_LINES)"
-  msg="$(generate_message_once "$prompt")"
-  [[ -z "$msg" ]] && msg=":chore: 自動生成失敗 $f"
-  git commit -m "$msg" -- "$f" || true
-  log "✅ $f → $msg"
+==== 対象ファイル ====
+$f
+
+==== 差分（抜粋） ====
+$(printf "%s" "$diff_text" | head -n "$DIFF_HEAD_LINES")
+"
+
+  # 生成（重複回避付き）
+  message="$(generate_message_once "$prompt")"
+  tries=0
+  while { [[ -z "$message" ]] || is_dup_msg "$message"; } && (( tries < MAX_RETRY )); do
+    [[ -z "$message" ]] && log "   -> 生成空、再試行..." || log "   -> 重複検出、再生成..."
+    prompt+=$'\n'"※他ファイルと同一の1行目は不可。対象: $f"
+    message="$(generate_message_once "$prompt")"
+    ((tries++))
+  done
+
+  [[ -z "$message" ]] && message=":chore: 自動生成失敗 $f"
+
+  # コミット実行（この1件だけ）
+  git commit -m "$message" -- "$f" || true
+  mark_msg "$message"
+  log "✅ $f → $message"
 done
 
 log "完了"
