@@ -4,12 +4,13 @@
 # NeuroHubスタイルのコミットメッセージ支援スクリプト
 # - config.yaml / .env を見て Gemini 優先 → Ollama フォールバック
 # - 日本語・絵文字なし・:prefix: 形式
-# - ステージ一覧表示後、即生成（確認プロンプトは廃止）
-# - Retryで不採用案を蓄積し、次回生成時に回避・改善させる
+# - ステージ一覧表示後、即生成
+# - Retryで不採用案を蓄積し、次回生成時に考慮させる
+# - AIモデル名と進捗メッセージ表示（Gemini/Ollama別）
 #
 # 使い方:
 #   bash tools/git_commit_ai.sh
-#   bash tools/git_commit_ai.sh -y                # 生成後即コミット（編集/メニューもスキップ）
+#   bash tools/git_commit_ai.sh -y
 #   bash tools/git_commit_ai.sh --lang ja --max 40
 # --------------------------------------------
 
@@ -97,10 +98,9 @@ echo "--------------------------------"
 echo "$STAGED_LIST"
 echo "--------------------------------"
 
-# 差分
 DIFF="$(git diff --cached || true)"
 
-# --- NeuroHub 形式ベースプロンプト ---
+# --- NeuroHub 形式プロンプト ---
 make_base_prompt() {
   if [[ "$LANG_CODE" == "ja" ]]; then
 cat <<'EOF'
@@ -160,60 +160,53 @@ EOF
   fi
 }
 
-# --- 生成関数（Rejectedを考慮） ---
+# --- 生成関数 ---
 generate_message() {
   local diff_text="$1"
   shift
   local rejects=("$@")
 
-  local BASE PROMPT_FULL
+  local BASE PROMPT_FULL msg=""
   BASE="$(make_base_prompt)"
-
-  PROMPT_FULL="${BASE}
-==== 対象差分 ====
-${diff_text}
-"
+  PROMPT_FULL="${BASE}\n==== 対象差分 ====\n${diff_text}\n"
 
   if (( ${#rejects[@]} > 0 )); then
-    PROMPT_FULL+="
-==== 不採用例（この表現・言い回し・語尾は避け、より良く改善して1行目を出力） ====
-"
+    PROMPT_FULL+="\n==== 不採用例 ====\n"
     for r in "${rejects[@]}"; do
       PROMPT_FULL+="- ${r}\n"
     done
   fi
 
-  # 送信（Gemini→Ollama）
-  local msg="" GEM_STATUS="NO_KEY"
+  # Gemini 優先
   if [[ -n "${GEM_API_KEY:-}" ]]; then
-    GEM_STATUS="TRY"
+    echo "geminiでコミットメッセージ作成中... (${GEM_MODEL})"
     local url req resp
     url="${GEM_API_URL%/}/models/${GEM_MODEL}:generateContent?key=${GEM_API_KEY}"
     req="$(jq -nc --arg t "$PROMPT_FULL" '{contents:[{parts:[{text:$t}]}]}')"
     resp="$(curl -sS -H "Content-Type: application/json" -d "$req" "$url" || true)"
     if jq -e '.error' >/dev/null 2>&1 <<<"$resp"; then
-      GEM_STATUS="ERR"
+      echo "geminiでコミットメッセージ作成中... (${GEM_MODEL}) → 失敗"
     else
-      GEM_STATUS="OK"
       msg="$(jq -r '.candidates[0].content.parts[0].text // ""' <<<"$resp" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | head -n1)"
     fi
   fi
+
+  # Gemini失敗時 Ollamaフォールバック
   if [[ -z "$msg" ]]; then
+    echo "ollamaでコミットメッセージ作成中... (${OLLAMA_MODEL})"
     export OLLAMA_HOST="$OLLAMA_HOST_VAL"
     local raw
     raw="$(printf "%s" "$PROMPT_FULL" | ollama run "$OLLAMA_MODEL" 2>/dev/null || true)"
     msg="$(printf "%s" "$raw" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | head -n1)"
   fi
 
-  # 長さ制約
   if [[ -n "$msg" && ${#msg} -gt $MAX_LEN ]]; then
     msg="${msg:0:$MAX_LEN}"
   fi
-
   printf '%s\n' "$msg"
 }
 
-# === 生成 → 確定/編集/再生成 ループ ===
+# === 生成・ループ ===
 REJECTS=()
 MESSAGE="$(generate_message "$DIFF" "${REJECTS[@]}")"
 
@@ -222,7 +215,6 @@ if [[ -z "$MESSAGE" ]]; then
   exit 3
 fi
 
-# -y なら即コミット
 if (( AUTO_YES )); then
   git commit -m "$MESSAGE"
   echo "コミットしました。"
@@ -237,7 +229,12 @@ while :; do
   echo "$MESSAGE"
   echo "--------------------------------"
   echo "[Enter=確定 / e=編集 / r=再生成 / n=中止]"
-  read -r -p "> " choice
+
+  if ! read -r -p "> " choice; then
+    echo "入力が閉じられました。再試行を続けます。"
+    choice="r"
+  fi
+
   case "$choice" in
     "" )
       git commit -m "$MESSAGE"
@@ -255,7 +252,6 @@ while :; do
       MESSAGE="$(head -n 1 "$TMPFILE" | tr -d '\r\n')"
       rm -f "$TMPFILE"
       [[ -z "$MESSAGE" ]] && echo "空行は不可です。" && continue
-      if [[ ${#MESSAGE} -gt $MAX_LEN ]]; then MESSAGE="${MESSAGE:0:$MAX_LEN}"; fi
       git commit -m "$MESSAGE"
       echo "コミットしました。"
       break
@@ -274,7 +270,6 @@ while :; do
       fi
       ;;
     * )
-      # 予期しない入力は案内のみ
       echo "Enter/e/r/n のいずれかを入力してください。"
       ;;
   esac
