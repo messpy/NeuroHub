@@ -13,8 +13,7 @@ import sys
 import json
 import argparse
 from pathlib import Path
-from typing import Dict, Any, Optional
-
+from typing import Dict, Any, Optional, Tuple
 import requests
 
 try:
@@ -107,7 +106,7 @@ def load_ollama_config() -> Dict[str, str]:
 
 
 # ================================
-# Ollama 呼び出し
+# Ollama 呼び出し基礎
 # ================================
 def _normalize_host(host: str) -> str:
     h = (host or "").strip()
@@ -136,7 +135,6 @@ def _stream_json_lines(response: requests.Response):
     for chunk in response.iter_content(chunk_size=None, decode_unicode=False):
         if not chunk:
             continue
-        # bytes → str に安全変換
         if isinstance(chunk, bytes):
             chunk = chunk.decode("utf-8", errors="ignore")
         buf += chunk
@@ -199,72 +197,90 @@ def _chat_request(
     return r
 
 
-def ollama_generate(
+# ================================
+# 新API: テキスト返却版
+# ================================
+def ollama_chat_text(
     host: Optional[str] = None,
     model: Optional[str] = None,
     prompt: str = "",
     *,
-    stream: bool = False,
+    system: Optional[str] = None,
     options: Optional[Dict[str, Any]] = None,
     keep_alive: Optional[str] = "5m",
     timeout: int = 120,
     debug: bool = False,
-) -> None:
-    """ /api/generate を叩く """
+) -> Tuple[bool, str]:
+    """
+    Ollama /api/chat を叩いて「成功フラグ, 本文」を返す版。
+    画面には何も print しない（CLIとは別用途）。
+    """
     conf = load_ollama_config()
     host = host or conf["host"]
     model = model or conf["model"]
     if not model:
-        raise RuntimeError("Ollama モデルが未設定です。")
-
-    url = _normalize_host(host) + "/api/generate"
-    payload: Dict[str, Any] = {
-        "model": model,
-        "prompt": prompt,
-        "stream": True,
-    }
-    if options:
-        payload["options"] = options
-    if keep_alive:
-        payload["keep_alive"] = keep_alive
-
-    if debug:
-        print(f"[debug] POST {url} model={model} stream=True", file=sys.stderr)
+        return False, ""
 
     try:
-        r = requests.post(
-            url,
-            headers={"Content-Type": "application/json"},
-            data=json.dumps(payload),
-            stream=True,
+        r = _chat_request(
+            host=host,
+            model=model,
+            prompt=prompt,
+            system=system,
+            options=options,
+            keep_alive=keep_alive,
             timeout=timeout,
+            debug=debug,
         )
     except Exception as e:
-        raise RuntimeError(f"Ollama 接続エラー: {e}")
+        if debug:
+            print(f"[debug] ollama_chat_text connect error: {e}", file=sys.stderr)
+        return False, ""
 
     if r.status_code != 200:
-        raise RuntimeError(f"Ollama 応答エラー: HTTP {r.status_code} {r.text[:400]}")
+        if debug:
+            print(f"[debug] ollama_chat_text HTTP {r.status_code}", file=sys.stderr)
+        return False, ""
 
-    if stream:
-        got_any = False
-        for obj in _stream_json_lines(r):
-            piece = str(obj.get("response") or "")
-            if piece:
-                got_any = True
-                print(piece, end="", flush=True)
-        print()
-        if not got_any:
-            print("[empty response]")
-    else:
-        out: list[str] = []
-        for obj in _stream_json_lines(r):
-            piece = str(obj.get("response") or "")
-            if piece:
-                out.append(piece)
-        txt = "".join(out).strip()
-        print(txt if txt else "[empty response]")
+    pieces: list[str] = []
+    for obj in _stream_json_lines(r):
+        piece = _consume_piece(obj)
+        if piece:
+            pieces.append(piece)
+    text = "".join(pieces).strip()
+
+    # /api/chat が空なら /api/generate にフォールバック
+    if not text:
+        try:
+            url = _normalize_host(host) + "/api/generate"
+            payload: Dict[str, Any] = {"model": model, "prompt": prompt, "stream": True}
+            if options:
+                payload["options"] = options
+            if keep_alive:
+                payload["keep_alive"] = keep_alive
+            if debug:
+                print(f"[debug] fallback to /api/generate", file=sys.stderr)
+            rr = requests.post(url, headers={"Content-Type":"application/json"},
+                               data=json.dumps(payload), stream=True, timeout=timeout)
+            if rr.status_code != 200:
+                return False, ""
+            g_pieces: list[str] = []
+            for obj in _stream_json_lines(rr):
+                p = str(obj.get("response") or "")
+                if p:
+                    g_pieces.append(p)
+            text = "".join(g_pieces).strip()
+        except Exception as e:
+            if debug:
+                print(f"[debug] generate fallback error: {e}", file=sys.stderr)
+            return False, ""
+
+    return (len(text) > 0), text
 
 
+# ================================
+# CLI互換関数（既存用途保持）
+# ================================
 def ollama_chat(
     host: Optional[str] = None,
     model: Optional[str] = None,
@@ -277,14 +293,8 @@ def ollama_chat(
     timeout: int = 120,
     debug: bool = False,
 ) -> None:
-    """ Ollama にチャット問い合わせして標準出力に結果を出す """
-    conf = load_ollama_config()
-    host = host or conf["host"]
-    model = model or conf["model"]
-    if not model:
-        raise RuntimeError("Ollama モデルが未設定です。")
-
-    r = _chat_request(
+    """CLI表示用: /api/chat 実行して結果を print"""
+    ok, text = ollama_chat_text(
         host=host,
         model=model,
         prompt=prompt,
@@ -294,52 +304,12 @@ def ollama_chat(
         timeout=timeout,
         debug=debug,
     )
-
-    if r.status_code != 200:
-        raise RuntimeError(f"Ollama 応答エラー: HTTP {r.status_code} {r.text[:400]}")
-
-    if stream:
-        got_any = False
-        for obj in _stream_json_lines(r):
-            piece = _consume_piece(obj)
-            if piece:
-                got_any = True
-                print(piece, end="", flush=True)
-        print()
-        if not got_any:
-            if debug:
-                print("[debug] chat had no text → fallback to /api/generate", file=sys.stderr)
-            ollama_generate(host=host, model=model, prompt=prompt, stream=True)
-        return
-    else:
-        buf: list[str] = []
-        for obj in _stream_json_lines(r):
-            piece = _consume_piece(obj)
-            if piece:
-                buf.append(piece)
-        text = "".join(buf).strip()
-        if text:
-            print(text)
-        else:
-            if debug:
-                print("[debug] chat had no text → fallback to /api/generate", file=sys.stderr)
-            ollama_generate(host=host, model=model, prompt=prompt, stream=False)
+    print(text if ok else "[empty response]")
 
 
 # ================================
-# CLI エントリ
+# CLIエントリ
 # ================================
-def _parse_kv_pairs(pairs: list[str] | None) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
-    if not pairs:
-        return out
-    for s in pairs:
-        if "=" in s:
-            k, v = s.split("=", 1)
-            out[k.strip()] = v.strip()
-    return out
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(description="Ollama chat CLI（config連携）")
     ap.add_argument("prompt", nargs="+", help="ユーザープロンプト（スペース可）")
@@ -350,28 +320,28 @@ def main() -> int:
     ap.add_argument("--keep-alive", default="5m")
     ap.add_argument("--timeout", type=int, default=120)
     ap.add_argument("--debug", action="store_true")
-    ap.add_argument("--no-stream", action="store_true", help="逐次表示を行わず、最後にまとめて表示")
     args = ap.parse_args()
 
     prompt = " ".join(args.prompt).strip()
-    options = _parse_kv_pairs(args.opt)
+    options = {}
+    if args.opt:
+        for s in args.opt:
+            if "=" in s:
+                k, v = s.split("=", 1)
+                options[k.strip()] = v.strip()
 
-    try:
-        ollama_chat(
-            host=args.host or None,
-            model=args.model or None,
-            prompt=prompt,
-            stream=(not args.no_stream),
-            system=args.system or None,
-            options=options or None,
-            keep_alive=args.keep_alive,
-            timeout=args.timeout,
-            debug=args.debug,
-        )
-        return 0
-    except Exception as e:
-        print(f"[ERROR] {e}", file=sys.stderr)
-        return 2
+    ok, text = ollama_chat_text(
+        host=args.host,
+        model=args.model,
+        prompt=prompt,
+        system=args.system,
+        options=options or None,
+        keep_alive=args.keep_alive,
+        timeout=args.timeout,
+        debug=args.debug,
+    )
+    print(text if ok else "[empty response]")
+    return 0 if ok else 2
 
 
 if __name__ == "__main__":

@@ -1,0 +1,11 @@
+# ---- Minimal core for current LLM tools ----
+requests>=2.31.0
+PyYAML>=6.0.2
+python-dotenv>=1.0.1
+
+# (nice to have) better terminal output for debug
+rich>=13.7.1
+
+pyopenjtalk
+soundfile
+numpy
