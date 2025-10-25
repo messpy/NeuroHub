@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Gemini APIキー検証スクリプト（ライブラリ兼CLI）
+https://aistudio.google.com/api-keys
 
 ■ ポイント
 - パスはハードコードしない：
