@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Ollama Utils — config連携 & /chat + /generate 両対応
+Ollama Utils — config連携 & /chat + /generate 両対応 + サーバ自動起動
 - config/config.yaml / .env / 環境変数 から host/model を自動取得
 - /api/chat の message.content と /api/generate の response 両対応
 - stream安全化（bytes対応）
+- サーバ未起動時は ollama serve を自動起動して待機
 """
 
 from __future__ import annotations
@@ -14,6 +15,9 @@ import json
 import argparse
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
+import subprocess
+import time
+
 import requests
 
 try:
@@ -106,7 +110,7 @@ def load_ollama_config() -> Dict[str, str]:
 
 
 # ================================
-# Ollama 呼び出し基礎
+# サーバ確保（未起動なら起動）
 # ================================
 def _normalize_host(host: str) -> str:
     h = (host or "").strip()
@@ -117,6 +121,64 @@ def _normalize_host(host: str) -> str:
     return "http://" + h.rstrip("/")
 
 
+def _http_ok(url: str, timeout: float = 1.0) -> bool:
+    try:
+        r = requests.get(url, timeout=timeout)
+        return (r.status_code == 200)
+    except Exception:
+        return False
+
+
+def ensure_ollama_running(host: str, *, use_systemd: bool = False, debug: bool = False) -> bool:
+    """
+    Ollamaサーバが応答しない場合に起動を試み、最大10秒待って可否を返す。
+    - host: "http://127.0.0.1:11434" など
+    - use_systemd: systemd管理なら True（--user start ollama）
+    """
+    base = _normalize_host(host)
+    ver_url = base + "/api/version"
+
+    # 1) 既に生存していればOK
+    if _http_ok(ver_url, timeout=1.0):
+        if debug:
+            print(f"[debug] ollama alive: {ver_url}", file=sys.stderr)
+        return True
+
+    # 2) 起動試行
+    if use_systemd:
+        cmd = ["systemctl", "--user", "start", "ollama"]
+        if debug:
+            print(f"[debug] start via systemd: {' '.join(cmd)}", file=sys.stderr)
+        try:
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        except Exception as e:
+            print(f"[warn] systemd 起動失敗: {e}", file=sys.stderr)
+    else:
+        # デーモン化（前面に出さずバックグラウンド）
+        cmd = ["ollama", "serve"]
+        if debug:
+            print(f"[debug] start via subprocess: {' '.join(cmd)}", file=sys.stderr)
+        try:
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            print(f"[error] ollama serve 起動失敗: {e}", file=sys.stderr)
+            return False
+
+    # 3) 起動待機（最大10秒、0.5秒ステップ）
+    for _ in range(20):
+        time.sleep(0.5)
+        if _http_ok(ver_url, timeout=0.6):
+            if debug:
+                print("[debug] ollama サーバ起動完了", file=sys.stderr)
+            return True
+
+    print("[error] ollama サーバ起動を確認できませんでした（10秒タイムアウト）", file=sys.stderr)
+    return False
+
+
+# ================================
+# Ollama 呼び出し基礎
+# ================================
 def _consume_piece(obj: Any) -> str:
     """ストリームJSON 1行からテキスト片を抽出"""
     if not isinstance(obj, dict):
@@ -221,6 +283,10 @@ def ollama_chat_text(
     if not model:
         return False, ""
 
+    # サーバ自動起動
+    if not ensure_ollama_running(host, debug=debug):
+        return False, ""
+
     try:
         r = _chat_request(
             host=host,
@@ -311,7 +377,7 @@ def ollama_chat(
 # CLIエントリ
 # ================================
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Ollama chat CLI（config連携）")
+    ap = argparse.ArgumentParser(description="Ollama chat CLI（config連携・自動起動）")
     ap.add_argument("prompt", nargs="+", help="ユーザープロンプト（スペース可）")
     ap.add_argument("--host", help="Ollama ホスト（未指定なら config/.env）")
     ap.add_argument("--model", help="Ollama モデル（未指定なら config.yaml）")
@@ -320,9 +386,18 @@ def main() -> int:
     ap.add_argument("--keep-alive", default="5m")
     ap.add_argument("--timeout", type=int, default=120)
     ap.add_argument("--debug", action="store_true")
+    ap.add_argument("--systemd", action="store_true", help="systemd(--user)で起動を試みる")
     args = ap.parse_args()
 
+    # サーバ自動起動（hostの決定を先に）
+    cfg = load_ollama_config()
+    host_cfg = args.host or cfg["host"]
+    if not ensure_ollama_running(host_cfg, use_systemd=args.systemd, debug=args.debug):
+        print("[error] ollama サーバを起動できませんでした", file=sys.stderr)
+        return 3
+
     prompt = " ".join(args.prompt).strip()
+
     options = {}
     if args.opt:
         for s in args.opt:
@@ -346,3 +421,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
