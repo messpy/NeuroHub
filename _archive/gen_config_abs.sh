@@ -1,225 +1,253 @@
 #!/usr/bin/env bash
-# NeuroHub: 絶対パス & システム情報つき config.yaml 生成（_archive 直下用）
-# 使い方: bash gen_config_abs.sh  /  bash gen_config_abs.sh --debug
+# gen_config_preview.sh
+# - config.yaml を上書きせず、期待YAMLを標準出力にプレビュー
+# - Ollama が停止中でも、必要なら一時的に起動してモデルを検出（起動できたらそのまま稼働）
+# - 末尾に、Ollama にチャット用モデルが無い場合のみ注意を stderr に出力
+
 set -euo pipefail
+IFS=$'\n\t'
 
-DEBUG=${1:-}
-[[ "${DEBUG}" == "--debug" ]] && set -x
+DEBUG=0
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# ルート（このスクリプトの1つ上: /home/.../NeuroHub）
-SCRIPT_DIR="$(cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)"
-ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
-CONF_DIR="$ROOT/config"
-YAML="$CONF_DIR/config.yaml"
-ENVF="$CONF_DIR/.env"
+log(){ echo "[gen_config] $*" >&2; }
+dbg(){ [[ $DEBUG -eq 1 ]] && echo "[gen_config:debug] $*" >&2 || true; }
 
-mkdir -p "$CONF_DIR" \
-         "$ROOT/data/cache/asr" "$ROOT/data/cache/tts" "$ROOT/data/cache/mpv" \
-         "$ROOT/logs" "$ROOT/models/piper"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --debug) DEBUG=1; shift ;;
+    *) echo "unknown arg: $1" >&2; exit 1 ;;
+  esac
+done
 
-safe() { "$@" 2>/dev/null || true; }
-
-# ---- 基本システム情報 ----
-HOSTNAME_FQDN="$(safe hostname -f || hostname)"
-USER_NAME="$(safe id -un || whoami)"
-OS_NAME="$(safe awk -F= '/^PRETTY_NAME/ {gsub(/"/,"",$2); print $2}' /etc/os-release)"
-[[ -z "${OS_NAME:-}" ]] && OS_NAME="$(uname -s)"
+# ---------- System 情報 ----------
+HOSTNAME="$(hostname)"
+USER_NAME="$(id -un)"
+if [[ -r /etc/os-release ]]; then . /etc/os-release; OS_NAME="${NAME:-Linux} ${VERSION:-}"; else OS_NAME="$(uname -s)"; fi
 KERNEL="$(uname -r)"
 ARCH="$(uname -m)"
-CPU_MODEL="$(safe awk -F: '/model name/ {sub(/^ /,"",$2); print $2; exit}' /proc/cpuinfo)"
-CPU_CORES="$(safe nproc || echo 1)"
-MEM_MB="$(safe awk '/Mem:/ {print $2}' < <(free -m))"
-MACHINE_ID="$(safe cat /etc/machine-id)"
-IPV4S_CSV="$(safe ip -4 -o addr show scope global | awk '{print $4}' | cut -d/ -f1 | paste -sd',' -)"
-CREATED_AT="$(date -Is)"
+CPU_CORES="$(nproc || echo 1)"
+CPU_MODEL=""
+if command -v lscpu >/dev/null 2>&1; then CPU_MODEL="$(lscpu | awk -F: '/Model name/ {sub(/^[ \t]+/,"",$2); print $2; exit}')"; fi
+[[ -z "${CPU_MODEL}" ]] && CPU_MODEL="$(awk -F: '/model name/ {gsub(/^[ \t]+/,"",$2); print $2; exit}' /proc/cpuinfo 2>/dev/null || true)"
+MEM_MB="$(awk '/MemTotal:/ {printf "%.0f", $2/1024}' /proc/meminfo 2>/dev/null || echo 0)"
+IPV4_LIST="$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | paste -sd, -)"
+[[ -z "${IPV4_LIST}" ]] && IPV4_LIST="$(hostname -I 2>/dev/null | tr ' ' ',' | sed 's/,$//')"
+IPV4_LIST="${IPV4_LIST:-}"
+if [[ -r /etc/machine-id ]]; then MACHINE_ID="$(tr -d '\n' </etc/machine-id)"; else MACHINE_ID="$(printf '%s' "${HOSTNAME}-${USER_NAME}" | md5sum | awk '{print $1}')"; fi
+LANG_VAL="${LANG:-}"; LC_ALL_VAL="${LC_ALL:-}"; LANGUAGE_VAL="${LANGUAGE:-}"
+SYSTEM_LOCALE_LINE="$(grep -E '^LANG=' /etc/default/locale 2>/dev/null | head -n1)"
+VC_KEYMAP="$(localectl status 2>/dev/null | awk -F: '/VC Keymap/ {gsub(/^[ \t]+/,"",$2); print $2; exit}')"
+X11_LAYOUT="$(localectl status 2>/dev/null | awk -F: '/X11 Layout/ {gsub(/^[ \t]+/,"",$2); print $2; exit}')"
+X11_MODEL="$(localectl status 2>/dev/null | awk -F: '/X11 Model/ {gsub(/^[ \t]+/,"",$2); print $2; exit}')"
+X11_VARIANT="$(localectl status 2>/dev/null | awk -F: '/X11 Variant/ {gsub(/^[ \t]+/,"",$2); print $2; exit}')"
+X11_OPTIONS="$(localectl status 2>/dev/null | awk -F: '/X11 Options/ {gsub(/^[ \t]+/,"",$2); print $2; exit}')"
+CUR_DESKTOP="${XDG_CURRENT_DESKTOP:-}"; CUR_SESSION="${DESKTOP_SESSION:-}"
+CREATED_AT="$(TZ=Asia/Tokyo date +%Y-%m-%dT%H:%M:%S%z | sed -E 's/([+-][0-9]{2})([0-9]{2})$/\1:\2/')"
 
-# ---- タイムゾーン ----
-TZ_AUTO="$(safe timedatectl show -p Timezone --value)"
-[[ -z "${TZ_AUTO}" || "${TZ_AUTO}" == "n/a" ]] && TZ_AUTO="$(safe cat /etc/timezone)"
-if [[ -z "${TZ_AUTO}" || "${TZ_AUTO}" == "n/a" ]]; then
-  ZL="$(safe readlink -f /etc/localtime)"
-  [[ -n "${ZL:-}" ]] && TZ_AUTO="${ZL#/usr/share/zoneinfo/}"
+# ---------- LLM 雛形 ----------
+G_API_URL="https://generativelanguage.googleapis.com/v1"
+G_MODEL="gemini-2.5-flash"
+G_ENABLED=0
+
+HF_API_BASE="https://router.huggingface.co"
+HF_CHAT_TMPL="${HF_API_BASE}/hf-inference/models/{model}/v1/chat/completions"
+HF_INFER_TMPL="https://api-inference.huggingface.co/models/{model}"
+HF_MODELS=( "Qwen/Qwen2.5-0.5B-Instruct" "google/gemma-2-2b-it" "HuggingFaceH4/zephyr-7b-beta" )
+HF_SELECTED="${HF_MODELS[0]}"
+HF_ENABLED=0
+
+# ---------- Ollama 検出（未起動なら起動） ----------
+# PATH 追加（/usr/local/bin にいるケース）
+if ! command -v ollama >/dev/null 2>&1 && [[ -x "/usr/local/bin/ollama" ]]; then
+  export PATH="/usr/local/bin:${PATH}"
 fi
-[[ -z "${TZ_AUTO}" || "${TZ_AUTO}" == "n/a" ]] && TZ_AUTO="UTC"
 
-# ---- 言語/ロケール/入力系 ----
-LOCALECTL_OUT="$(safe localectl status)"
-SYS_LOCALE_LINE="$(printf '%s\n' "$LOCALECTL_OUT" | awk -F': ' '/System Locale/ {print $2}')"
-SYS_LOCALE_LANG="$(printf '%s' "${SYS_LOCALE_LINE:-}" | sed -n 's/.*\bLANG=\([^;]*\).*/\1/p')"
+OLLAMA_HOST="http://127.0.0.1:11434"
+ver_ok=0
+if command -v curl >/dev/null 2>&1; then
+  code="$(curl -s -o /dev/null -w '%{http_code}' "${OLLAMA_HOST}/api/version" || true)"
+  [[ "${code}" == "200" ]] && ver_ok=1
+fi
 
-LANG_VAL="${LC_ALL:-${LANG:-${SYS_LOCALE_LANG:-}}}"
-LANGUAGE_VAL="${LANGUAGE:-}"
-APP_LANGUAGE="$(printf '%s' "${LANG_VAL:-}" | sed 's/\..*//' | sed 's/_/-/')"
-
-VC_KEYMAP="$(printf '%s\n' "$LOCALECTL_OUT" | awk -F': ' '/VC Keymap/ {print $2}')"
-X11_LAYOUT="$(printf '%s\n' "$LOCALECTL_OUT" | awk -F': ' '/X1[1 ] Layout/ {print $2}')"
-[[ -z "$X11_LAYOUT" ]] && X11_LAYOUT="$(printf '%s\n' "$LOCALECTL_OUT" | awk -F': ' '/X11 Layout/ {print $2}')"
-X11_MODEL="$(printf '%s\n' "$LOCALECTL_OUT" | awk -F': ' '/X11 Model/ {print $2}')"
-X11_VARIANT="$(printf '%s\n' "$LOCALECTL_OUT" | awk -F': ' '/X11 Variant/ {print $2}')"
-X11_OPTIONS="$(printf '%s\n' "$LOCALECTL_OUT" | awk -F': ' '/X11 Options/ {print $2}')"
-DESKTOP_ENV="${XDG_CURRENT_DESKTOP:-}"
-DESKTOP_SESSION="${DESKTOP_SESSION:-${GDMSESSION:-}}"
-
-# ---- Ollama 検出 ----
-OLLAMA_HOST_VAL="${OLLAMA_HOST:-http://127.0.0.1:11434}"
-MODELS_BLOCK='    models: []'
-SELECTED=""
-if command -v curl >/dev/null 2>&1 && command -v ollama >/dev/null 2>&1; then
-  if curl -sS --max-time 4 "${OLLAMA_HOST_VAL%/}/api/tags" >/dev/null; then
-    mapfile -t MODELS < <(ollama list 2>/dev/null | awk 'NR>1 {print $1}') || true
-    if ((${#MODELS[@]})); then
-      SELECTED="${MODELS[0]}"
-      MODELS_BLOCK="    models:"
-      for m in "${MODELS[@]}"; do
-        MODELS_BLOCK+=$'\n'"      - ${m}"
-      done
-    fi
+started_by_me=0
+if [[ $ver_ok -eq 0 ]] && command -v ollama >/dev/null 2>&1; then
+  # 1) systemd --user での起動を優先（ある場合）
+  if command -v systemctl >/dev/null 2>&1; then
+    dbg "trying: systemctl --user start ollama"
+    systemctl --user start ollama >/dev/null 2>&1 || true
   fi
+  # 2) まだ応答なしなら、バックグラウンドで直接起動
+  code="$(curl -s -o /dev/null -w '%{http_code}' "${OLLAMA_HOST}/api/version" || true)"
+  if [[ "${code}" != "200" ]]; then
+    dbg "trying: nohup ollama serve &"
+    nohup ollama serve >/dev/null 2>&1 &
+    started_by_me=1
+  fi
+  # 3) 起動待機（最大 8 秒）
+  for _ in {1..16}; do
+    sleep 0.5
+    code="$(curl -s -o /dev/null -w '%{http_code}' "${OLLAMA_HOST}/api/version" || true)"
+    if [[ "${code}" == "200" ]]; then ver_ok=1; break; fi
+  done
 fi
 
-# ---- IPv4 配列化 ----
-if [[ -n "${IPV4S_CSV}" ]]; then IPV4_YAML="[${IPV4S_CSV}]"; else IPV4_YAML="[]"; fi
-
-# ---- YAML テンプレ（※cat で確実に代入）----
-YAML_TMPL="$(cat <<'EOF'
-app:
-  name: NeuroHub
-  timezone: "__APP_TZ__"
-  env: dev
-  language: "__APP_LANGUAGE__"
-  locale: "__LANG_VAL__"
-
-paths:
-  base: __ROOT__
-  cache_asr: __ROOT__/data/cache/asr
-  cache_tts: __ROOT__/data/cache/tts
-  cache_mpv: __ROOT__/data/cache/mpv
-  database: __ROOT__/data/neurohub.db
-
-llm:
-  default: gemini
-  gemini:
-    api_url: https://generativelanguage.googleapis.com/v1
-    model: gemini-2.5-flash
-    temperature:
-    max_output_tokens:
-    timeout_sec:
-  ollama:
-    host: __OLLAMA_HOST_VAL__
-__MODELS_BLOCK__
-    selected_model: __SELECTED__
-    temperature:
-    num_ctx:
-    num_thread:
-
-asr:
-  engine:
-  model:
-  timeout_sec:
-
-tts:
-  engine:
-  model: __ROOT__/models/piper/ja-kokoro-high.onnx
-  out_wav: __ROOT__/data/cache/tts/out.wav
-  speed:
-
-mpv:
-  audio_device:
-  default_volume:
-  ipc_dir: __ROOT__/data/cache/mpv
-  common_opts:
-
-logging:
-  level: INFO
-  dir: __ROOT__/logs
-
-system:
-  created_at: "__CREATED_AT__"
-  machine_id: "__MACHINE_ID__"
-  hostname: "__HOSTNAME_FQDN__"
-  user: "__USER_NAME__"
-  os: "__OS_NAME__"
-  kernel: "__KERNEL__"
-  arch: "__ARCH__"
-  cpu_model: "__CPU_MODEL__"
-  cpu_cores: __CPU_CORES__
-  memory_mb: __MEM_MB__
-  ipv4: __IPV4_YAML__
-  project_root: "__ROOT__"
-  locale:
-    LANG: "__LANG_VAL__"
-    LC_ALL: "__LC_ALL_VAL__"
-    LANGUAGE: "__LANGUAGE_VAL__"
-    system_locale_line: "__SYS_LOCALE_LINE__"
-  keyboard:
-    vc_keymap: "__VC_KEYMAP__"
-    x11_layout: "__X11_LAYOUT__"
-    x11_model: "__X11_MODEL__"
-    x11_variant: "__X11_VARIANT__"
-    x11_options: "__X11_OPTIONS__"
-  desktop:
-    current_desktop: "__DESKTOP_ENV__"
-    session: "__DESKTOP_SESSION__"
-EOF
-)"
-
-# ---- 置換 ----
-OUT="$YAML_TMPL"
-OUT="${OUT//__ROOT__/$ROOT}"
-OUT="${OUT//__APP_TZ__/$TZ_AUTO}"
-OUT="${OUT//__OLLAMA_HOST_VAL__/$OLLAMA_HOST_VAL}"
-OUT="${OUT//__MODELS_BLOCK__/$MODELS_BLOCK}"
-OUT="${OUT//__SELECTED__/$SELECTED}"
-OUT="${OUT//__CREATED_AT__/$CREATED_AT}"
-OUT="${OUT//__MACHINE_ID__/$MACHINE_ID}"
-OUT="${OUT//__HOSTNAME_FQDN__/$HOSTNAME_FQDN}"
-OUT="${OUT//__USER_NAME__/$USER_NAME}"
-OUT="${OUT//__OS_NAME__/$OS_NAME}"
-OUT="${OUT//__KERNEL__/$KERNEL}"
-OUT="${OUT//__ARCH__/$ARCH}"
-OUT="${OUT//__CPU_MODEL__/$CPU_MODEL}"
-OUT="${OUT//__CPU_CORES__/$CPU_CORES}"
-OUT="${OUT//__MEM_MB__/$MEM_MB}"
-OUT="${OUT//__IPV4_YAML__/$IPV4_YAML}"
-OUT="${OUT//__APP_LANGUAGE__/${APP_LANGUAGE:-}}"
-OUT="${OUT//__LANG_VAL__/${LANG_VAL:-}}"
-OUT="${OUT//__LC_ALL_VAL__/${LC_ALL:-}}"
-OUT="${OUT//__LANGUAGE_VAL__/${LANGUAGE_VAL:-}}"
-OUT="${OUT//__SYS_LOCALE_LINE__/${SYS_LOCALE_LINE:-}}"
-OUT="${OUT//__VC_KEYMAP__/${VC_KEYMAP:-}}"
-OUT="${OUT//__X11_LAYOUT__/${X11_LAYOUT:-}}"
-OUT="${OUT//__X11_MODEL__/${X11_MODEL:-}}"
-OUT="${OUT//__X11_VARIANT__/${X11_VARIANT:-}}"
-OUT="${OUT//__X11_OPTIONS__/${X11_OPTIONS:-}}"
-OUT="${OUT//__DESKTOP_ENV__/${DESKTOP_ENV:-}}"
-OUT="${OUT//__DESKTOP_SESSION__/${DESKTOP_SESSION:-}}"
-
-# ---- OUTが空ならエラー ----
-if [[ -z "${OUT}" ]]; then
-  echo "[ERROR] OUT is empty; template expansion failed" >&2
-  exit 20
+# モデル一覧取得
+declare -a OLLAMA_ALL=()
+if command -v ollama >/dev/null 2>&1; then
+  mapfile -t OLLAMA_ALL < <( (ollama list 2>/dev/null || true) | awk 'NR>1 {print $1}' )
 fi
 
-# ---- YAML 原子的に上書き ----
-TMP="$(mktemp "${YAML}.tmp.XXXX")"
-printf '%s\n' "$OUT" > "$TMP"
-mv -f "$TMP" "$YAML"
-echo "ok: wrote $YAML (atomic)"
+OLLAMA_ENABLED=0
+(( ${#OLLAMA_ALL[@]} > 0 )) && OLLAMA_ENABLED=1
 
-# ---- .env は初回のみ作成 ----
-if [[ ! -f "$ENVF" ]]; then
-  umask 077
-  cat > "$ENVF" <<EOF
-# NeuroHub environment
-# ※このファイルは初回生成のみ。以後スクリプトは上書きしません。
-GEMINI_API_KEY=
-DISCORD_BOT_TOKEN=
-REMO_TOKEN=
-OLLAMA_HOST=$OLLAMA_HOST_VAL
-EOF
-  echo "ok: created $ENVF"
-else
-  echo "ok: kept existing $ENVF (no changes)"
+is_embed(){ grep -Eiq '(embed|embedding|nomic-embed|all-minilm|e5-|bge-|gte-|text-embedding)' <<<"$1"; }
+
+declare -a OLLAMA_CHAT_CAND=()
+if (( ${#OLLAMA_ALL[@]} > 0 )); then
+  for m in "${OLLAMA_ALL[@]}"; do
+    if ! is_embed "$m"; then OLLAMA_CHAT_CAND+=("$m"); fi
+  done
 fi
 
-[[ -n "$SELECTED" ]] && echo "ollama.selected_model=$SELECTED" || echo "no local ollama models"
+pick_chat(){
+  local -a names=("$@")
+  local -a pref=( "qwen2.5:0.5b-instruct" "llama3.2:1b-instruct" "qwen2.5:1.5b-instruct" "qwen2.5:3b-instruct" "tinyllama:1.1b" "moondream:latest" )
+  for p in "${pref[@]}"; do for n in "${names[@]}"; do [[ "$n" == "$p" ]] && { echo "$n"; return; }; done; done
+  for n in "${names[@]}"; do [[ "$n" =~ instruct|chat ]] && { echo "$n"; return; }; done
+  for n in "${names[@]}"; do [[ "$n" =~ moondream ]] && { echo "$n"; return; }; done
+  echo ""
+}
+OLLAMA_SELECTED="$(pick_chat "${OLLAMA_CHAT_CAND[@]}")"
+
+PROVIDERS=( gemini huggingface ollama )
+SELECTED_PROVIDER="none"
+for p in "${PROVIDERS[@]}"; do
+  case "$p" in
+    gemini)      [[ $G_ENABLED -eq 1 ]] && { SELECTED_PROVIDER="gemini"; break; } ;;
+    huggingface) [[ $HF_ENABLED -eq 1 ]] && { SELECTED_PROVIDER="huggingface"; break; } ;;
+    ollama)      [[ $OLLAMA_ENABLED -eq 1 ]] && { SELECTED_PROVIDER="ollama"; break; } ;;
+  esac
+done
+
+# ---------- 付随パス ----------
+TTS_MODEL_PATH=""
+[[ -f "${ROOT}/models/piper/ja-kokoro-high.onnx" ]] && TTS_MODEL_PATH="${ROOT}/models/piper/ja-kokoro-high.onnx"
+MPV_IPC_DIR="${ROOT}/data/cache/mpv"
+
+# ---------- YAML プレビュー（上書きしない） ----------
+{
+  echo "# AUTO-GENERATED PREVIEW by gen_config_preview.sh (${CREATED_AT})"
+  echo "llm:"
+  echo "  provider_order:"
+  echo "    - gemini"
+  echo "    - huggingface"
+  echo "    - ollama"
+  echo "  selected_provider: ${SELECTED_PROVIDER}"
+  echo
+  echo "  gemini:"
+  echo "    enabled: ${G_ENABLED}"
+  echo "    api_url: \"${G_API_URL}\""
+  echo "    model: \"${G_MODEL}\""
+  echo "    temperature:"
+  echo "    max_output_tokens:"
+  echo "    timeout_sec:"
+  echo
+  echo "  huggingface:"
+  echo "    enabled: ${HF_ENABLED}"
+  echo "    api_base: \"${HF_API_BASE}\""
+  echo "    chat_completions_url_template: \"${HF_CHAT_TMPL}\""
+  echo "    inference_api_url_template: \"${HF_INFER_TMPL}\""
+  echo "    selected_model: \"${HF_SELECTED}\""
+  echo "    models:"
+  for m in "${HF_MODELS[@]}"; do echo "      - ${m}"; done
+  echo
+  echo "  ollama:"
+  echo "    enabled: ${OLLAMA_ENABLED}"
+  echo "    host: \"${OLLAMA_HOST}\""
+  echo "    models:"
+  if (( ${#OLLAMA_ALL[@]} > 0 )); then
+    for m in "${OLLAMA_ALL[@]}"; do echo "      - ${m}"; done
+  else
+    echo "      # (no local models)"
+  fi
+  echo "    selected_model: \"${OLLAMA_SELECTED}\""
+  echo "    temperature:"
+  echo "    num_ctx:"
+  echo "    num_thread:"
+  echo
+  echo "asr:"
+  echo "  engine:"
+  echo "  model:"
+  echo "  timeout_sec:"
+  echo
+  echo "tts:"
+  echo "  engine:"
+  if [[ -n "${TTS_MODEL_PATH}" ]]; then
+    echo "  model: \"${TTS_MODEL_PATH}\""
+  else
+    echo "  model:"
+  fi
+  echo "  out_wav: \"${ROOT}/data/cache/tts/out.wav\""
+  echo "  speed:"
+  echo
+  echo "mpv:"
+  echo "  audio_device:"
+  echo "  default_volume:"
+  echo "  ipc_dir: \"${MPV_IPC_DIR}\""
+  echo "  common_opts:"
+  echo
+  echo "logging:"
+  echo "  level: INFO"
+  echo "  dir: \"${ROOT}/logs\""
+  echo
+  echo "system:"
+  echo "  created_at: \"${CREATED_AT}\""
+  echo "  machine_id: \"${MACHINE_ID}\""
+  echo "  hostname: \"${HOSTNAME}\""
+  echo "  user: \"${USER_NAME}\""
+  echo "  os: \"${OS_NAME}\""
+  echo "  kernel: \"${KERNEL}\""
+  echo "  arch: \"${ARCH}\""
+  echo "  cpu_model: \"${CPU_MODEL}\""
+  echo "  cpu_cores: ${CPU_CORES}"
+  echo "  memory_mb: ${MEM_MB}"
+  echo "  ipv4: [${IPV4_LIST}]"
+  echo "  project_root: \"${ROOT}\""
+  echo "  locale:"
+  echo "    LANG: \"${LANG_VAL}\""
+  echo "    LC_ALL: \"${LC_ALL_VAL}\""
+  echo "    LANGUAGE: \"${LANGUAGE_VAL}\""
+  echo "    system_locale_line: \"${SYSTEM_LOCALE_LINE}\""
+  echo "  keyboard:"
+  echo "    vc_keymap: \"${VC_KEYMAP:-}\""
+  echo "    x11_layout: \"${X11_LAYOUT:-}\""
+  echo "    x11_model: \"${X11_MODEL:-pc105}\""
+  echo "    x11_variant: \"${X11_VARIANT:-}\""
+  echo "    x11_options: \"${X11_OPTIONS:-}\""
+  echo "  desktop:"
+  echo "    current_desktop: \"${CUR_DESKTOP}\""
+  echo "    session: \"${CUR_SESSION}\""
+}  # end YAML print
+
+# ---------- 注意（stderr） ----------
+if (( ${#OLLAMA_CHAT_CAND[@]} == 0 )); then
+  {
+    echo
+    if (( ${#OLLAMA_ALL[@]} == 0 )); then
+      echo "[notice] Ollama のローカルモデルが見つかりません。次を例に追加してください:"
+      echo "  ollama pull qwen2.5:0.5b-instruct"
+    else
+      echo "[notice] チャット用モデルが見つかりません（embed系のみの可能性）。次のどれかを追加してください:"
+      echo "  ollama pull qwen2.5:0.5b-instruct"
+      echo "  # 代替: llama3.2:1b-instruct / qwen2.5:1.5b-instruct / tinyllama:1.1b / moondream:latest など"
+    fi
+    if [[ $ver_ok -eq 0 && $started_by_me -eq 0 ]]; then
+      echo "（補足）Ollama サーバ未起動の場合は、別端末で:"
+      echo "  systemctl --user start ollama   # systemd 管理の場合"
+      echo "  # または"
+      echo "  ollama serve                     # 前面で起動"
+    fi
+  } >&2
+fi
