@@ -213,3 +213,57 @@ cat result.json
 printf "Python homepage\n" | \
 python services/agent/web_agent.py https://www.python.org "Pythonとは？"
 
+## 🧠 Agent CLI – How to Use
+
+`agent_cli.py` は Web解析 & 天気情報（Weather/Web Agent）を
+統一CLIから実行できます。
+
+---
+
+### ✔️ 前提：実行場所（プロジェクトルート）
+
+```bash
+cd ~/work/NeuroHub
+🌦️ Weather Agent（天気）
+引数なし → IPから現在地推定
+
+bash
+コードをコピーする
+python services/agent/agent_cli.py weather
+都市名指定
+
+bash
+コードをコピーする
+python services/agent/agent_cli.py weather Osaka
+座標指定（例：東京駅付近）
+
+bash
+コードをコピーする
+python services/agent/agent_cli.py weather -- \
+  --lat 35.68 --lon 139.76
+24時間予報（JSON形式）
+
+bash
+コードをコピーする
+python services/agent/agent_cli.py weather -- \
+  --forecast hourly --hours 24 --json
+保存（自動命名 / ./weather_logs）
+
+bash
+コードをコピーする
+python services/agent/agent_cli.py weather "Tokyo" --output
+🌐 Web Agent（URL解析 & Q&A）
+BOOTHページの価格を聞く
+
+bash
+コードをコピーする
+python services/agent/agent_cli.py web \
+  https://booth.pm/ja/items/7414326 \
+  "これいくら？" --pretty
+Webページを3行で要約
+
+bash
+コードをコピーする
+python services/agent/agent_cli.py web \
+  https://www.python.org \
+  "3行で要約して"
