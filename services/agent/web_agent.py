@@ -1,5 +1,16 @@
+from __future__ import annotations
+
+import sys, pathlib
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]  # .../NeuroHub
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from tools.bs_core import fetch_html, soupify, extract_standard
+
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 """
 web_agent.py
 - URLからHTML取得 → BeautifulSoupで要約 → LLMに投げて回答
@@ -15,7 +26,7 @@ Usage:
   --timeout SEC     : ネットワークタイムアウト（fetch）
   --pretty          : 出力を整形
 """
-from __future__ import annotations
+
 import argparse, json, sys, textwrap
 from typing import Any, Dict, Optional
 
