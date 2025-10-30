@@ -1,20 +1,34 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-services/mcp/cmd_exec.py  (improved)
+services/mcp/cmd_exec.py (unified)
 
 自然文 → コマンド生成/レシピ優先 → 実行 → LLMリトライ → 解説
-改良点:
-- 既知ゴールはレシピを優先（例: グローバルIP）
-- 成功判定を強化 (--require-output/--success-pattern/--min-bytes)
-- 目標から自動成功パターン (IPv4 etc.)
+- 既知ゴールはレシピ優先（グローバルIPは IPv4 を優先取得）
+- 成功判定を統一 (--require-output/--success-pattern/--min-bytes)
+- 自動成功パターン（IPv4/IPv6）
+- 解説に渡す出力サイズを引数で統一 (--max-explain-out/--max-explain-err)
+- --explain-chunks で ifconfig などを塊ごとに分割解説
+- すべての試行を logs/mcp_exec.log に1行JSONで追記
+
+依存:
+  services/mcp/core.py （ask_llm, extract_command, is_dangerous, non_destructive_only, log_event）
+  services/llm/llm_common.py （DebugLogger）
 """
 
 from __future__ import annotations
-import os, sys, re, json, time, argparse, subprocess
-from pathlib import Path
-from typing import Optional, Dict, Tuple
 
+import os
+import sys
+import re
+import json
+import time
+import argparse
+import subprocess
+from pathlib import Path
+from typing import Optional, Dict, Tuple, List
+
+# import path
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -24,14 +38,16 @@ from services.mcp.core import (
     ask_llm, extract_command, is_dangerous, non_destructive_only, log_event
 )
 
-# ---------- レシピ（高信頼初手） ----------
+# =========================
+# レシピ（高信頼初手。まず IPv4 を試す）
+# =========================
 RECIPES: Dict[str, str] = {
     "global_ip": (
-        "(command -v curl >/dev/null 2>&1 && curl -fsS https://ifconfig.me)"
-        " || (command -v dig >/dev/null 2>&1 && dig +short myip.opendns.com @resolver1.opendns.com)"
-        " || (command -v wget >/dev/null 2>&1 && wget -qO- https://ifconfig.me)"
-        " || (command -v drill >/dev/null 2>&1 && drill -Q myip.opendns.com @resolver1.opendns.com)"
-        " || (printf 'no external IP source found\\n' >&2; exit 1)"
+        # IPv4 を強制して取得（複数フォールバック）
+        "(command -v curl >/dev/null 2>&1 && (curl -4 -fsS https://ifconfig.co || curl -4 -fsS https://api.ipify.org))"
+        " || (command -v dig  >/dev/null 2>&1 && dig +short A myip.opendns.com @resolver1.opendns.com)"
+        " || (command -v wget >/dev/null 2>&1 && (wget -qO- --inet4-only https://ifconfig.co || wget -qO- https://api.ipify.org))"
+        " || (printf 'no external IPv4 source found\\n' >&2; exit 1)"
     ),
 }
 
@@ -41,22 +57,31 @@ def pick_recipe(goal: str) -> Optional[str]:
         return RECIPES["global_ip"]
     return None
 
-# ---------- 目標から成功パターン自動決定 ----------
+# =========================
+# 自動成功パターン
+# =========================
 def auto_success_pattern(goal: str) -> Optional[str]:
     g = (goal or "").lower()
-    # IPv4っぽいもの
-    if any(k in g for k in ["グローバルip", "グローバル ip", "global ip", "外向きip", "外部ip"]):
-        return r"\b(?:\d{1,3}\.){3}\d{1,3}\b"
+    ipv4 = r"\b(?:\d{1,3}\.){3}\d{1,3}\b"
+    ipv6 = r"\b[0-9A-Fa-f:]{2,}\b"
+    # 明示に v4 を求めている
+    if any(k in g for k in ["ipv4", "v4"]):
+        return ipv4
+    # 単に「グローバルIP」等なら v4/v6 どちらでもOK
+    if any(k in g for k in ["グローバルip", "global ip", "外向きip", "外部ip"]):
+        return f"(?:{ipv4})|(?:{ipv6})"
     return None
 
-# ---------- LLMプロンプト ----------
+# =========================
+# LLMプロンプト
+# =========================
 def prompt_first_cmd(goal: str, cwd: str) -> str:
     return (
         "あなたはLinuxシェルの専門家です。以下の目的を達成する安全な単一のコマンドを1行で提案してください。\n"
         f"- 作業ディレクトリ: {cwd}\n"
         "- 出力は **コードブロック無し**。必要なら先頭に `$ ` を付けてもよい\n"
         "- sudo禁止（どうしても必要なら提案は可だが、その場合は 'sudo ' を含める）\n"
-        "- 破壊的操作は禁止。削除は mv <path> <path>.bak に置換すること\n"
+        "- 破壊的操作は禁止。削除は mv <path> <path>.bak に置換\n"
         "- リダイレクト(>, >>, tee)や権限変更(chmod/chown)は禁止\n"
         f"\n目的: {goal}\n"
     )
@@ -81,7 +106,9 @@ def prompt_retry_json(goal: str, cwd: str, attempts: int, last_cmd: str, rc: int
         "JSONのみで応答:"
     )
 
-# ---------- JSON抽出 ----------
+# =========================
+# JSON抽出
+# =========================
 def extract_json_line(text: str) -> Optional[dict]:
     if not text:
         return None
@@ -93,8 +120,11 @@ def extract_json_line(text: str) -> Optional[dict]:
     except Exception:
         return None
 
-# ---------- 安全フィルタ ----------
+# =========================
+# 安全フィルタ
+# =========================
 def sanitize_command(cmd: str) -> Optional[str]:
+    """1行化・先頭'$'除去・危険/破壊チェック"""
     if not cmd:
         return None
     s = cmd.strip()
@@ -111,14 +141,18 @@ def maybe_confirm(prompt: str) -> bool:
     except EOFError:
         return False
 
-# ---------- 実行 ----------
+# =========================
+# 実行
+# =========================
 def run_once(cmd: str, cwd: str, timeout: float = 60.0) -> Tuple[int, str, str, float]:
     t0 = time.time()
     p = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True, timeout=timeout)
     dt = round(time.time() - t0, 2)
     return p.returncode, (p.stdout or ""), (p.stderr or ""), dt
 
-# ---------- 成功判定 ----------
+# =========================
+# 成功判定（統一）
+# =========================
 def is_effective_success(rc: int, out: str, require_output: bool, success_pattern: Optional[re.Pattern], min_bytes: int) -> bool:
     if rc != 0:
         return False
@@ -129,9 +163,35 @@ def is_effective_success(rc: int, out: str, require_output: bool, success_patter
         return False
     return True
 
-# ---------- main ----------
+# =========================
+# 分割解説ユーティリティ
+# =========================
+def split_ifconfig_blocks(text: str) -> List[Tuple[str, str]]:
+    """ifconfig -a の出力を <IF名> ごとに分ける"""
+    blocks: List[Tuple[str, str]] = []
+    cur_name, buf = None, []
+    for line in text.splitlines():
+        m = re.match(r'^(\S+):\s', line)
+        if m:
+            if cur_name is not None:
+                blocks.append((cur_name, "\n".join(buf)))
+            cur_name, buf = m.group(1), [line]
+        else:
+            if cur_name is not None:
+                buf.append(line)
+    if cur_name is not None:
+        blocks.append((cur_name, "\n".join(buf)))
+    return blocks
+
+def is_json_array(text: str) -> bool:
+    t = (text or "").lstrip()
+    return t.startswith("[")
+
+# =========================
+# main
+# =========================
 def main() -> int:
-    ap = argparse.ArgumentParser(description="自然文→生成/レシピ→実行→LLMリトライ→解説（強化版）")
+    ap = argparse.ArgumentParser(description="自然文→生成/レシピ→実行→LLMリトライ→解説（統一版）")
     ap.add_argument("input", nargs="+", help="自然文の目的、または '$ コマンド'")
     ap.add_argument("--cwd", default=os.getcwd())
     ap.add_argument("--sudo", choices=["allow","deny","ask"], default="ask", help="sudo使用方針")
@@ -141,11 +201,18 @@ def main() -> int:
     ap.add_argument("--debug", action="store_true")
     ap.add_argument("--cmd", help="明示コマンドを実行（$不要）")
 
-    # 成功判定関連
+    # 成功判定（統一）
     ap.add_argument("--require-output", action="store_true", default=True, help="STDOUTが空なら失敗扱い（デフォルトON）")
     ap.add_argument("--no-require-output", dest="require_output", action="store_false")
     ap.add_argument("--success-pattern", help="STDOUTにマッチ必須の正規表現")
-    ap.add_argument("--min-bytes", type=int, default=1, help="STDOUTの最小バイト数（既定1。0にすれば無効同然）")
+    ap.add_argument("--min-bytes", type=int, default=1, help="STDOUTの最小バイト数（既定1。0にすれば実質無効）")
+
+    # 解説に渡すサイズ（統一）
+    ap.add_argument("--max-explain-out", type=int, default=20000, help="AI解説へ渡すSTDOUT上限バイト")
+    ap.add_argument("--max-explain-err", type=int, default=8000, help="AI解説へ渡すSTDERR上限バイト")
+
+    # 分割解説
+    ap.add_argument("--explain-chunks", action="store_true", help="STDOUTを塊に分割し個別にAI解説（ifconfig等）")
 
     args = ap.parse_args()
 
@@ -220,6 +287,7 @@ def main() -> int:
             print("## STDERR (先頭1000)\n" + err[:1000] + "\n")
         print(f"(rc={rc}, took={took:.2f}s)\n")
 
+        # ログ（統一）
         log_event({
             "kind": "exec",
             "goal": goal,
@@ -231,7 +299,7 @@ def main() -> int:
             "attempt": attempts,
         })
 
-        # --- 強化された成功判定 ---
+        # 統一された成功判定
         if is_effective_success(rc, out, args.require_output, success_pat, args.min_bytes):
             print("# 完了: 成功条件を満たしたので終了します。")
             last_rc, last_out, last_err = rc, out, err
@@ -286,23 +354,63 @@ def main() -> int:
 
         cmdline = safe_cmd
 
-    # 簡易解説
+    # ===== 解説（統一） =====
     if not args.no_explain:
         try:
-            summary_prompt = (
-                "次のコマンドと結果を短く解説し、改善案があれば1〜2点提案してください。\n"
-                f"[目的]\n{goal}\n"
-                f"[最終コマンド]\n$ {cmdline}\n"
-                f"[終了コード]\n{last_rc}\n"
-                f"[STDOUT抜粋]\n{(last_out or '')[:1000]}\n"
-                f"[STDERR抜粋]\n{(last_err or '')[:600]}\n"
-                "出力形式:\n- 解説: 1〜3行\n- 改善案: 箇条書き"
-            )
-            body, _ = ask_llm(summary_prompt, DebugLogger(False))
-            print("# AI解説\n" + body.strip())
+            if args.explain_chunks and last_out:
+                # ifconfig のような行形式を塊で解説
+                blocks = []
+                if is_json_array(last_out):
+                    # JSON配列なら要素ごとに（必要に応じて拡張）
+                    try:
+                        arr = json.loads(last_out)
+                        for i, obj in enumerate(arr[:64]):  # 過大防止
+                            blocks.append((f"item[{i}]", json.dumps(obj, ensure_ascii=False, indent=2)))
+                    except Exception:
+                        # JSONとして壊れていれば通常解説にフォールバック
+                        blocks = []
+                if not blocks:
+                    blocks = split_ifconfig_blocks(last_out)
+
+                if blocks:
+                    for name, body_txt in blocks:
+                        summary_prompt = (
+                            f"以下は [{name}] の出力です。主要項目を短く解説し、気をつける点があれば1〜2点挙げてください。\n\n"
+                            f"[{name}]\n{body_txt[:args.max_explain_out]}\n"
+                            "出力形式:\n- 要約: 2〜4行\n- 注意点: 箇条書き(なければ“なし”)"
+                        )
+                        body, _ = ask_llm(summary_prompt, DebugLogger(False))
+                        print(f"\n# {name} の解説\n{body.strip()}")
+                else:
+                    # フォールバック：全体解説
+                    summary_prompt = (
+                        "次のコマンドと結果を短く解説し、改善案があれば1〜2点提案してください。\n"
+                        f"[目的]\n{goal}\n"
+                        f"[最終コマンド]\n$ {cmdline}\n"
+                        f"[終了コード]\n{last_rc}\n"
+                        f"[STDOUT抜粋]\n{(last_out or '')[:args.max_explain_out]}\n"
+                        f"[STDERR抜粋]\n{(last_err or '')[:args.max_explain_err]}\n"
+                        "出力形式:\n- 解説: 1〜3行\n- 改善案: 箇条書き"
+                    )
+                    body, _ = ask_llm(summary_prompt, DebugLogger(False))
+                    print("# AI解説\n" + body.strip())
+            else:
+                # まとめ解説
+                summary_prompt = (
+                    "次のコマンドと結果を短く解説し、改善案があれば1〜2点提案してください。\n"
+                    f"[目的]\n{goal}\n"
+                    f"[最終コマンド]\n$ {cmdline}\n"
+                    f"[終了コード]\n{last_rc}\n"
+                    f"[STDOUT抜粋]\n{(last_out or '')[:args.max_explain_out]}\n"
+                    f"[STDERR抜粋]\n{(last_err or '')[:args.max_explain_err]}\n"
+                    "出力形式:\n- 解説: 1〜3行\n- 改善案: 箇条書き"
+                )
+                body, _ = ask_llm(summary_prompt, DebugLogger(False))
+                print("# AI解説\n" + body.strip())
         except Exception as e:
             print(f"[warn] 解説生成に失敗: {e}", file=sys.stderr)
 
+    # 統一された成功判定で終了コード決定
     return 0 if is_effective_success(last_rc, last_out, args.require_output, success_pat, args.min_bytes) else 1
 
 
