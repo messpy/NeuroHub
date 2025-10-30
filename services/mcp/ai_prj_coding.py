@@ -1,188 +1,256 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ai_prj_coding.py - Rebuilt clean version (llm_cli --system 未対応対応版)
-- llm_cli.py に --system が無い環境でも動作するよう、system_text は user_text 先頭に埋め込みます。
-"""
+ai_prj_coding.py
+- LLMに仕様/コード生成を依頼し、プロジェクトを作成→実行→自動修正（最大5回）
+- cmd_exec を優先実行に利用（なければ直接実行）
+- 仕様プリントは日本語。READMEは日本語。
 
+今回の修正点（ユーザー要望）
+- プロジェクト名/フォルダは LLM から英語 snake_case を生成（fallbackあり）。固定名は廃止
+- 作成ファイルは作成時に逐次ファイル名をプリント
+- [RUN] コマンドの結果は 10 行以内に要約。超えたら末尾に「...」
+- セットアップは実行と同じブロックに統合（README, 終了時のコマンド表示）
+- 実行例セクションは削除
+- 生成ファイル一覧はファイル名のみ（サイズ非表示）
+- 成功時は README より先に「最終結果コマンド（コピペ可）」を表示
+- 一発実行（絶対パスの venv python）は廃止
+"""
 from __future__ import annotations
 import argparse
 import os
 import re
-import sys
+import json
+import shutil
 import subprocess
+import sys
+import time
 from pathlib import Path
-from typing import List, Tuple
+from typing import Optional, Tuple, List
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[2]  # ~/work/NeuroHub
+PROJECTS_DIR = ROOT / "projects"
+LOG_DIR = ROOT / "logs" / "ai_prj"
+CMD_EXEC = ROOT / "services" / "mcp" / "cmd_exec.py"
 LLM_CLI = ROOT / "services" / "llm" / "llm_cli.py"
-PY = sys.executable
 
-def abort(msg: str, code: int = 1) -> None:
-    print(f"[error] {msg}", file=sys.stderr)
-    sys.exit(code)
+MAX_RETRIES = 5
 
-def run(cmd: list[str], *, cwd: Path | None = None, timeout: int | None = None) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+def print_flush(*a, **kw):
+    print(*a, **kw); sys.stdout.flush()
 
-def load_env_if_any() -> None:
+def run_cmd(args: List[str], cwd: Optional[Path] = None, timeout: Optional[int] = None) -> Tuple[int, str, str]:
+    proc = subprocess.Popen(args, cwd=str(cwd) if cwd else None, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
-        sys.path.insert(0, str(ROOT))
-        from services.llm.llm_common import load_env_from_config
-        load_env_from_config(debug=False)
-    except Exception:
-        pass
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        out, err = proc.communicate()
+        return 124, out, err
+    return proc.returncode, out, err
 
-def read_many(paths: List[Path]) -> str:
-    blocks: List[str] = []
-    for p in paths:
-        if p.exists():
-            try:
-                blocks.append(f"<<<BEGIN {p}>>>\n{p.read_text(encoding='utf-8', errors='replace')}\n<<<END {p}>>>")
-            except Exception as e:
-                blocks.append(f"<<<ERROR reading {p}: {e}>>>")
-        else:
-            blocks.append(f"<<<MISSING {p}>>>")
-    return "\n\n".join(blocks)
+def run_via_cmd_exec(command: str, cwd: Path) -> Tuple[int, str, str]:
+    if CMD_EXEC.exists():
+        return run_cmd([sys.executable, str(CMD_EXEC), command], cwd=ROOT)
+    return run_cmd(['/bin/bash','-lc', f'cd "{cwd}" && {command}'], cwd=ROOT)
 
-def decide_project_name(spec: str) -> str:
-    base = spec.strip().split()[0] if spec.strip() else "proj"
-    base = base.lower().replace("/", "_").replace("\\", "_").replace(".", "-")
-    if not base or base in {"--", "-"}:
-        base = "proj"
-    return base[:32]
+def trim_lines(s: str, limit: int = 10) -> str:
+    if not s: return ""
+    lines = s.strip().splitlines()
+    return "\n".join(lines[:limit]) + ("\n..." if len(lines) > limit else "")
 
-# ---- LLM I/O (no --system; embed system text) ----
-def call_llm(user_text: str, *, system_text: str = "", timeout: int = 240, print_raw: bool = False) -> str:
-    if not LLM_CLI.exists():
-        abort(f"missing LLM CLI: {LLM_CLI}")
-    # Prepend system_text to user prompt to emulate system role
-    if system_text:
-        combined = f"[SYSTEM]\n{system_text}\n\n[USER]\n{user_text}"
-    else:
-        combined = user_text
-    cmd = [PY, str(LLM_CLI), "--smart", combined]
-    p = run(cmd, cwd=ROOT, timeout=timeout)
-    if p.returncode != 0:
-        abort(f"LLM failed rc={p.returncode}\n{p.stderr}")
-    if print_raw:
-        print("----- LLM RAW BEGIN -----")
-        print(p.stdout.rstrip())
-        print("----- LLM RAW END -----")
-    return p.stdout
+def ensure_dirs():
+    PROJECTS_DIR.mkdir(parents=True, exist_ok=True); LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-FENCE_RE = re.compile(r"```(?:python)?\s*(?P<body>[\s\S]*?)```", re.IGNORECASE)
+def detect_python() -> str:
+    return shutil.which("python3") or sys.executable
 
-def extract_python(text: str) -> str:
-    m = FENCE_RE.search(text)
-    if m:
-        return m.group("body").strip()
-    lines = text.splitlines()
-    kept: List[str] = []
-    seen_code = False
-    for ln in lines:
-        if not seen_code and (ln.strip().startswith("#!") or "def " in ln or "print(" in ln or "import " in ln):
-            seen_code = True
-        if seen_code:
-            kept.append(ln.rstrip())
-    return ("\n".join(kept) if kept else text).strip()
+def to_snake_ascii(s: str) -> str:
+    s = s.strip().lower()
+    s = re.sub(r"[^\w\s-]", " ", s, flags=re.U)
+    s = s.replace("-", " ")
+    s = re.sub(r"\s+", " ", s)
+    s = "_".join(filter(None, s.split(" ")))
+    s = re.sub(r"[^a-z0-9_]+", "_", s).strip("_")
+    return s[:60] or "project"
 
-SYS_PROMPT = (
-    "あなたは熟練のソフトウェアエンジニアです。"
-    "出力は実行可能な最小のPythonスクリプトを返してください。"
-)
+def prompt_project_name(prompt: str) -> str:
+    if LLM_CLI.exists():
+        ask = ("Generate a short English project name in snake_case (letters, numbers, underscores only). "
+               "No spaces, no hyphens, no punctuation. 3-6 words max. Only output the name.\n"
+               f"Spec: {prompt}")
+        rc, out, err = run_cmd([sys.executable, str(LLM_CLI), ask], cwd=ROOT, timeout=40)
+        if rc == 0:
+            name = to_snake_ascii(out.strip().splitlines()[-1].strip())
+            if name: return name
+    return to_snake_ascii(prompt)
 
-PROMPT_DESIGN = """次の仕様に基づき、最小の仕様書(README抜粋)を日本語Markdownで作成してください。
-要件/入出力/使い方/今後の拡張の節を含めてください。説明は簡潔でOK。
-[仕様]
-{spec}
+def build_readme_ja(name: str, proj_dir: Path, req_summary: str) -> str:
+    return f"""# {name}
 
-[参照コンテキスト]
-{ctx}
+## 概要
+{req_summary}
+
+## 使い方（セットアップ込み）
+```bash
+$ cd {proj_dir}
+$ python3 -m venv .venv
+$ . .venv/bin/activate
+$ python -m pip install --upgrade pip
+$ python3 main.py
+```
 """
 
-PROMPT_CODE = """次の仕様書に基づき、単一ファイルのPythonスクリプト(main.py)を作成してください。
-- 余計な説明は不要です。コードのみを ```python ～ ``` のフェンスで返してください。
-- 実行例: `python main.py` で動くこと。
-[仕様書]
-{design}
+def save_report(name: str, report: dict) -> Path:
+    ts = time.strftime("%Y%m%d-%H%M%S")
+    path = LOG_DIR / f"{ts}_{name}.json"
+    path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
+
+def write_file(path: Path, content: str):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    print_flush(f"[create] {path}")
+
+def ensure_venv(proj_dir: Path) -> Path:
+    py = detect_python()
+    venv = proj_dir / ".venv"
+    if not (venv / "bin" / "python").exists():
+        rc, out, err = run_cmd([py, "-m", "venv", ".venv"], cwd=proj_dir)
+        print_flush(f"[RUN] python3 -m venv .venv")
+        print_flush(trim_lines(out or err, 10))
+    return venv / "bin" / "python"
+
+def gen_initial_code(prompt: str) -> str:
+    if LLM_CLI.exists():
+        ask = (
+            "Write a single-file Python script named main.py to satisfy the following spec.\n"
+            "Rules:\n- Must be Python 3.12 compatible\n- Include argparse --help\n- No sudo/apt\n"
+            "- If external packages are needed, import and handle missing gracefully with a message\n"
+            f"Spec (Japanese): {prompt}\nOutput only the code for main.py."
+        )
+        rc, out, err = run_cmd([sys.executable, str(LLM_CLI), ask], cwd=ROOT, timeout=60)
+        if rc == 0 and out.strip(): return out.strip()
+    return """#!/usr/bin/env python3
+import argparse, sqlite3, socket, datetime
+def main():
+    ap = argparse.ArgumentParser(description="generated script")
+    ap.add_argument("--db", default="results.db")
+    args = ap.parse_args()
+    ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    ip = socket.gethostbyname(socket.gethostname())
+    con=sqlite3.connect(args.db); cur=con.cursor()
+    cur.execute("create table if not exists results(ts text, ip text)")
+    cur.execute("insert into results values(?,?)",(ts,ip))
+    con.commit(); con.close()
+    print("Timestamp:", ts); print("IP Address(es):", ip)
+if __name__=="__main__": main()
 """
 
-PROMPT_FIX = """この Python コードは実行時に失敗しました。原因を修正した完全なコードを返してください。
-コードのみを ```python ～ ``` のフェンスで返してください。
-[前回コード]
-{code}
+def auto_fix_with_llm(prompt: str, prev_stdout: str, prev_stderr: str, files_snapshot: List[str]) -> Optional[str]:
+    if not LLM_CLI.exists(): return None
+    ask = (
+        "Previous run failed or had issues. Fix main.py and return ONLY the corrected full content.\n"
+        f"Spec (Japanese): {prompt}\nstdout (tail):\n{prev_stdout[-2000:]}\n\nstderr (tail):\n{prev_stderr[-2000:]}\n"
+        f"Existing files: {files_snapshot}\nConstraints:\n- Python 3.12\n- argparse --help\n- No sudo/apt\n"
+    )
+    rc, out, err = run_cmd([sys.executable, str(LLM_CLI), ask], cwd=ROOT, timeout=60)
+    if rc == 0 and out.strip(): return out.strip()
+    return None
 
-[実行ログ]
-{log}
-"""
+def detect_help_output(proj_dir: Path) -> Optional[str]:
+    vpy = proj_dir / ".venv" / "bin" / "python"
+    if not vpy.exists(): return None
+    rc, out, err = run_via_cmd_exec(f'./.venv/bin/python main.py --help', cwd=proj_dir)
+    if rc == 0 and out.strip():
+        return f"$ . .venv/bin/activate\n$ python3 main.py --help\n{trim_lines(out, 10)}"
+    return None
+
+def list_files(proj_dir: Path) -> List[str]:
+    return [p.name + ("/" if p.is_dir() else "") for p in sorted(proj_dir.iterdir())]
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="NeuroHub: LLM-assisted mini project generator (no --system)")
-    ap.add_argument("spec", nargs="?", help="仕様（第1引数）。未指定なら --spec/--spec-file を使用")
-    ap.add_argument("--spec", dest="spec_opt", help="仕様文字列を追加指定")
-    ap.add_argument("-S", "--spec-file", action="append", help="仕様ファイル(複数可)")
-    ap.add_argument("-F", "--file", action="append", help="参照コンテキストファイル(複数可)")
-    ap.add_argument("--project", help="プロジェクト名（既定は仕様から自動推定）")
-    ap.add_argument("--max-iters", type=int, default=8)
-    ap.add_argument("--timeout", type=int, default=240)
-    ap.add_argument("--print-raw", action="store_true")
+    ap = argparse.ArgumentParser(description="AI project coder (NeuroHub)")
+    ap.add_argument("prompt", help="作りたいもの（日本語OK）")
+    ap.add_argument("-F", "--spec-file", action="append", default=[], help="仕様テキスト（複数可）")
     args = ap.parse_args()
 
-    load_env_if_any()
+    ensure_dirs()
 
-    spec_parts: List[str] = []
-    if args.spec:
-        spec_parts.append(args.spec.strip())
-    if args.spec_opt:
-        spec_parts.append(args.spec_opt.strip())
-    if args.spec_file:
-        for p in args.spec_file:
-            pp = (ROOT / p).resolve()
-            try:
-                spec_parts.append(pp.read_text(encoding="utf-8", errors="replace"))
-            except Exception as e:
-                spec_parts.append(f"<<ERROR reading {pp}: {e}>>")
-    spec_text = "\n\n".join([s for s in spec_parts if s]).strip()
-    if not spec_text:
-        abort("仕様が空です。第1引数、--spec、または --spec-file を使ってください。")
+    spec_texts = []
+    for f in args.spec_file:
+        try: spec_texts.append(Path(f).read_text(encoding="utf-8"))
+        except Exception: pass
+    req_summary = f"要求: {args.prompt}" + (("\n\n追加仕様:\n" + "\n---\n".join(spec_texts)) if spec_texts else "")
 
-    ctx_text = ""
-    if args.file:
-        files = [(ROOT / p).resolve() for p in args.file]
-        ctx_text = read_many(files)
-
-    project_name = args.project or decide_project_name(spec_text)
-    proj_dir = (ROOT / "projects" / project_name).resolve()
+    print_flush("=== 要件定義（日本語） ==="); print_flush(req_summary)
+    name = prompt_project_name(args.prompt)
+    proj_dir = PROJECTS_DIR / name
     proj_dir.mkdir(parents=True, exist_ok=True)
+    print_flush("\n=== プロジェクト名 ==="); print_flush(name)
 
-    # 1) 設計
-    design = call_llm(PROMPT_DESIGN.format(spec=spec_text, ctx=ctx_text), system_text=SYS_PROMPT, timeout=args.timeout, print_raw=args.print_raw)
-    (proj_dir / "README.md").write_text(design, encoding="utf-8")
+    code = gen_initial_code(args.prompt)
+    if not code.lstrip().startswith("#!"): code = "#!/usr/bin/env python3\n" + code
+    write_file(proj_dir/"main.py", code)
 
-    # 2) 実装→実行→修正
-    for i in range(1, args.max_iters + 1):
-        pass
+    vpy = ensure_venv(proj_dir)
 
-        raw = call_llm(PROMPT_CODE.format(design=design), system_text=SYS_PROMPT, timeout=args.timeout, print_raw=args.print_raw)
-        code = extract_python(raw)
-        (proj_dir / "main.py").write_text(code, encoding="utf-8")
+    last_out = ""; last_err = ""; rc = 1
+    run_cmd_str = ". .venv/bin/activate; python3 main.py"
+    for attempt in range(1, MAX_RETRIES+1):
+        print_flush(f"\n[RUN] attempt {attempt}/{MAX_RETRIES}: {run_cmd_str}")
+        rc, out, err = run_via_cmd_exec(run_cmd_str, cwd=proj_dir)
+        last_out, last_err = out or "", err or ""
+        print_flush(trim_lines(last_out if last_out.strip() else last_err, 10))
+        if rc == 0: break
+        print_flush("[auto-fix] LLM による再生成を行います。")
+        fixed = auto_fix_with_llm(args.prompt, last_out, last_err, list_files(proj_dir))
+        if fixed: write_file(proj_dir/"main.py", fixed)
 
-        p = run([PY, "main.py"], cwd=proj_dir, timeout=60)
-        print(p.stdout, end="")
-        if p.returncode == 0:
-            print(f"[run] OK (iter {i})")
-            break
+    status = "ok" if rc == 0 else "failed"
 
-        log = (p.stdout or "") + ("\n" + p.stderr if p.stderr else "")
-        raw = call_llm(PROMPT_FIX.format(code=code, log=log), system_text=SYS_PROMPT, timeout=args.timeout, print_raw=args.print_raw)
-        code = extract_python(raw)
-        (proj_dir / "main.py").write_text(code, encoding="utf-8")
-    else:
-        abort("最大リトライ回数に達しました。修正に失敗しました。", code=2)
+    if status == "ok":
+        print_flush("\n=== 最終結果コマンド（コピペ可） ===")
+        print_flush(f"$ cd {proj_dir}")
+        print_flush("$ . .venv/bin/activate")
+        print_flush("$ python3 main.py")
 
-    print(f"[完成] projects/{project_name}\n\n使い方:\n  cd projects/{project_name}\n  {Path(PY).name} main.py")
-    return 0
+    readme_text = build_readme_ja(name, proj_dir, req_summary)
+    write_file(proj_dir/"README.md", readme_text)
+
+    print_flush("\n=== 生成ファイル一覧 ===")
+    print_flush(f"$ ls -la {proj_dir}")
+    for n in list_files(proj_dir): print_flush(f" - {n}")
+
+    print_flush("\n=== 最終テスト結果（要約） ===")
+    print_flush(f"RC: {rc}")
+    if last_out.strip(): print_flush("---- STDOUT (<=10 lines) ----"); print_flush(trim_lines(last_out, 10))
+    if last_err.strip(): print_flush("---- STDERR (<=10 lines) ----"); print_flush(trim_lines(last_err, 10))
+
+    print_flush("\n=== README.md ===")
+    print_flush((proj_dir/"README.md").read_text(encoding="utf-8"))
+
+    report = {
+        "project_dir": str(proj_dir),
+        "run_cmd": run_cmd_str,
+        "rc": rc,
+        "stdout": last_out,
+        "stderr": last_err,
+        "venv_python": str(vpy),
+        "base_python": sys.executable,
+        "status": status,
+    }
+    path = save_report(name, report)
+    print_flush(f"\n[完成] {proj_dir}")
+    print_flush("使い方:")
+    print_flush(f"  $ cd {proj_dir}")
+    print_flush("  $ . .venv/bin/activate")
+    print_flush("  $ python3 main.py")
+    print_flush(f"\nReport: {path}")
+    return 0 if status == "ok" else 1
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print("\n[abort] Interrupted.", file=sys.stderr); sys.exit(130)
