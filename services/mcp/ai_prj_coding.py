@@ -3,18 +3,21 @@
 """
 ai_prj_coding.py
 - LLMに仕様/コード生成を依頼し、プロジェクトを作成→実行→自動修正（最大5回）
-- cmd_exec を優先実行に利用（なければ直接実行）
-- 仕様プリントは日本語。READMEは日本語。
+- cmd_exec を優先実行に利用（あれば）。なければ bash -lc で cd && 実行
+- 仕様プリントは日本語。READMEも日本語。
 
-今回の修正点（ユーザー要望）
-- プロジェクト名/フォルダは LLM から英語 snake_case を生成（fallbackあり）。固定名は廃止
-- 作成ファイルは作成時に逐次ファイル名をプリント
-- [RUN] コマンドの結果は 10 行以内に要約。超えたら末尾に「...」
-- セットアップは実行と同じブロックに統合（README, 終了時のコマンド表示）
-- 実行例セクションは削除
-- 生成ファイル一覧はファイル名のみ（サイズ非表示）
-- 成功時は README より先に「最終結果コマンド（コピペ可）」を表示
-- 一発実行（絶対パスの venv python）は廃止
+変更点（不具合修正＆要望反映）
+- LLMが返すMarkdownコードフェンス（```python 〜 ```）を除去して main.py に保存（SyntaxError対策）
+- cmd_exec 経由でも必ず「cd <project_dir> && <command>」で実行（ルート .venv を誤って参照する問題を修正）
+- 失敗時に「No module named X」「ModuleNotFoundError: No module named 'X'」を検知し、.venv に自動 pip install（sudo/aptは一切使わない）
+- [RUN] の標準出力/標準エラーは各10行まで。超過時は末尾に「...」を付与
+- 成功時は README より先に「最終結果コマンド（コピペ可）」を出力
+- 生成ファイル一覧はファイル名のみ（サイズなし）
+- プロジェクト名は LLM 由来の英語 snake_case（失敗時はフォールバック整形）
+
+使い方（例）:
+  PYTHONPATH=. ./venv/bin/python services/mcp/ai_prj_coding.py "requestsでURL取得→JSON表示CLI"
+  PYTHONPATH=. ./venv/bin/python services/mcp/ai_prj_coding.py -F docs/README.md "プロンプト"
 """
 from __future__ import annotations
 import argparse
@@ -50,9 +53,11 @@ def run_cmd(args: List[str], cwd: Optional[Path] = None, timeout: Optional[int] 
     return proc.returncode, out, err
 
 def run_via_cmd_exec(command: str, cwd: Path) -> Tuple[int, str, str]:
+    # 常にプロジェクトディレクトリへ cd してから実行する
+    wrapped = f'cd "{cwd}" && {command}'
     if CMD_EXEC.exists():
-        return run_cmd([sys.executable, str(CMD_EXEC), command], cwd=ROOT)
-    return run_cmd(['/bin/bash','-lc', f'cd "{cwd}" && {command}'], cwd=ROOT)
+        return run_cmd([sys.executable, str(CMD_EXEC), wrapped], cwd=ROOT)
+    return run_cmd(['/bin/bash','-lc', wrapped], cwd=ROOT)
 
 def trim_lines(s: str, limit: int = 10) -> str:
     if not s: return ""
@@ -75,12 +80,13 @@ def to_snake_ascii(s: str) -> str:
     return s[:60] or "project"
 
 def prompt_project_name(prompt: str) -> str:
+    # LLM から名前候補取得 → 整形
     if LLM_CLI.exists():
         ask = ("Generate a short English project name in snake_case (letters, numbers, underscores only). "
                "No spaces, no hyphens, no punctuation. 3-6 words max. Only output the name.\n"
                f"Spec: {prompt}")
         rc, out, err = run_cmd([sys.executable, str(LLM_CLI), ask], cwd=ROOT, timeout=40)
-        if rc == 0:
+        if rc == 0 and out.strip():
             name = to_snake_ascii(out.strip().splitlines()[-1].strip())
             if name: return name
     return to_snake_ascii(prompt)
@@ -115,11 +121,23 @@ def write_file(path: Path, content: str):
 def ensure_venv(proj_dir: Path) -> Path:
     py = detect_python()
     venv = proj_dir / ".venv"
-    if not (venv / "bin" / "python").exists():
+    vpy = venv / "bin" / "python"
+    if not vpy.exists():
         rc, out, err = run_cmd([py, "-m", "venv", ".venv"], cwd=proj_dir)
         print_flush(f"[RUN] python3 -m venv .venv")
-        print_flush(trim_lines(out or err, 10))
-    return venv / "bin" / "python"
+        if out.strip(): print_flush(trim_lines(out, 10))
+        if err.strip(): print_flush(trim_lines(err, 10))
+    return vpy
+
+def strip_markdown_code(text: str) -> str:
+    """
+    ```python ... ``` / ``` ... ``` で囲まれている場合、中身だけ返す。
+    なければそのまま返す。
+    """
+    m = re.search(r"```(?:python)?\s*(.*?)```", text, flags=re.S|re.I)
+    if m:
+        return m.group(1).strip()
+    return text.strip()
 
 def gen_initial_code(prompt: str) -> str:
     if LLM_CLI.exists():
@@ -127,10 +145,13 @@ def gen_initial_code(prompt: str) -> str:
             "Write a single-file Python script named main.py to satisfy the following spec.\n"
             "Rules:\n- Must be Python 3.12 compatible\n- Include argparse --help\n- No sudo/apt\n"
             "- If external packages are needed, import and handle missing gracefully with a message\n"
-            f"Spec (Japanese): {prompt}\nOutput only the code for main.py."
+            f"Spec (Japanese): {prompt}\nOutput only the code for main.py (you may use a fenced code block)."
         )
-        rc, out, err = run_cmd([sys.executable, str(LLM_CLI), ask], cwd=ROOT, timeout=60)
-        if rc == 0 and out.strip(): return out.strip()
+        rc, out, err = run_cmd([sys.executable, str(LLM_CLI), ask], cwd=ROOT, timeout=90)
+        if rc == 0 and out.strip():
+            code = strip_markdown_code(out)
+            return code
+    # フォールバック最小コード
     return """#!/usr/bin/env python3
 import argparse, sqlite3, socket, datetime
 def main():
@@ -153,10 +174,33 @@ def auto_fix_with_llm(prompt: str, prev_stdout: str, prev_stderr: str, files_sna
         "Previous run failed or had issues. Fix main.py and return ONLY the corrected full content.\n"
         f"Spec (Japanese): {prompt}\nstdout (tail):\n{prev_stdout[-2000:]}\n\nstderr (tail):\n{prev_stderr[-2000:]}\n"
         f"Existing files: {files_snapshot}\nConstraints:\n- Python 3.12\n- argparse --help\n- No sudo/apt\n"
+        "Output may be in a fenced code block."
     )
-    rc, out, err = run_cmd([sys.executable, str(LLM_CLI), ask], cwd=ROOT, timeout=60)
-    if rc == 0 and out.strip(): return out.strip()
+    rc, out, err = run_cmd([sys.executable, str(LLM_CLI), ask], cwd=ROOT, timeout=90)
+    if rc == 0 and out.strip():
+        return strip_markdown_code(out)
     return None
+
+_missing_pkg_pat = re.compile(r"(?:No module named ['\"]?([a-zA-Z0-9_\-]+)['\"]?|ModuleNotFoundError:\s*No module named ['\"]([a-zA-Z0-9_\-]+)['\"])")
+
+def try_install_missing_pkgs(proj_dir: Path, out: str, err: str) -> List[str]:
+    """stderr/stdoutから不足パッケージ名を抽出し、.venv へ pip install を試みる。成功したパッケージ名を返す。"""
+    text = "\n".join([out or "", err or ""])
+    pkgs = set()
+    for m in _missing_pkg_pat.finditer(text):
+        pkg = m.group(1) or m.group(2)
+        if pkg and pkg not in {"pip", "setuptools", "wheel"}:
+            pkgs.add(pkg)
+    installed = []
+    if pkgs:
+        print_flush(f"[auto-install] missing packages detected: {', '.join(sorted(pkgs))}")
+        for pkg in sorted(pkgs):
+            rc, o, e = run_via_cmd_exec(f'./.venv/bin/python -m pip install --disable-pip-version-check -q {pkg}', cwd=proj_dir)
+            summary = trim_lines((o or e), 10)
+            print_flush(f"[RUN] pip install {pkg}\n{summary}")
+            if rc == 0:
+                installed.append(pkg)
+    return installed
 
 def detect_help_output(proj_dir: Path) -> Optional[str]:
     vpy = proj_dir / ".venv" / "bin" / "python"
@@ -167,7 +211,10 @@ def detect_help_output(proj_dir: Path) -> Optional[str]:
     return None
 
 def list_files(proj_dir: Path) -> List[str]:
-    return [p.name + ("/" if p.is_dir() else "") for p in sorted(proj_dir.iterdir())]
+    try:
+        return [p.name + ("/" if p.is_dir() else "") for p in sorted(proj_dir.iterdir())]
+    except FileNotFoundError:
+        return []
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="AI project coder (NeuroHub)")
@@ -197,15 +244,32 @@ def main() -> int:
 
     last_out = ""; last_err = ""; rc = 1
     run_cmd_str = ". .venv/bin/activate; python3 main.py"
-    for attempt in range(1, MAX_RETRIES+1):
+
+    attempt = 1
+    while attempt <= MAX_RETRIES:
         print_flush(f"\n[RUN] attempt {attempt}/{MAX_RETRIES}: {run_cmd_str}")
         rc, out, err = run_via_cmd_exec(run_cmd_str, cwd=proj_dir)
         last_out, last_err = out or "", err or ""
-        print_flush(trim_lines(last_out if last_out.strip() else last_err, 10))
-        if rc == 0: break
+        # 10行サマリ表示
+        summary = trim_lines(last_out if last_out.strip() else last_err, 10)
+        if summary:
+            print_flush(summary)
+
+        if rc == 0:
+            break  # success
+
+        # まず不足パッケージがあれば自動インストール
+        installed = try_install_missing_pkgs(proj_dir, last_out, last_err)
+        if installed:
+            # インストール後に同 attempt 番号で再実行
+            continue
+
+        # LLMで自動修正
         print_flush("[auto-fix] LLM による再生成を行います。")
         fixed = auto_fix_with_llm(args.prompt, last_out, last_err, list_files(proj_dir))
-        if fixed: write_file(proj_dir/"main.py", fixed)
+        if fixed:
+            write_file(proj_dir/"main.py", fixed)
+        attempt += 1
 
     status = "ok" if rc == 0 else "failed"
 
@@ -228,7 +292,10 @@ def main() -> int:
     if last_err.strip(): print_flush("---- STDERR (<=10 lines) ----"); print_flush(trim_lines(last_err, 10))
 
     print_flush("\n=== README.md ===")
-    print_flush((proj_dir/"README.md").read_text(encoding="utf-8"))
+    try:
+        print_flush((proj_dir/"README.md").read_text(encoding="utf-8"))
+    except Exception:
+        pass
 
     report = {
         "project_dir": str(proj_dir),
