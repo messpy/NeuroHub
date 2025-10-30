@@ -1,25 +1,17 @@
 #!/usr/bin/env bash
 # gen_config_preview.sh
 # - config.yaml を上書きせず、期待YAMLを標準出力にプレビュー
-# - Ollama が停止中でも、必要なら一時的に起動してモデルを検出（起動できたらそのまま稼働）
-# - 末尾に、Ollama にチャット用モデルが無い場合のみ注意を stderr に出力
+# - Ollama が停止中でも、必要なら一時起動してモデル検出
+# - 末尾で、チャット用モデル未検出なら注意を stderr
 
 set -euo pipefail
 IFS=$'\n\t'
-
 DEBUG=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
 log(){ echo "[gen_config] $*" >&2; }
 dbg(){ [[ $DEBUG -eq 1 ]] && echo "[gen_config:debug] $*" >&2 || true; }
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --debug) DEBUG=1; shift ;;
-    *) echo "unknown arg: $1" >&2; exit 1 ;;
-  esac
-done
+while [[ $# -gt 0 ]]; do case "$1" in --debug) DEBUG=1; shift;; *) echo "unknown arg: $1" >&2; exit 1;; esac; done
 
 # ---------- System 情報 ----------
 HOSTNAME="$(hostname)"
@@ -50,7 +42,6 @@ CREATED_AT="$(TZ=Asia/Tokyo date +%Y-%m-%dT%H:%M:%S%z | sed -E 's/([+-][0-9]{2})
 G_API_URL="https://generativelanguage.googleapis.com/v1"
 G_MODEL="gemini-2.5-flash"
 G_ENABLED=0
-
 HF_API_BASE="https://router.huggingface.co"
 HF_CHAT_TMPL="${HF_API_BASE}/hf-inference/models/{model}/v1/chat/completions"
 HF_INFER_TMPL="https://api-inference.huggingface.co/models/{model}"
@@ -59,66 +50,43 @@ HF_SELECTED="${HF_MODELS[0]}"
 HF_ENABLED=0
 
 # ---------- Ollama 検出（未起動なら起動） ----------
-# PATH 追加（/usr/local/bin にいるケース）
-if ! command -v ollama >/dev/null 2>&1 && [[ -x "/usr/local/bin/ollama" ]]; then
-  export PATH="/usr/local/bin:${PATH}"
-fi
-
+if ! command -v ollama >/dev/null 2>&1 && [[ -x "/usr/local/bin/ollama" ]]; then export PATH="/usr/local/bin:${PATH}"; fi
 OLLAMA_HOST="http://127.0.0.1:11434"
 ver_ok=0
-if command -v curl >/dev/null 2>&1; then
-  code="$(curl -s -o /dev/null -w '%{http_code}' "${OLLAMA_HOST}/api/version" || true)"
-  [[ "${code}" == "200" ]] && ver_ok=1
-fi
-
+if command -v curl >/dev/null 2>&1; then code="$(curl -s -o /dev/null -w '%{http_code}' "${OLLAMA_HOST}/api/version" || true)"; [[ "${code}" == "200" ]] && ver_ok=1; fi
 started_by_me=0
 if [[ $ver_ok -eq 0 ]] && command -v ollama >/dev/null 2>&1; then
-  # 1) systemd --user での起動を優先（ある場合）
-  if command -v systemctl >/dev/null 2>&1; then
-    dbg "trying: systemctl --user start ollama"
-    systemctl --user start ollama >/dev/null 2>&1 || true
-  fi
-  # 2) まだ応答なしなら、バックグラウンドで直接起動
+  if command -v systemctl >/dev/null 2>&1; then dbg "trying: systemctl --user start ollama"; systemctl --user start ollama >/dev/null 2>&1 || true; fi
   code="$(curl -s -o /dev/null -w '%{http_code}' "${OLLAMA_HOST}/api/version" || true)"
-  if [[ "${code}" != "200" ]]; then
-    dbg "trying: nohup ollama serve &"
-    nohup ollama serve >/dev/null 2>&1 &
-    started_by_me=1
-  fi
-  # 3) 起動待機（最大 8 秒）
-  for _ in {1..16}; do
-    sleep 0.5
-    code="$(curl -s -o /dev/null -w '%{http_code}' "${OLLAMA_HOST}/api/version" || true)"
-    if [[ "${code}" == "200" ]]; then ver_ok=1; break; fi
-  done
+  if [[ "${code}" != "200" ]]; then dbg "trying: nohup ollama serve &"; nohup ollama serve >/dev/null 2>&1 & started_by_me=1; fi
+  for _ in {1..30}; do sleep 0.5; code="$(curl -s -o /dev/null -w '%{http_code}' "${OLLAMA_HOST}/api/version" || true)"; [[ "${code}" == "200" ]] && { ver_ok=1; break; }; done
 fi
 
-# モデル一覧取得
+# モデル一覧取得（list → /api/tags フォールバック）
 declare -a OLLAMA_ALL=()
 if command -v ollama >/dev/null 2>&1; then
   mapfile -t OLLAMA_ALL < <( (ollama list 2>/dev/null || true) | awk 'NR>1 {print $1}' )
+  if (( ${#OLLAMA_ALL[@]} == 0 )) && [[ $ver_ok -eq 1 ]]; then
+    tags_json="$(curl -s "${OLLAMA_HOST}/api/tags" 2>/dev/null || true)"
+    if [[ -n "$tags_json" ]]; then
+      if command -v jq >/dev/null 2>&1; then
+        mapfile -t OLLAMA_ALL < <(printf '%s\n' "$tags_json" | jq -r '.models[].name' 2>/dev/null || true)
+      else
+        mapfile -t OLLAMA_ALL < <(printf '%s\n' "$tags_json" | python3 -c 'import sys,json;d=json.load(sys.stdin);print("\n".join(m.get("name","") for m in d.get("models",[])))' 2>/dev/null || true)
+      fi
+    fi
+  fi
 fi
 
 OLLAMA_ENABLED=0
 (( ${#OLLAMA_ALL[@]} > 0 )) && OLLAMA_ENABLED=1
 
 is_embed(){ grep -Eiq '(embed|embedding|nomic-embed|all-minilm|e5-|bge-|gte-|text-embedding)' <<<"$1"; }
-
 declare -a OLLAMA_CHAT_CAND=()
 if (( ${#OLLAMA_ALL[@]} > 0 )); then
-  for m in "${OLLAMA_ALL[@]}"; do
-    if ! is_embed "$m"; then OLLAMA_CHAT_CAND+=("$m"); fi
-  done
+  for m in "${OLLAMA_ALL[@]}"; do if ! is_embed "$m"; then OLLAMA_CHAT_CAND+=("$m"); fi; done
 fi
-
-pick_chat(){
-  local -a names=("$@")
-  local -a pref=( "qwen2.5:0.5b-instruct" "llama3.2:1b-instruct" "qwen2.5:1.5b-instruct" "qwen2.5:3b-instruct" "tinyllama:1.1b" "moondream:latest" )
-  for p in "${pref[@]}"; do for n in "${names[@]}"; do [[ "$n" == "$p" ]] && { echo "$n"; return; }; done; done
-  for n in "${names[@]}"; do [[ "$n" =~ instruct|chat ]] && { echo "$n"; return; }; done
-  for n in "${names[@]}"; do [[ "$n" =~ moondream ]] && { echo "$n"; return; }; done
-  echo ""
-}
+pick_chat(){ local -a names=("$@"); local -a pref=( "qwen2.5:0.5b-instruct" "llama3.2:1b-instruct" "qwen2.5:1.5b-instruct" "qwen2.5:3b-instruct" "tinyllama:1.1b" "moondream:latest" ); for p in "${pref[@]}"; do for n in "${names[@]}"; do [[ "$n" == "$p" ]] && { echo "$n"; return; }; done; done; for n in "${names[@]}"; do [[ "$n" =~ instruct|chat ]] && { echo "$n"; return; }; done; for n in "${names[@]}"; do [[ "$n" =~ moondream ]] && { echo "$n"; return; }; done; echo ""; }
 OLLAMA_SELECTED="$(pick_chat "${OLLAMA_CHAT_CAND[@]}")"
 
 PROVIDERS=( gemini huggingface ollama )
@@ -131,12 +99,12 @@ for p in "${PROVIDERS[@]}"; do
   esac
 done
 
-# ---------- 付随パス ----------
+# 付随パス
 TTS_MODEL_PATH=""
 [[ -f "${ROOT}/models/piper/ja-kokoro-high.onnx" ]] && TTS_MODEL_PATH="${ROOT}/models/piper/ja-kokoro-high.onnx"
 MPV_IPC_DIR="${ROOT}/data/cache/mpv"
 
-# ---------- YAML プレビュー（上書きしない） ----------
+# ---------- YAML プレビュー ----------
 {
   echo "# AUTO-GENERATED PREVIEW by gen_config_preview.sh (${CREATED_AT})"
   echo "llm:"
@@ -184,11 +152,7 @@ MPV_IPC_DIR="${ROOT}/data/cache/mpv"
   echo
   echo "tts:"
   echo "  engine:"
-  if [[ -n "${TTS_MODEL_PATH}" ]]; then
-    echo "  model: \"${TTS_MODEL_PATH}\""
-  else
-    echo "  model:"
-  fi
+  if [[ -n "${TTS_MODEL_PATH}" ]]; then echo "  model: \"${TTS_MODEL_PATH}\""; else echo "  model:"; fi
   echo "  out_wav: \"${ROOT}/data/cache/tts/out.wav\""
   echo "  speed:"
   echo
@@ -229,25 +193,24 @@ MPV_IPC_DIR="${ROOT}/data/cache/mpv"
   echo "  desktop:"
   echo "    current_desktop: \"${CUR_DESKTOP}\""
   echo "    session: \"${CUR_SESSION}\""
-}  # end YAML print
-
+}
 # ---------- 注意（stderr） ----------
 if (( ${#OLLAMA_CHAT_CAND[@]} == 0 )); then
   {
     echo
     if (( ${#OLLAMA_ALL[@]} == 0 )); then
-      echo "[notice] Ollama のローカルモデルが見つかりません。次を例に追加してください:"
+      echo "[notice] Ollama のローカルモデルが見つかりません。例:"
       echo "  ollama pull qwen2.5:0.5b-instruct"
     else
-      echo "[notice] チャット用モデルが見つかりません（embed系のみの可能性）。次のどれかを追加してください:"
+      echo "[notice] チャット用モデルが見つかりません（embed系のみの可能性）。例:"
       echo "  ollama pull qwen2.5:0.5b-instruct"
-      echo "  # 代替: llama3.2:1b-instruct / qwen2.5:1.5b-instruct / tinyllama:1.1b / moondream:latest など"
+      echo "  # 代替: llama3.2:1b-instruct / qwen2.5:1.5b-instruct / tinyllama:1.1b / moondream:latest"
     fi
     if [[ $ver_ok -eq 0 && $started_by_me -eq 0 ]]; then
-      echo "（補足）Ollama サーバ未起動の場合は、別端末で:"
-      echo "  systemctl --user start ollama   # systemd 管理の場合"
+      echo "(補足) Ollama サーバ未起動の場合:"
+      echo "  systemctl --user start ollama   # systemd 管理時"
       echo "  # または"
-      echo "  ollama serve                     # 前面で起動"
+      echo "  ollama serve                     # 前面起動"
     fi
   } >&2
 fi
