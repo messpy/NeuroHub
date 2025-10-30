@@ -3,12 +3,8 @@
 """
 provider_gemini.py - Google Generative Language API (Gemini) クライアント最小版
 - 依存: requests, (任意) python-dotenv, PyYAML
-- 環境変数: GEMINI_API_KEY（必須）, GEMINI_API_URL(任意, 既定 https://generativelanguage.googleapis.com/v1)
+- 環境変数: GEMINI_API_KEY（必須）, GEMINI_API_URL(任意)
 - モデル: config.yaml の llm.gemini.model があれば優先、無ければ gemini-2.5-flash
-- 使い方:
-    python provider_gemini.py "こんにちは"
-    python provider_gemini.py --system "あなたは有能なアシスタント" "要約して"
-    python provider_gemini.py --opt temperature=0.7 --opt top_p=0.9 "俳句を作って"
 """
 
 from __future__ import annotations
@@ -17,9 +13,26 @@ import sys
 import json
 import argparse
 from typing import Any, Dict, List, Optional
+from pathlib import Path
 import requests
 
-from llm_common import load_env_from_config, DebugLogger, load_config, get_llm_model_from_config
+# === .env の読み込みをここで強制 ===
+try:
+    from dotenv import load_dotenv
+    # プロジェクトルートを自動特定（このファイル -> llm -> services -> プロジェクト）
+    ROOT_DIR = Path(__file__).resolve().parents[2]
+    ENV_PATH = ROOT_DIR / ".env"
+    if ENV_PATH.exists():
+        load_dotenv(ENV_PATH, override=False)
+        print(f"[info] loaded .env from {ENV_PATH}", file=sys.stderr)
+    else:
+        print(f"[warn] .env not found at {ENV_PATH}", file=sys.stderr)
+except Exception as e:
+    print(f"[warn] dotenv load skipped ({e})", file=sys.stderr)
+
+# === 共通ユーティリティ ===
+from llm_common import DebugLogger, load_config, get_llm_model_from_config
+
 
 def parse_opt_kv(opts: Optional[List[str]]) -> Dict[str, Any]:
     if not opts:
@@ -30,8 +43,8 @@ def parse_opt_kv(opts: Optional[List[str]]) -> Dict[str, Any]:
             continue
         k, v = kv.split("=", 1)
         k, v = k.strip(), v.strip()
-        # JSON優先
         try:
+            # JSON風を優先
             if (v.startswith("{") and v.endswith("}")) or (v.startswith("[") and v.endswith("]")) or v in ("true","false","null"):
                 out[k] = json.loads(v.replace("'", '"'))
                 continue
@@ -50,6 +63,7 @@ def parse_opt_kv(opts: Optional[List[str]]) -> Dict[str, Any]:
         out[k] = v
     return out
 
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Gemini provider (minimal)")
     ap.add_argument("prompt", nargs="+", help="ユーザープロンプト（スペース可）")
@@ -59,10 +73,9 @@ def main() -> int:
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
 
-    # 環境読み込み
-    load_env_from_config()
     logger = DebugLogger(enabled=args.debug)
 
+    # === 環境変数チェック ===
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key:
         print("[error] 環境変数 GEMINI_API_KEY が未設定です", file=sys.stderr)
@@ -70,7 +83,7 @@ def main() -> int:
 
     base = (os.getenv("GEMINI_API_URL") or "https://generativelanguage.googleapis.com/v1").rstrip("/")
 
-    # config.yaml からモデル既定を取得（無い場合は flash）
+    # === config.yaml のモデル読込 ===
     cfg = load_config()
     model = get_llm_model_from_config(cfg, "gemini", "gemini-2.5-flash")
 
@@ -102,6 +115,7 @@ def main() -> int:
     except Exception as e:
         print(f"[error] request failed: {e}", file=sys.stderr)
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())
