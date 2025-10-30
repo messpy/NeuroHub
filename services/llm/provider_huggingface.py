@@ -4,7 +4,8 @@
 provider_huggingface.py - Hugging Face Router(OpenAI互換) 簡易クライアント
 - Inference API ではなく Router(OpenAI互換) に統一
 - 404 対策: モデルは <model-id>:<provider> 形式で指定
-- 依存: requests
+- 依存: requests, (任意) python-dotenv
+- 環境変数: HF_TOKEN（必須）, HF_HOST（任意）
 """
 
 import os
@@ -13,6 +14,21 @@ import json
 import argparse
 import requests
 from typing import Any, Dict, List, Optional
+from pathlib import Path
+
+# === .env を自動ロード（プロジェクト直下） ===
+try:
+    from dotenv import load_dotenv
+    ROOT_DIR = Path(__file__).resolve().parents[2]
+    ENV_PATH = ROOT_DIR / ".env"
+    if ENV_PATH.exists():
+        load_dotenv(ENV_PATH, override=False)
+        print(f"[info] loaded .env from {ENV_PATH}", file=sys.stderr)
+    else:
+        print(f"[warn] .env not found at {ENV_PATH}", file=sys.stderr)
+except Exception as e:
+    print(f"[warn] dotenv load skipped ({e})", file=sys.stderr)
+
 
 def build_messages(system_text: Optional[str], user_text: str) -> List[Dict[str, str]]:
     msgs: List[Dict[str, str]] = []
@@ -20,6 +36,7 @@ def build_messages(system_text: Optional[str], user_text: str) -> List[Dict[str,
         msgs.append({"role": "system", "content": system_text})
     msgs.append({"role": "user", "content": user_text})
     return msgs
+
 
 def parse_opt_kv(opts: Optional[List[str]]) -> Dict[str, Any]:
     if not opts:
@@ -51,6 +68,7 @@ def parse_opt_kv(opts: Optional[List[str]]) -> Dict[str, Any]:
         out[k] = v
     return out
 
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="HF Router(OpenAI互換) client")
     ap.add_argument("prompt", nargs="+", help="ユーザープロンプト（スペース可）")
@@ -62,6 +80,7 @@ def main() -> int:
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
 
+    # === 環境変数チェック ===
     token = os.getenv("HF_TOKEN")
     if not token:
         print("[error] 環境変数 HF_TOKEN が未設定です", file=sys.stderr)
@@ -70,7 +89,7 @@ def main() -> int:
     base_url = args.host or os.getenv("HF_HOST") or "https://router.huggingface.co/v1"
     url = f"{base_url.rstrip('/')}/chat/completions"
 
-    # 重要: Router 用モデルは <model-id>:<provider>
+    # Router 用モデル: <model-id>:<provider>
     model = args.model or "openai/gpt-oss-20b:groq"
 
     user_text = " ".join(args.prompt)
@@ -80,6 +99,7 @@ def main() -> int:
         "model": model,
         "messages": messages,
     }
+
     # openai互換の代表パラメータを --opt 経由で上書き
     mapped = parse_opt_kv(args.opt)
     allow = {"temperature","top_p","max_tokens","frequency_penalty","presence_penalty","stop","seed","response_format"}
@@ -119,6 +139,7 @@ def main() -> int:
     except Exception as e:
         print(f"[error] request failed: {e}", file=sys.stderr)
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())
