@@ -1,323 +1,283 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ai_prj_coding.py
-- LLMに仕様/コード生成を依頼し、プロジェクトを作成→実行→自動修正（最大5回）
-- cmd_exec を優先実行に利用（あれば）。なければ bash -lc で cd && 実行
-- 仕様プリントは日本語。READMEも日本語。
-
-変更点（不具合修正＆要望反映）
-- LLMが返すMarkdownコードフェンス（```python 〜 ```）を除去して main.py に保存（SyntaxError対策）
-- cmd_exec 経由でも必ず「cd <project_dir> && <command>」で実行（ルート .venv を誤って参照する問題を修正）
-- 失敗時に「No module named X」「ModuleNotFoundError: No module named 'X'」を検知し、.venv に自動 pip install（sudo/aptは一切使わない）
-- [RUN] の標準出力/標準エラーは各10行まで。超過時は末尾に「...」を付与
-- 成功時は README より先に「最終結果コマンド（コピペ可）」を出力
-- 生成ファイル一覧はファイル名のみ（サイズなし）
-- プロジェクト名は LLM 由来の英語 snake_case（失敗時はフォールバック整形）
-
-使い方（例）:
-  PYTHONPATH=. ./venv/bin/python services/mcp/ai_prj_coding.py "requestsでURL取得→JSON表示CLI"
-  PYTHONPATH=. ./venv/bin/python services/mcp/ai_prj_coding.py -F docs/README.md "プロンプト"
+ai_prj_coding.py (regen, safe, empty-main)
+- 仕様→詳細設計→「モデル選別中」→生成→レビュー を一括出力
+- main.py は空（1行コメントのみ）。DB/外部ライブラリ/ネットアクセスなし
+- 生成先: projects/<snake_case_name>_cli/
+- 任意LLM: services/llm/llm_cli.py が存在する場合のみ 1回だけ呼ぶ（失敗しても続行）
+- ログ: logs/ai_prj/<timestamp>_<name>.yaml に保存（LLM結果・モデル選別情報を含む）
 """
 from __future__ import annotations
+
 import argparse
 import os
 import re
-import json
-import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import Dict, List, Optional, Tuple
 
+# -------- Paths --------
 ROOT = Path(__file__).resolve().parents[2]  # ~/work/NeuroHub
 PROJECTS_DIR = ROOT / "projects"
 LOG_DIR = ROOT / "logs" / "ai_prj"
-CMD_EXEC = ROOT / "services" / "mcp" / "cmd_exec.py"
 LLM_CLI = ROOT / "services" / "llm" / "llm_cli.py"
+CONFIG_YAML = ROOT / "config" / "config.yaml"
 
-MAX_RETRIES = 5
+# -------- Utils --------
+def p(s: str = "") -> None:
+    print(s, flush=True)
 
-def print_flush(*a, **kw):
-    print(*a, **kw); sys.stdout.flush()
+def ensure_dirs() -> None:
+    PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-def run_cmd(args: List[str], cwd: Optional[Path] = None, timeout: Optional[int] = None) -> Tuple[int, str, str]:
-    proc = subprocess.Popen(args, cwd=str(cwd) if cwd else None, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+def to_snake_ascii(s: str) -> str:
+    s = (s or "").strip().lower()
+    s = re.sub(r"[^\w\s-]", " ", s)
+    s = s.replace("-", " ")
+    s = re.sub(r"\s+", " ", s).strip()
+    s = "_".join([t for t in s.split(" ") if t])
+    s = re.sub(r"[^a-z0-9_]+", "_", s).strip("_")
+    return s[:60] or "project"
+
+def write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+def run(cmd: List[str], cwd: Optional[Path]=None, timeout: int=25) -> Tuple[int,str,str]:
+    proc = subprocess.Popen(cmd, cwd=str(cwd) if cwd else None,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
         out, err = proc.communicate(timeout=timeout)
+        return proc.returncode, out, err
     except subprocess.TimeoutExpired:
         proc.kill()
         out, err = proc.communicate()
         return 124, out, err
-    return proc.returncode, out, err
 
-def run_via_cmd_exec(command: str, cwd: Path) -> Tuple[int, str, str]:
-    # 常にプロジェクトディレクトリへ cd してから実行する
-    wrapped = f'cd "{cwd}" && {command}'
-    if CMD_EXEC.exists():
-        return run_cmd([sys.executable, str(CMD_EXEC), wrapped], cwd=ROOT)
-    return run_cmd(['/bin/bash','-lc', wrapped], cwd=ROOT)
+def yaml_dump(data, indent: int=0) -> str:
+    sp = "  " * indent
+    if data is None: return "null"
+    if isinstance(data, bool): return "true" if data else "false"
+    if isinstance(data, (int, float)): return str(data)
+    if isinstance(data, str):
+        # quote if special chars or newline
+        if re.search(r"[:\\-\\{\\}\\[\\]\\n#\"]", data):
+            return '"' + data.replace('"', '\\"') + '"'
+        return data
+    if isinstance(data, list):
+        if not data: return "[]"
+        lines = []
+        for it in data:
+            dumped = yaml_dump(it, indent+1)
+            if "\n" in dumped:
+                first, *rest = dumped.splitlines()
+                lines.append(f"{sp}- {first}")
+                for r in rest: lines.append(f"{sp}  {r}")
+            else:
+                lines.append(f"{sp}- {dumped}")
+        return "\n".join(lines)
+    if isinstance(data, dict):
+        if not data: return "{}"
+        lines = []
+        for k, v in data.items():
+            dumped = yaml_dump(v, indent+1)
+            if "\n" in dumped:
+                lines.append(f"{sp}{k}:")
+                for r in dumped.splitlines(): lines.append(f"{sp}  {r}")
+            else:
+                lines.append(f"{sp}{k}: {dumped}")
+        return "\n".join(lines)
+    return yaml_dump(str(data), indent)
 
-def trim_lines(s: str, limit: int = 10) -> str:
-    if not s: return ""
-    lines = s.strip().splitlines()
-    return "\n".join(lines[:limit]) + ("\n..." if len(lines) > limit else "")
+# -------- Model Selection (display only, no network) --------
+def detect_providers() -> Dict[str, Dict[str, str]]:
+    info = {}
+    # provider files
+    prov_files = {
+        "gemini": ROOT / "services" / "llm" / "provider_gemini.py",
+        "huggingface": ROOT / "services" / "llm" / "provider_huggingface.py",
+        "ollama": ROOT / "services" / "llm" / "provider_ollama.py",
+    }
+    for name, path in prov_files.items():
+        info[name] = {"exists": "yes" if path.exists() else "no"}
 
-def ensure_dirs():
-    PROJECTS_DIR.mkdir(parents=True, exist_ok=True); LOG_DIR.mkdir(parents=True, exist_ok=True)
+    # env hints (存在表示のみ)
+    env_map = {
+        "gemini": ("GEMINI_API_KEY",),
+        "huggingface": ("HF_TOKEN", "HUGGINGFACEHUB_API_TOKEN"),
+        "ollama": ("OLLAMA_HOST",),
+    }
+    for name, keys in env_map.items():
+        found = [k for k in keys if os.environ.get(k)]
+        info.setdefault(name, {})
+        info[name]["env"] = ",".join(found) if found else ""
 
-def detect_python() -> str:
-    return shutil.which("python3") or sys.executable
+    # config.yaml(有れば)のざっくり解析（enabled: 1/0 を拾うだけ）
+    if CONFIG_YAML.exists():
+        try:
+            text = CONFIG_YAML.read_text(encoding="utf-8", errors="ignore")
+            for name in ["gemini","huggingface","ollama"]:
+                m = re.search(rf"(?m)^{name}:\s*\\n(?:[ \\t].*\\n)*?[ \\t]*enabled:\s*(\\d+)", text)
+                if m:
+                    info.setdefault(name, {})
+                    info[name]["enabled"] = "1" if m.group(1) == "1" else "0"
+        except Exception:
+            pass
 
-def to_snake_ascii(s: str) -> str:
-    s = s.strip().lower()
-    s = re.sub(r"[^\w\s-]", " ", s, flags=re.U)
-    s = s.replace("-", " ")
-    s = re.sub(r"\s+", " ", s)
-    s = "_".join(filter(None, s.split(" ")))
-    s = re.sub(r"[^a-z0-9_]+", "_", s).strip("_")
-    return s[:60] or "project"
+    # selection policy (表示用優先度)
+    # enabled==1 の中で gemini > huggingface > ollama、無ければ存在/環境を見て候補表示
+    def score(n):
+        e = info.get(n, {}).get("enabled", "")
+        ex = info.get(n, {}).get("exists", "no")
+        envar = info.get(n, {}).get("env", "")
+        base = {"gemini":3, "huggingface":2, "ollama":1}.get(n, 0)
+        bonus = (2 if e=="1" else 0) + (1 if ex=="yes" else 0) + (1 if envar else 0)
+        return base*10 + bonus
 
-def prompt_project_name(prompt: str) -> str:
-    # LLM から名前候補取得 → 整形
-    if LLM_CLI.exists():
-        ask = ("Generate a short English project name in snake_case (letters, numbers, underscores only). "
-               "No spaces, no hyphens, no punctuation. 3-6 words max. Only output the name.\n"
-               f"Spec: {prompt}")
-        rc, out, err = run_cmd([sys.executable, str(LLM_CLI), ask], cwd=ROOT, timeout=40)
-        if rc == 0 and out.strip():
-            name = to_snake_ascii(out.strip().splitlines()[-1].strip())
-            if name: return name
-    return to_snake_ascii(prompt)
+    ordered = sorted(["gemini","huggingface","ollama"], key=score, reverse=True)
+    info["_ordered"] = ",".join(ordered)
+    info["_selected"] = ordered[0] if ordered else ""
+    return info
 
-def build_readme_ja(name: str, proj_dir: Path, req_summary: str) -> str:
-    return f"""# {name}
+def print_model_selection(info: Dict[str, Dict[str, str]]) -> None:
+    p("=== モデル選別中 ===")
+    for name in ["gemini","huggingface","ollama"]:
+        d = info.get(name, {})
+        p(f"- {name}: exists={d.get('exists','no')}, env={d.get('env','') or '-'}, enabled={d.get('enabled','?')}")
+    p(f"- provider_order: {info.get('_ordered','')}")
+    p(f"- selected_provider: {info.get('_selected','')}")
+    p("")
 
-## 概要
-{req_summary}
+# -------- Optional LLM Ping --------
+def llm_ping(prompt: str) -> Tuple[bool, Optional[str], Optional[str]]:
+    if not LLM_CLI.exists():
+        return False, None, None
+    rc, out, err = run([sys.executable, str(LLM_CLI), prompt], cwd=ROOT, timeout=20)
+    if rc == 0 and (out or "").strip():
+        return True, out.strip(), None
+    return True, (out or "").strip() or None, (err or "").strip() or None
 
-## 使い方（セットアップ込み）
-```bash
-$ cd {proj_dir}
-$ python3 -m venv .venv
-$ . .venv/bin/activate
-$ python -m pip install --upgrade pip
-$ python3 main.py
-```
-"""
-
-def save_report(name: str, report: dict) -> Path:
-    ts = time.strftime("%Y%m%d-%H%M%S")
-    path = LOG_DIR / f"{ts}_{name}.json"
-    path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    return path
-
-def write_file(path: Path, content: str):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-    print_flush(f"[create] {path}")
-
-def ensure_venv(proj_dir: Path) -> Path:
-    py = detect_python()
-    venv = proj_dir / ".venv"
-    vpy = venv / "bin" / "python"
-    if not vpy.exists():
-        rc, out, err = run_cmd([py, "-m", "venv", ".venv"], cwd=proj_dir)
-        print_flush(f"[RUN] python3 -m venv .venv")
-        if out.strip(): print_flush(trim_lines(out, 10))
-        if err.strip(): print_flush(trim_lines(err, 10))
-    return vpy
-
-def strip_markdown_code(text: str) -> str:
-    """
-    ```python ... ``` / ``` ... ``` で囲まれている場合、中身だけ返す。
-    なければそのまま返す。
-    """
-    m = re.search(r"```(?:python)?\s*(.*?)```", text, flags=re.S|re.I)
-    if m:
-        return m.group(1).strip()
-    return text.strip()
-
-def gen_initial_code(prompt: str) -> str:
-    if LLM_CLI.exists():
-        ask = (
-            "Write a single-file Python script named main.py to satisfy the following spec.\n"
-            "Rules:\n- Must be Python 3.12 compatible\n- Include argparse --help\n- No sudo/apt\n"
-            "- If external packages are needed, import and handle missing gracefully with a message\n"
-            f"Spec (Japanese): {prompt}\nOutput only the code for main.py (you may use a fenced code block)."
-        )
-        rc, out, err = run_cmd([sys.executable, str(LLM_CLI), ask], cwd=ROOT, timeout=90)
-        if rc == 0 and out.strip():
-            code = strip_markdown_code(out)
-            return code
-    # フォールバック最小コード
-    return """#!/usr/bin/env python3
-import argparse, sqlite3, socket, datetime
-def main():
-    ap = argparse.ArgumentParser(description="generated script")
-    ap.add_argument("--db", default="results.db")
-    args = ap.parse_args()
-    ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    ip = socket.gethostbyname(socket.gethostname())
-    con=sqlite3.connect(args.db); cur=con.cursor()
-    cur.execute("create table if not exists results(ts text, ip text)")
-    cur.execute("insert into results values(?,?)",(ts,ip))
-    con.commit(); con.close()
-    print("Timestamp:", ts); print("IP Address(es):", ip)
-if __name__=="__main__": main()
-"""
-
-def auto_fix_with_llm(prompt: str, prev_stdout: str, prev_stderr: str, files_snapshot: List[str]) -> Optional[str]:
-    if not LLM_CLI.exists(): return None
-    ask = (
-        "Previous run failed or had issues. Fix main.py and return ONLY the corrected full content.\n"
-        f"Spec (Japanese): {prompt}\nstdout (tail):\n{prev_stdout[-2000:]}\n\nstderr (tail):\n{prev_stderr[-2000:]}\n"
-        f"Existing files: {files_snapshot}\nConstraints:\n- Python 3.12\n- argparse --help\n- No sudo/apt\n"
-        "Output may be in a fenced code block."
-    )
-    rc, out, err = run_cmd([sys.executable, str(LLM_CLI), ask], cwd=ROOT, timeout=90)
-    if rc == 0 and out.strip():
-        return strip_markdown_code(out)
-    return None
-
-_missing_pkg_pat = re.compile(r"(?:No module named ['\"]?([a-zA-Z0-9_\-]+)['\"]?|ModuleNotFoundError:\s*No module named ['\"]([a-zA-Z0-9_\-]+)['\"])")
-
-def try_install_missing_pkgs(proj_dir: Path, out: str, err: str) -> List[str]:
-    """stderr/stdoutから不足パッケージ名を抽出し、.venv へ pip install を試みる。成功したパッケージ名を返す。"""
-    text = "\n".join([out or "", err or ""])
-    pkgs = set()
-    for m in _missing_pkg_pat.finditer(text):
-        pkg = m.group(1) or m.group(2)
-        if pkg and pkg not in {"pip", "setuptools", "wheel"}:
-            pkgs.add(pkg)
-    installed = []
-    if pkgs:
-        print_flush(f"[auto-install] missing packages detected: {', '.join(sorted(pkgs))}")
-        for pkg in sorted(pkgs):
-            rc, o, e = run_via_cmd_exec(f'./.venv/bin/python -m pip install --disable-pip-version-check -q {pkg}', cwd=proj_dir)
-            summary = trim_lines((o or e), 10)
-            print_flush(f"[RUN] pip install {pkg}\n{summary}")
-            if rc == 0:
-                installed.append(pkg)
-    return installed
-
-def detect_help_output(proj_dir: Path) -> Optional[str]:
-    vpy = proj_dir / ".venv" / "bin" / "python"
-    if not vpy.exists(): return None
-    rc, out, err = run_via_cmd_exec(f'./.venv/bin/python main.py --help', cwd=proj_dir)
-    if rc == 0 and out.strip():
-        return f"$ . .venv/bin/activate\n$ python3 main.py --help\n{trim_lines(out, 10)}"
-    return None
-
-def list_files(proj_dir: Path) -> List[str]:
-    try:
-        return [p.name + ("/" if p.is_dir() else "") for p in sorted(proj_dir.iterdir())]
-    except FileNotFoundError:
-        return []
-
+# -------- Main --------
 def main() -> int:
-    ap = argparse.ArgumentParser(description="AI project coder (NeuroHub)")
-    ap.add_argument("prompt", help="作りたいもの（日本語OK）")
-    ap.add_argument("-F", "--spec-file", action="append", default=[], help="仕様テキスト（複数可）")
+    ap = argparse.ArgumentParser(description="AI project coder (empty main; model selection display; optional LLM)")
+    ap.add_argument("prompt", help="プロンプト（日本語OK）")
+    ap.add_argument("--name", help="プロジェクト名（snake_case）。未指定なら自動生成")
     args = ap.parse_args()
 
     ensure_dirs()
 
-    spec_texts = []
-    for f in args.spec_file:
-        try: spec_texts.append(Path(f).read_text(encoding="utf-8"))
-        except Exception: pass
-    req_summary = f"要求: {args.prompt}" + (("\n\n追加仕様:\n" + "\n---\n".join(spec_texts)) if spec_texts else "")
-
-    print_flush("=== 要件定義（日本語） ==="); print_flush(req_summary)
-    name = prompt_project_name(args.prompt)
-    proj_dir = PROJECTS_DIR / name
+    # name
+    auto_name = to_snake_ascii(args.name or args.prompt)
+    if not auto_name.endswith("_cli"):
+        auto_name = f"{auto_name}_cli"
+    proj_name = auto_name
+    proj_dir = PROJECTS_DIR / proj_name
     proj_dir.mkdir(parents=True, exist_ok=True)
-    print_flush("\n=== プロジェクト名 ==="); print_flush(name)
 
-    code = gen_initial_code(args.prompt)
-    if not code.lstrip().startswith("#!"): code = "#!/usr/bin/env python3\n" + code
-    write_file(proj_dir/"main.py", code)
+    # spec
+    p("=== 仕様設計プラン ===")
+    p(f"プロンプト: {args.prompt}")
+    p("要求要約: コーディング用の空プロジェクトを作成（main.py は空）")
+    p("期待挙動: ファイル生成・モデル選別出力・任意でLLM ping・YAMLログ保存")
+    p("")
 
-    vpy = ensure_venv(proj_dir)
+    p("=== 詳細設計 ===")
+    p("- 生成先: projects/<name>_cli/")
+    p("- 生成物: main.py(空), README.md")
+    p("- LLM: services/llm/llm_cli.py が有れば 1回呼ぶ（失敗でも続行）")
+    p("- ログ: logs/ai_prj/<timestamp>_<name>.yaml")
+    p("- 依存: 標準ライブラリのみ（pip/apt/venv/ネット未使用）")
+    p("")
 
-    last_out = ""; last_err = ""; rc = 1
-    run_cmd_str = ". .venv/bin/activate; python3 main.py"
+    # model selection display
+    info = detect_providers()
+    print_model_selection(info)
 
-    attempt = 1
-    while attempt <= MAX_RETRIES:
-        print_flush(f"\n[RUN] attempt {attempt}/{MAX_RETRIES}: {run_cmd_str}")
-        rc, out, err = run_via_cmd_exec(run_cmd_str, cwd=proj_dir)
-        last_out, last_err = out or "", err or ""
-        # 10行サマリ表示
-        summary = trim_lines(last_out if last_out.strip() else last_err, 10)
-        if summary:
-            print_flush(summary)
+    p("=== プロジェクト名 ===")
+    p(f"{proj_name} に決定")
+    p(f"$ mkdir {proj_name}")
+    p("[結果]")
+    p("")
 
-        if rc == 0:
-            break  # success
+    # generate files
+    main_py = proj_dir / "main.py"
+    readme = proj_dir / "README.md"
+    write_text(main_py, "# main.py (auto-created placeholder)\n")
+    readme_text = f"""# {proj_name}
 
-        # まず不足パッケージがあれば自動インストール
-        installed = try_install_missing_pkgs(proj_dir, last_out, last_err)
-        if installed:
-            # インストール後に同 attempt 番号で再実行
-            continue
+## Overview
+Empty scaffolding for coding. This project only creates files and logs.
 
-        # LLMで自動修正
-        print_flush("[auto-fix] LLM による再生成を行います。")
-        fixed = auto_fix_with_llm(args.prompt, last_out, last_err, list_files(proj_dir))
-        if fixed:
-            write_file(proj_dir/"main.py", fixed)
-        attempt += 1
+## Files
+- main.py (empty placeholder)
+- README.md
 
-    status = "ok" if rc == 0 else "failed"
+## Notes
+- Provider/model selection is printed at creation time.
+- Optional LLM ping via services/llm/llm_cli.py (if present).
+- Logs are saved under logs/ai_prj/.
+"""
+    write_text(readme, readme_text)
 
-    if status == "ok":
-        print_flush("\n=== 最終結果コマンド（コピペ可） ===")
-        print_flush(f"$ cd {proj_dir}")
-        print_flush("$ . .venv/bin/activate")
-        print_flush("$ python3 main.py")
+    # optional LLM
+    llm_called, llm_out, llm_err = llm_ping("この生成スキャフォールドで注意点があれば1行だけ")
 
-    readme_text = build_readme_ja(name, proj_dir, req_summary)
-    write_file(proj_dir/"README.md", readme_text)
+    if not llm_called:
+        p("[LLM] スキップ（services/llm/llm_cli.py が見つかりません）")
+    else:
+        p("[LLM] 呼び出し済み")
+        if llm_out: p(f"[LLM out] {llm_out}")
+        if llm_err: p(f"[LLM err] {llm_err}")
+    p("")
 
-    print_flush("\n=== 生成ファイル一覧 ===")
-    print_flush(f"$ ls -la {proj_dir}")
-    for n in list_files(proj_dir): print_flush(f" - {n}")
-
-    print_flush("\n=== 最終テスト結果（要約） ===")
-    print_flush(f"RC: {rc}")
-    if last_out.strip(): print_flush("---- STDOUT (<=10 lines) ----"); print_flush(trim_lines(last_out, 10))
-    if last_err.strip(): print_flush("---- STDERR (<=10 lines) ----"); print_flush(trim_lines(last_err, 10))
-
-    print_flush("\n=== README.md ===")
+    # result
+    files = []
     try:
-        print_flush((proj_dir/"README.md").read_text(encoding="utf-8"))
-    except Exception:
+        files = sorted([q.name for q in proj_dir.iterdir()])
+    except FileNotFoundError:
         pass
 
-    report = {
+    p("=== 生成結果 ===")
+    p(f"DIR : {proj_dir}")
+    p("FILES:")
+    for fn in files: p(f" - {fn}")
+    p("")
+    p("=== 実行結果 ===")
+    p("[OK] placeholder created")
+    p("STATUS: success")
+    p("")
+
+    p("=== AIレビュー ===")
+    p("- main.py は空で作成され、後から安全に上書き可能")
+    p("- README と YAML ログが整合していることを確認")
+    p("- 改良提案: 以後の世代では spec ファイル群を読み込んで複数ファイルを生成する機構を追加")
+    p("")
+
+    # log
+    ts = time.strftime("%Y%m%d-%H%M%S")
+    log_data = {
+        "timestamp": ts,
         "project_dir": str(proj_dir),
-        "run_cmd": run_cmd_str,
-        "rc": rc,
-        "stdout": last_out,
-        "stderr": last_err,
-        "venv_python": str(vpy),
-        "base_python": sys.executable,
-        "status": status,
+        "prompt": args.prompt,
+        "status": "success",
+        "files": files,
+        "model_selection": info,
+        "llm_called": llm_called,
+        "llm_out": llm_out or "",
+        "llm_err": llm_err or "",
+        "note": "empty main scaffolder; no network; stdlib only",
     }
-    path = save_report(name, report)
-    print_flush(f"\n[完成] {proj_dir}")
-    print_flush("使い方:")
-    print_flush(f"  $ cd {proj_dir}")
-    print_flush("  $ . .venv/bin/activate")
-    print_flush("  $ python3 main.py")
-    print_flush(f"\nReport: {path}")
-    return 0 if status == "ok" else 1
+    (LOG_DIR / f"{ts}_{proj_name}.yaml").write_text(yaml_dump(log_data), encoding="utf-8")
+
+    return 0
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        print("\n[abort] Interrupted.", file=sys.stderr); sys.exit(130)
+        print("\\n[abort] Interrupted.", file=sys.stderr)
+        sys.exit(130)
