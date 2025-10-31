@@ -1,0 +1,33 @@
+agents:
+  git_agent:
+    enabled: true
+    auto_mode: false
+    log_level: INFO
+    session_timeout: 3600
+    max_retries: 3
+  llm_agent:
+    enabled: true
+    auto_mode: true
+    log_level: INFO
+    session_timeout: 3600
+    max_retries: 3
+  config_agent:
+    enabled: true
+    auto_mode: false
+    log_level: INFO
+    session_timeout: 3600
+    max_retries: 3
+  command_agent:
+    enabled: true
+    auto_mode: false
+    log_level: INFO
+    session_timeout: 3600
+    max_retries: 3
+global_settings:
+  session_timeout: 3600
+  auto_cleanup: true
+  log_level: INFO
+  database:
+    path: neurohub_llm.db
+    auto_backup: true
+    retention_days: 30

@@ -1,0 +1,34 @@
+# ===== 後処理 =====
+echo
+log "✅ AI コミット完了"
+
+# PR作成サポート
+if $CREATE_PR; then
+  current_branch="$(git branch --show-current 2>/dev/null || echo "main")"
+  if [[ "$current_branch" != "main" && "$current_branch" != "master" ]]; then
+    echo
+    echo "======================================="
+    echo "🔗 PR作成リンク"
+    if git remote get-url origin >/dev/null 2>&1; then
+      repo_url="$(git remote get-url origin 2>/dev/null || echo "")"
+      repo_url="${repo_url%.git}"
+      repo_url="${repo_url#git@github.com:}"
+      if [[ "$repo_url" != http* ]]; then
+        repo_url="https://github.com/$repo_url"
+      fi
+      echo "open \"$repo_url/compare/$current_branch?expand=1\""
+    fi
+    echo "======================================="
+
+    if command -v gh >/dev/null 2>&1; then
+      read -r -p "GitHub CLIでPRを作成しますか？ [y/N] " ans
+      if [[ "${ans,,}" == "y" ]]; then
+        gh pr create --title "AI Generated: $current_branch" --body "AI generated commits from git_commit_ai tool"
+      fi
+    fi
+  else
+    log "メインブランチのためPR作成をスキップしました"
+  fi
+fi
+
+log "完了"

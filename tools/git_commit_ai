@@ -1,25 +1,91 @@
 #!/usr/bin/env bash
-# git_commit_ai_individual_interactive.sh
+# git_commit_ai_enhanced.sh
 # ------------------------------------------------------------
-# 個別ステージ + 対話確認版:
-#  - 作業ツリーから対象ファイル一覧（変更/新規/削除）
-#  - 1ファイルずつステージ → AI生成（Gemini→Ollama）
-#  - 生成失敗時はユーザー入力にフォールバック
-#  - 各ファイルごとに「これでいいですか？」確認（編集/再生成/手入力/スキップ/中止）
-#  - センシティブ内容を追加行で検出した場合はスキップ
-#  - 進捗ログ + 区切り表示（####################### ファイル名 #######################）
+# 強化版 git commit AI ツール:
+#  - デフォルトで --sync 実行（リモートとの差分チェック&pull）
+#  - 3プロバイダー対応: Gemini -> HuggingFace -> Ollama
+#  - 差分からの賢いデフォルト生成（ファイル名＋変更量）
+#  - 変な文字列でも自動で再生成し、最低限のメッセージにフォールバック
+#  - m操作で「ヒントを渡してAIに再生成」できる（手入力ではなくAI再生成）
+#  - 却下された案は最大5件まで配列に保存して再生成時に渡す
 # ------------------------------------------------------------
 
 set -euo pipefail
 log() { printf '%s\n' "$*" >&2; }
 
-log ">> git_commit_ai_individual_interactive.sh start (pwd=$(pwd))"
+log ">> git_commit_ai_enhanced.sh start (pwd=$(pwd))"
 
 # ===== 基本設定 =====
 LANG_CODE="ja"
-MAX_LEN=40
+MAX_LEN=120               # 詳細モード用に少し長め
 MAX_RETRY=2
-DIFF_HEAD_LINES=500
+DIFF_HEAD_LINES=50
+AI_COMMENT_MARKER="# AI Generated:"
+REJECT_LIMIT=5
+
+# ===== コマンドライン引数解析 =====
+SHOW_HELP=false
+SYNC_REMOTE=true          # ★ デフォルトでtrueにした
+SHOW_STATUS=false
+CREATE_PR=false
+FORCE_MODE=false
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h|--help)
+      SHOW_HELP=true
+      shift
+      ;;
+    --no-sync)
+      SYNC_REMOTE=false
+      shift
+      ;;
+    --status|--st)
+      SHOW_STATUS=true
+      shift
+      ;;
+    --pr|--pull-request)
+      CREATE_PR=true
+      shift
+      ;;
+    --force|-f)
+      FORCE_MODE=true
+      shift
+      ;;
+    *)
+      log "Unknown option: $1"
+      exit 1
+      ;;
+  esac
+done
+
+show_help() {
+  cat <<EOF
+Git Commit AI Enhanced Tool
+
+Usage: $0 [OPTIONS]
+
+OPTIONS:
+  -h, --help              このヘルプを表示
+  --no-sync               リモート同期を無効化（デフォルトは同期する）
+  --status, --st          詳細なgitステータスを表示
+  --pr, --pull-request    コミット後にPR作成をサポート
+  --force, -f             強制モード（警告を無視）
+
+FEATURES:
+  • デフォルトでリモートと同期 (--sync 相当)
+  • 3つのAIプロバイダー対応（Gemini -> HF -> Ollama）
+  • 差分からの賢いデフォルト生成
+  • 変な出力なら自動で再生成し、最終的に「:update: <ファイル>更新」
+  • m で「ヒントを渡してAI再生成」できる
+  • 却下された案は最大5件までAIに渡す
+EOF
+}
+
+if $SHOW_HELP; then
+  show_help
+  exit 0
+fi
 
 # ===== Gitチェック =====
 if ! GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
@@ -27,6 +93,75 @@ if ! GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   exit 1
 fi
 log ">> GIT_ROOT=$GIT_ROOT"
+
+# ===== リモートとの差分チェック =====
+check_remote_conflicts() {
+  local current_branch remote_branch
+  current_branch="$(git branch --show-current 2>/dev/null || echo "main")"
+  remote_branch="origin/$current_branch"
+
+  if git show-ref --verify --quiet "refs/remotes/$remote_branch"; then
+    log ">> リモートブランチ確認: $remote_branch"
+
+    if ! git merge-base --is-ancestor "$remote_branch" HEAD; then
+      log "⚠️  リモートブランチより遅れています"
+      if $SYNC_REMOTE; then
+        log ">> git pull実行中..."
+        git pull origin "$current_branch" || {
+          log "❌ git pullでコンフリクトが発生しました"
+          log "手動でマージしてから再実行してください"
+          exit 1
+        }
+      elif ! $FORCE_MODE; then
+        log "リモート同期するには --no-sync を指定しないで実行してください"
+        read -r -p "同期せずに続行しますか？ [y/N] " ans
+        [[ "${ans,,}" != "y" ]] && exit 1
+      fi
+    fi
+
+    local modified_files=()
+    mapfile -t modified_files < <(git diff --name-only 2>/dev/null || true)
+    if (( ${#modified_files[@]} > 0 )); then
+      local conflicting_files=()
+      mapfile -t conflicting_files < <(git diff --name-only "$remote_branch"..HEAD 2>/dev/null | grep -Fx -f <(printf '%s\n' "${modified_files[@]}") || true)
+      if (( ${#conflicting_files[@]} > 0 )); then
+        log "⚠️  以下のファイルがリモートでも変更されています:"
+        printf '  %s\n' "${conflicting_files[@]}"
+        if ! $FORCE_MODE; then
+          read -r -p "続行しますか？ [y/N] " ans
+          [[ "${ans,,}" != "y" ]] && exit 1
+        fi
+      fi
+    fi
+  else
+    log ">> リモートブランチが見つかりません: $remote_branch"
+  fi
+}
+
+# ===== Git詳細ステータス表示 =====
+show_git_status() {
+  echo "=================== Git Status ==================="
+  echo "Branch: $(git branch --show-current 2>/dev/null || echo "detached")"
+  echo "Remote: $(git remote get-url origin 2>/dev/null || echo "none")"
+  echo
+  echo "--- Staged Changes ---"
+  git diff --cached --name-status 2>/dev/null || echo "none"
+  echo
+  echo "--- Modified Files ---"
+  git diff --name-status 2>/dev/null || echo "none"
+  echo
+  echo "--- Untracked Files ---"
+  git ls-files -o --exclude-standard 2>/dev/null || echo "none"
+  echo
+  echo "--- Recent Commits ---"
+  git log --oneline -5 2>/dev/null || echo "none"
+  echo "=================================================="
+}
+
+if $SHOW_STATUS; then
+  show_git_status
+  exit 0
+fi
 
 # ===== 設定探索 =====
 find_config_dir() {
@@ -46,20 +181,29 @@ CONF_YAML="${CONF_DIR:-}/config.yaml"
 CONF_ENV="${CONF_DIR:-}/.env"
 log ">> CONF_DIR=${CONF_DIR:-none}"
 
-# 既定
+# 既定値
 OLLAMA_HOST_VAL="http://127.0.0.1:11434"
 OLLAMA_MODEL=""
 GEM_API_URL="https://generativelanguage.googleapis.com/v1"
 GEM_MODEL="gemini-2.5-flash"
 GEM_API_KEY="${GEMINI_API_KEY:-}"
+HF_HOST="https://router.huggingface.co/v1"
+HF_MODEL="openai/gpt-oss-20b:groq"
+HF_TOKEN="${HF_TOKEN:-}"
 
-# .env
+# .env 読み込み
 if [[ -f "$CONF_ENV" ]]; then
   if grep -q '^GEMINI_API_KEY=' "$CONF_ENV"; then
     GEM_API_KEY="$(grep '^GEMINI_API_KEY=' "$CONF_ENV" | tail -n1 | cut -d= -f2-)"
   fi
   if grep -q '^OLLAMA_HOST=' "$CONF_ENV"; then
     OLLAMA_HOST_VAL="$(grep '^OLLAMA_HOST=' "$CONF_ENV" | tail -n1 | cut -d= -f2-)"
+  fi
+  if grep -q '^HF_TOKEN=' "$CONF_ENV"; then
+    HF_TOKEN="$(grep '^HF_TOKEN=' "$CONF_ENV" | tail -n1 | cut -d= -f2-)"
+  fi
+  if grep -q '^HF_HOST=' "$CONF_ENV"; then
+    HF_HOST="$(grep '^HF_HOST=' "$CONF_ENV" | tail -n1 | cut -d= -f2-)"
   fi
 fi
 
@@ -69,161 +213,566 @@ if [[ -f "$CONF_YAML" ]] && command -v yq >/dev/null 2>&1; then
   OLLAMA_MODEL="$(yq -r '.llm.ollama.selected_model // ""' "$CONF_YAML")"
   GEM_API_URL="$(yq -r '.llm.gemini.api_url // "https://generativelanguage.googleapis.com/v1"' "$CONF_YAML")"
   GEM_MODEL="$(yq -r '.llm.gemini.model // "gemini-2.5-flash"' "$CONF_YAML")"
+  HF_HOST="$(yq -r '.llm.huggingface.host // "https://router.huggingface.co/v1"' "$CONF_YAML")"
+  HF_MODEL="$(yq -r '.llm.huggingface.model // "openai/gpt-oss-20b:groq"' "$CONF_YAML")"
 fi
 [[ -z "$OLLAMA_MODEL" ]] && OLLAMA_MODEL="qwen2.5:1.5b-instruct"
-log ">> OLLAMA_HOST=$OLLAMA_HOST_VAL  OLLAMA_MODEL=$OLLAMA_MODEL  GEM_MODEL=$GEM_MODEL"
 
-# ===== センシティブ内容検出（内容ベースのみ） =====
+log_api_status() {
+  local gem_status="未設定"
+  local hf_status="未設定"
+  if [[ -n "${GEM_API_KEY:-}" ]]; then
+    gem_status="設定済み(${GEM_API_KEY:0:8}...)"
+  fi
+  if [[ -n "${HF_TOKEN:-}" ]]; then
+    hf_status="設定済み(${HF_TOKEN:0:8}...)"
+  fi
+  log ">> PROVIDERS: Ollama($OLLAMA_MODEL), Gemini($GEM_MODEL:$gem_status), HuggingFace($HF_MODEL:$hf_status)"
+}
+
+log_api_status
+
+# ===== センシティブ検出 =====
 SECRET_REGEXES=(
   '-----BEGIN (RSA|DSA|EC|OPENSSH) PRIVATE KEY-----'
   'AKIA[0-9A-Z]{16}'
   'ghp_[0-9A-Za-z]{36,}'
   'github_pat_[0-9A-Za-z_]{20,}'
+  'sk-[a-zA-Z0-9]{48,}'
+  'xoxb-[0-9]+-[0-9]+-[0-9A-Za-z]+'
+  'ya29\.[0-9A-Za-z_-]+'
+  'eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*'
 )
 
-has_secret_in_cached_diff() { # $1=file（ステージ済みの追加行をスキャン）
+SENSITIVE_FILENAMES=(
+  '.env'
+  '.env.local'
+  '.env.production'
+  'id_rsa'
+  'id_dsa'
+  'id_ecdsa'
+  'id_ed25519'
+  'credentials.json'
+  'service-account.json'
+  'config.json'
+)
+
+has_secret_in_cached_diff() {
   local f="$1"
+  local filename
+  filename="$(basename "$f")"
+  for sensitive in "${SENSITIVE_FILENAMES[@]}"; do
+    if [[ "$filename" == "$sensitive" ]]; then
+      log "   -> センシティブファイル名検出: $filename"
+      return 0
+    fi
+  done
+
   local added
-  added="$(git diff --cached -- "$f" | sed -n 's/^+//p' || true)"
+  added="$(git diff --cached -- "$f" | grep '^+' | cut -c2- || true)"
   [[ -z "$added" ]] && return 1
 
   local key_begin='-----BEGIN (RSA|DSA|EC|OPENSSH) PRIVATE KEY-----'
   local key_end='-----END (RSA|DSA|EC|OPENSSH) PRIVATE KEY-----'
   if grep -Eq -e "$key_begin" <<<"$added" && grep -Eq -e "$key_end" <<<"$added"; then
     if ! grep -Eq "[\"'#]" <<<"$added"; then
+      log "   -> 秘密鍵ペア検出"
       return 0
     fi
   fi
+
   local rx
   for rx in "${SECRET_REGEXES[@]}"; do
     [[ "$rx" == "$key_begin" ]] && continue
     if grep -Eq -e "$rx" <<<"$added"; then
+      log "   -> 秘密パターン検出: $(echo "$rx" | cut -c1-20)..."
       return 0
     fi
   done
   return 1
 }
 
-# ===== AI プロンプト =====
+# ===== AI プロンプトベース =====
 make_base_prompt() {
 cat <<EOF
-次の差分から、NeuroHubスタイルのコミットメッセージを生成してください。
+次のgit差分から、適切なコミットメッセージを1行で生成してください。
 
-==== Format ====
-:prefix: #Issue 内容
-例:
-:add: #123 新規API追加
-:fix: #45 ログ出力の不具合修正
+必須フォーマット: :prefix: 日本語の説明
 
-==== ルール ====
-・絵文字は使わない
-・1行目は :prefix: #issue(optional) を必ず先頭に
-・変更内容は日本語で簡潔に（${MAX_LEN}文字以内）
-・句読点なし、敬語不要
+利用可能なprefix:
+- :add: 新機能や新ファイルの追加
+- :fix: バグ修正
+- :update: 機能改善や更新
+- :refactor: リファクタリング
+- :docs: ドキュメント
+- :test: テスト
+- :style: フォーマット
+- :config: 設定
+
+要件:
+1. 必ず :prefix: で始める
+2. 説明は日本語で具体的に
+3. 最大${MAX_LEN}文字以内
+4. 変更されたファイルや機能がわかるようにする
 EOF
 }
 
-generate_message_once() {
-  local prompt_full="$1" msg=""
-  if [[ -n "${GEM_API_KEY:-}" ]] && command -v jq >/dev/null 2>&1; then
-    log "gemini生成中... (${GEM_MODEL})"
-    local url req resp
-    url="${GEM_API_URL%/}/models/${GEM_MODEL}:generateContent?key=${GEM_API_KEY}"
-    req="$(jq -nc --arg t "$prompt_full" '{contents:[{parts:[{text:$t}]}]}')"
-    resp="$(curl -sS -H "Content-Type: application/json" -d "$req" "$url" || true)"
-    if jq -e '.error' >/dev/null 2>&1 <<<"$resp"; then
-      log "Gemini失敗"
-    else
-      msg="$(jq -r '.candidates[0].content.parts[0].text // ""' <<<"$resp" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | head -n1)"
+# ===== 賢いデフォルト =====
+generate_smart_default() {
+  local file_path="$1" diff_content="$2"
+  local filename="$(basename "$file_path")"
+  local prefix=":update:"
+  local added_lines removed_lines
+  added_lines="$(echo "$diff_content" | grep -c '^+' || echo 0)"
+  removed_lines="$(echo "$diff_content" | grep -c '^-' || echo 0)"
+  if (( added_lines > removed_lines * 2 )); then
+    prefix=":add:"
+  elif (( removed_lines > added_lines * 2 )); then
+    prefix=":fix:"
+  fi
+
+  case "$filename" in
+    *.py)   echo "$prefix $filename を更新";;
+    *.sh)   echo "$prefix $filename スクリプト更新";;
+    *.md)   echo ":docs: $filename ドキュメント更新";;
+    *.yaml|*.yml) echo ":config: ${filename%.*}設定更新";;
+    *)      echo "$prefix $filename 更新";;
+  esac
+}
+
+# ===== APIテスト =====
+test_api_simple() {
+  local provider="$1"
+  case "$provider" in
+    "gemini")
+      [[ -z "${GEM_API_KEY:-}" ]] && { echo "❌ Gemini: APIキー未設定"; return 1; }
+      local url="${GEM_API_URL%/}/models/${GEM_MODEL}:generateContent?key=${GEM_API_KEY}"
+      local test_req='{"contents":[{"parts":[{"text":"test"}]}],"generationConfig":{"maxOutputTokens":1}}'
+      local resp http_code
+      resp="$(curl -sS -w "HTTPSTATUS:%{http_code}" -H "Content-Type: application/json" -d "$test_req" "$url" 2>/dev/null || echo "HTTPSTATUS:000")"
+      http_code="$(echo "$resp" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)"
+      if [[ "$http_code" == "200" ]]; then
+        echo "✅ Gemini: OK"
+        return 0
+      else
+        echo "❌ Gemini: 失敗 $http_code"
+        return 1
+      fi
+      ;;
+    "huggingface")
+      [[ -z "${HF_TOKEN:-}" ]] && { echo "❌ HuggingFace: Token未設定"; return 1; }
+      local url="${HF_HOST%/}/chat/completions"
+      local test_req="{\"model\":\"$HF_MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"test\"}],\"max_tokens\":1}"
+      local resp http_code
+      resp="$(curl -sS -w "HTTPSTATUS:%{http_code}" -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $HF_TOKEN" -d "$test_req" "$url" 2>/dev/null || echo "HTTPSTATUS:000")"
+      http_code="$(echo "$resp" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)"
+      if [[ "$http_code" == "200" ]]; then
+        echo "✅ HuggingFace: OK"
+        return 0
+      else
+        echo "❌ HuggingFace: 失敗 $http_code"
+        return 1
+      fi
+      ;;
+    "ollama")
+      if ! command -v ollama >/dev/null 2>&1; then
+        echo "❌ Ollama: コマンドなし"
+        return 1
+      fi
+      export OLLAMA_HOST="$OLLAMA_HOST_VAL"
+      if ollama list >/dev/null 2>&1; then
+        echo "✅ Ollama: OK"
+        return 0
+      else
+        echo "❌ Ollama: サーバー未起動"
+        return 1
+      fi
+      ;;
+  esac
+}
+
+check_all_apis() {
+  echo "========== API状態チェック =========="
+  local any_success=false
+  if test_api_simple "gemini"; then any_success=true; fi
+  if test_api_simple "huggingface"; then any_success=true; fi
+  if test_api_simple "ollama"; then any_success=true; fi
+  echo "===================================="
+  $any_success
+}
+
+setup_api_keys() {
+  local changed=false
+  if [[ -z "${GEM_API_KEY:-}" ]]; then
+    echo "⚠️  Gemini APIキーが設定されていません"
+    read -r -p "Gemini APIキーを入力してください（スキップはEnter）: " api_key
+    api_key="${api_key// /}"
+    if [[ -n "$api_key" ]]; then
+      mkdir -p "$(dirname "$CONF_ENV")"
+      echo "GEMINI_API_KEY=$api_key" >> "$CONF_ENV"
+      GEM_API_KEY="$api_key"
+      changed=true
     fi
   fi
-  if [[ -z "$msg" ]]; then
-    log "Ollama生成中... (${OLLAMA_MODEL})"
-    export OLLAMA_HOST="$OLLAMA_HOST_VAL"
-    local raw; raw="$(printf "%s" "$prompt_full" | ollama run "$OLLAMA_MODEL" 2>/dev/null || true)"
-    msg="$(printf "%s" "$raw" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | head -n1)"
+  if [[ -z "${HF_TOKEN:-}" ]]; then
+    echo "⚠️  HuggingFace Tokenが設定されていません"
+    read -r -p "HuggingFace Tokenを入力してください（スキップはEnter）: " token
+    token="${token// /}"
+    if [[ -n "$token" ]]; then
+      mkdir -p "$(dirname "$CONF_ENV")"
+      echo "HF_TOKEN=$token" >> "$CONF_ENV"
+      HF_TOKEN="$token"
+      changed=true
+    fi
   fi
+  $changed && log "設定ファイルを更新しました: $CONF_ENV"
+}
+
+ensure_ollama_running() {
+  if ! command -v ollama >/dev/null 2>&1; then
+    log "Ollama がインストールされていません"
+    return 1
+  fi
+  export OLLAMA_HOST="$OLLAMA_HOST_VAL"
+  if ! ollama list >/dev/null 2>&1; then
+    log "Ollamaサーバーが起動していません。起動します..."
+    nohup ollama serve >/dev/null 2>&1 & disown
+    local wait_count=0
+    while ! ollama list >/dev/null 2>&1 && (( wait_count < 30 )); do
+      sleep 1
+      ((wait_count++))
+    done
+    if ! ollama list >/dev/null 2>&1; then
+      log "❌ Ollamaサーバー起動失敗"
+      return 1
+    fi
+  fi
+  return 0
+}
+
+# ===== 各プロバイダー生成 =====
+generate_gemini() {
+  local prompt_full="$1" msg=""
+  [[ -z "${GEM_API_KEY:-}" ]] && return 1
+  command -v jq >/dev/null 2>&1 || return 1
+
+  if (( ${#prompt_full} > 2500 )); then
+    prompt_full="次の変更からコミットメッセージを生成してください。\n$(echo "$prompt_full" | tail -c 1200)"
+  fi
+
+  local url="${GEM_API_URL%/}/models/${GEM_MODEL}:generateContent?key=${GEM_API_KEY}"
+  local req
+  req="$(jq -nc --arg t "$prompt_full" '{contents:[{parts:[{text:$t}]}], generationConfig:{maxOutputTokens:200, temperature:0.3}}')"
+  local resp http_code
+  resp="$(curl -sS -w "HTTPSTATUS:%{http_code}" -H "Content-Type: application/json" -d "$req" "$url" 2>/dev/null || echo "HTTPSTATUS:000")"
+  http_code="$(echo "$resp" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)"
+  resp="$(echo "$resp" | sed 's/HTTPSTATUS:[0-9]*$//')"
+
+  [[ "$http_code" != "200" ]] && return 1
+  msg="$(jq -r '.candidates[0].content.parts[0].text // ""' <<<"$resp" | tr -d '\r')"
+  msg="$(printf '%s\n' "$msg" | head -n1)"
+
+  if [[ -n "$msg" && "$msg" != "**" && "$msg" != "**コミットメッセージ**" ]]; then
+    if [[ "$msg" =~ ^: ]]; then
+      printf '%s\n' "$msg"
+      return 0
+    else
+      local commit_line
+      commit_line="$(printf '%s\n' "$msg" | grep -m1 '^:' || true)"
+      if [[ -n "$commit_line" ]]; then
+        printf '%s\n' "$commit_line"
+        return 0
+      fi
+    fi
+  fi
+  return 1
+}
+
+generate_huggingface() {
+  local prompt_full="$1"
+  [[ -z "${HF_TOKEN:-}" ]] && return 1
+  command -v jq >/dev/null 2>&1 || return 1
+
+  if (( ${#prompt_full} > 2000 )); then
+    prompt_full="次の変更からコミットメッセージを生成してください。\n$(echo "$prompt_full" | tail -c 1000)"
+  fi
+
+  local url="${HF_HOST%/}/chat/completions"
+  local req
+  req="$(jq -nc --arg model "$HF_MODEL" --arg content "$prompt_full" '
+    {
+      model: $model,
+      messages: [
+        {role: "system", content: "あなたはgitコミットメッセージ生成AIです。日本語で、:prefix: 説明 の形式で1行で返してください。"},
+        {role: "user", content: $content}
+      ],
+      max_tokens: 200,
+      temperature: 0.3
+    }
+  ')"
+  local resp http_code
+  resp="$(curl -sS -w "HTTPSTATUS:%{http_code}" -H "Content-Type: application/json" -H "Authorization: Bearer $HF_TOKEN" -d "$req" "$url" 2>/dev/null || echo "HTTPSTATUS:000")"
+  http_code="$(echo "$resp" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)"
+  resp="$(echo "$resp" | sed 's/HTTPSTATUS:[0-9]*$//')"
+
+  [[ "$http_code" != "200" ]] && return 1
+  local msg
+  msg="$(jq -r '.choices[0].message.content // ""' <<<"$resp" | tr -d '\r')"
+  msg="$(printf '%s\n' "$msg" | head -n1)"
+
+  if [[ -n "$msg" && "$msg" != "**" ]]; then
+    if [[ "$msg" =~ ^: ]]; then
+      printf '%s\n' "$msg"
+      return 0
+    else
+      local commit_line
+      commit_line="$(printf '%s\n' "$msg" | grep -m1 '^:' || true)"
+      if [[ -n "$commit_line" ]]; then
+        printf '%s\n' "$commit_line"
+        return 0
+      fi
+    fi
+  fi
+  return 1
+}
+
+generate_ollama() {
+  local prompt_full="$1" model="${2:-$OLLAMA_MODEL}"
+  command -v ollama >/dev/null 2>&1 || return 1
+  export OLLAMA_HOST="$OLLAMA_HOST_VAL"
+  ollama list >/dev/null 2>&1 || return 1
+
+  if (( ${#prompt_full} > 3000 )); then
+    prompt_full="Generate a single line git commit message with :prefix: description.\n$(echo "$prompt_full" | tail -c 1000)"
+  fi
+
+  local raw
+  raw="$(printf "%s" "$prompt_full" | ollama run "$model" 2>/dev/null || true)"
+  raw="$(printf '%s' "$raw" | tr -d '\r')"
+  local msg
+  msg="$(printf '%s\n' "$raw" | head -n1)"
+
+  if [[ -n "$msg" && "$msg" != "**" ]]; then
+    if [[ "$msg" =~ ^: ]]; then
+      printf '%s\n' "$msg"
+      return 0
+    else
+      local commit_line
+      commit_line="$(printf '%s\n' "$raw" | grep -m1 '^:' || true)"
+      if [[ -n "$commit_line" ]]; then
+        printf '%s\n' "$commit_line"
+        return 0
+      fi
+    fi
+  fi
+  return 1
+}
+
+# ===== Ollamaモデル一覧 =====
+get_ollama_models() {
+  if command -v ollama >/dev/null 2>&1; then
+    export OLLAMA_HOST="$OLLAMA_HOST_VAL"
+    ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' | grep -v '^$' || echo "$OLLAMA_MODEL"
+  else
+    echo "$OLLAMA_MODEL"
+  fi
+}
+
+# ===== 1回生成 =====
+generate_message_once() {
+  local prompt_full="$1" current_file="${2:-unknown}" diff_content="${3:-}" mode="${4:-normal}" rejects_json="${5:-[]}"
+  local msg="" debug_info=""
+
+  if (( ${#prompt_full} > 5000 )); then
+    local base_prompt
+    base_prompt="$(make_base_prompt)"
+    prompt_full="$base_prompt
+
+対象ファイル: $current_file
+
+差分要約:
+$(echo "$diff_content" | head -n 40)
+"
+  fi
+
+  if [[ "$mode" == "detailed" ]]; then
+    prompt_full+=$'\n重要: 100文字以上で、どのファイルのどの機能を触ったかがわかるように、日本語で詳しく書いてください。'
+  fi
+
+  if [[ "$rejects_json" != "[]" ]]; then
+    prompt_full+=$'\n前回までに不採用になった案:'
+    prompt_full+=$(printf '\n%s\n' "$rejects_json")
+    prompt_full+=$'\n上記と重複しない新しい案を出してください。'
+  fi
+
+  msg="$(generate_gemini "$prompt_full")"
+  local gemini_ok=$?
+  if [[ $gemini_ok -ne 0 || -z "$msg" || ! "$msg" =~ ^: ]]; then
+    msg="$(generate_huggingface "$prompt_full")"
+    local hf_ok=$?
+    if [[ $hf_ok -ne 0 || -z "$msg" || ! "$msg" =~ ^: ]]; then
+      msg="$(generate_ollama "$prompt_full")"
+      local ol_ok=$?
+      if [[ $ol_ok -ne 0 || -z "$msg" || ! "$msg" =~ ^: ]]; then
+        msg=""
+      fi
+    fi
+  fi
+
+  if [[ -z "$msg" || "$msg" == ":" || "$msg" == ": :" ]]; then
+    msg="$(generate_smart_default "$current_file" "$diff_content")"
+  fi
+
   [[ -n "$msg" && ${#msg} -gt $MAX_LEN ]] && msg="${msg:0:$MAX_LEN}"
   printf '%s\n' "$msg"
 }
 
-# ===== 重複メッセージ回避 =====
+# ===== AI コメント付き編集 =====
+edit_with_ai_comment() {
+  local current_msg="$1"
+  local tmpfile
+  tmpfile="$(mktemp)"
+  cat > "$tmpfile" <<EOF
+$AI_COMMENT_MARKER このメッセージはAIによって生成されました
+$AI_COMMENT_MARKER 編集後、このコメント行は自動で削除されます
+$current_msg
+EOF
+  if [[ -n "${EDITOR:-}" ]]; then
+    "$EDITOR" "$tmpfile"
+  elif command -v nano >/dev/null 2>&1; then
+    nano "$tmpfile"
+  else
+    vi "$tmpfile"
+  fi
+  local edited_msg
+  edited_msg="$(grep -v "^$AI_COMMENT_MARKER" "$tmpfile" | sed '/^[[:space:]]*$/d' | head -n1 || true)"
+  rm -f "$tmpfile"
+  printf '%s\n' "$edited_msg"
+}
+
 declare -A USED_MSGS=()
 is_dup_msg() { [[ -n "${USED_MSGS[$1]:-}" ]]; }
 mark_msg() { USED_MSGS["$1"]=1; }
 
-# ===== 対象ファイル一覧（個別ステージ方針） =====
-mapfile -t FILES < <( { git ls-files -m; git ls-files -o --exclude-standard; git ls-files -d; } | sort -u )
+# ===== 対象ファイル一覧 =====
+get_target_files() {
+  local staged_files modified_files untracked_files deleted_files all_files
+  mapfile -t staged_files < <(git diff --cached --name-only 2>/dev/null | sort -u || true)
+  mapfile -t modified_files < <(git ls-files -m 2>/dev/null | sort -u || true)
+  mapfile -t untracked_files < <(git ls-files -o --exclude-standard 2>/dev/null | sort -u || true)
+  mapfile -t deleted_files < <(git ls-files -d 2>/dev/null | sort -u || true)
 
+  mapfile -t all_files < <(
+    {
+      printf '%s\n' "${staged_files[@]}" "${modified_files[@]}" "${untracked_files[@]}" "${deleted_files[@]}"
+    } | sort -u | grep -v '^$' || true
+  )
+
+  log ">> ファイル状況:"
+  log "   Staged: ${#staged_files[@]}"
+  log "   Modified: ${#modified_files[@]}"
+  log "   Untracked: ${#untracked_files[@]}"
+  log "   Deleted: ${#deleted_files[@]}"
+  log "   Total: ${#all_files[@]}"
+
+  printf '%s\n' "${all_files[@]}"
+}
+
+mapfile -t FILES < <(get_target_files)
 if (( ${#FILES[@]} == 0 )); then
-  log "コミット対象なし（作業ツリーに変更がありません）"
+  log "コミット対象なし"
   exit 0
 fi
-log ">> target files (working tree): ${#FILES[@]}"
 
+# ===== リモートチェック（デフォルトで有効） =====
+check_remote_conflicts
+
+# ===== API状態チェック =====
+if ! check_all_apis; then
+  setup_api_keys
+  check_all_apis || { echo "❌ APIが使えません"; exit 1; }
+fi
+
+# Ollama確認（任意）
+if command -v ollama >/dev/null 2>&1 && ! ollama list >/dev/null 2>&1; then
+  ensure_ollama_running || true
+fi
+
+log ">> 処理対象ファイル: ${#FILES[@]}件"
+
+# ===== 区切り関数（★ここ必ず閉じる） =====
 sep_line() {
   printf '\n####################### %s #######################\n' "$1"
 }
 
-# ===== 1ファイルずつ処理 =====
+# ===== メインループ =====
 for f in "${FILES[@]}"; do
   sep_line "$f"
   log ">> processing: $f"
 
-  # ステージ操作（個別） + ログ/プリント
-  if [[ ! -e "$f" ]]; then
-    git rm -- "$f" >/dev/null 2>&1 || true
-    log "   -> staged (rm) $f"
+  if git diff --cached --name-only | grep -Fxq "$f" 2>/dev/null; then
+    log "   -> 既にステージ済み: $f"
   else
-    git add -- "$f" >/dev/null 2>&1 || true
-    log "   -> staged (add) $f"
+    if [[ ! -e "$f" ]]; then
+      git rm -- "$f" >/dev/null 2>&1 || true
+      log "   -> staged (rm) $f"
+    else
+      git add -- "$f" >/dev/null 2>&1 || true
+      log "   -> staged (add) $f"
+    fi
   fi
-  printf "#######################"; printf "%s" "$f"; printf "#######################\n"
 
-  # ステージ済み差分を取得（その1件だけ）
   diff_text="$(git diff --cached -- "$f")"
   if [[ -z "$diff_text" ]]; then
     log "   -> 変更なし（スキップ）"
     continue
   fi
 
-  # センシティブ内容チェック（内容ベースのみ）
   if has_secret_in_cached_diff "$f"; then
-    log "⚠  センシティブパターン検出、スキップ: $f"
+    log "⚠️  センシティブ検出、アンステージしてスキップ: $f"
     git restore --staged -- "$f" >/dev/null 2>&1 || true
     continue
   fi
 
-  # プロンプト組み立て
-  prompt="$(make_base_prompt)
+  diff_lines="$(echo "$diff_text" | wc -l)"
+  if (( diff_lines > 100 )); then
+    added_lines="$(echo "$diff_text" | grep -c '^+' || echo 0)"
+    removed_lines="$(echo "$diff_text" | grep -c '^-' || echo 0)"
+    diff_summary="Large diff: +${added_lines} -${removed_lines} lines
+$(echo "$diff_text" | head -n 40)"
+  else
+    diff_summary="$(echo "$diff_text" | head -n "$DIFF_HEAD_LINES")"
+  fi
+
+  base_prompt="$(make_base_prompt)
 ==== 対象ファイル ====
 $f
 
 ==== 差分（抜粋） ====
-$(printf "%s" "$diff_text" | head -n "$DIFF_HEAD_LINES")
+$diff_summary
 "
 
-  # 生成（重複回避付き）
+  # 却下リスト
   rejects=()
-  message="$(generate_message_once "$prompt")"
+  rejects_json="[]"
+
+  message="$(generate_message_once "$base_prompt" "$f" "$diff_text" "normal" "$rejects_json")"
   tries=0
-  while { [[ -z "$message" ]] || is_dup_msg "$message"; } && (( tries < MAX_RETRY )); do
-    [[ -z "$message" ]] && log "   -> 生成空、再試行..." || log "   -> 重複検出、再生成..."
-    rejects+=("$message")
-    prompt+=$'\n'"※他ファイルと同一の1行目は不可。対象: $f"
-    message="$(generate_message_once "$prompt")"
+  while { [[ -z "$message" ]] || is_dup_msg "$message" || [[ ! "$message" =~ ^: ]]; } && (( tries < MAX_RETRY )); do
+    [[ -n "$message" ]] && rejects+=("$message")
+    # rejects を JSON風で渡す
+    rejects_json="$(printf '[%s]\n' "$(printf '"%s",' "${rejects[@]}" | sed 's/,$//')")"
+    base_prompt+=$'\nこれらの案は却下されました。重複しないでください。\n'"$rejects_json"
+    message="$(generate_message_once "$base_prompt" "$f" "$diff_text" "normal" "$rejects_json")"
     ((tries++))
   done
 
-  # もしAIが空や不適切なら、ユーザー入力にフォールバック
   if [[ -z "$message" ]]; then
-    echo
-    echo "ファイル: $f"
-    echo "AIで生成に失敗しました。手入力してください。"
-    read -r -p "コミットメッセージ: " message
+    message="$(generate_smart_default "$f" "$diff_text")"
   fi
 
-  # 対話確認ループ
+  # ===== 対話ループ =====
   while :; do
     echo
     echo "ファイル: $f"
@@ -231,40 +780,67 @@ $(printf "%s" "$diff_text" | head -n "$DIFF_HEAD_LINES")
     echo "--------------------------------"
     echo "$message"
     echo "--------------------------------"
-    read -r -p "[Enter=確定 / e=編集 / r=再生成 / m=手入力 / s=スキップ / q=中止] " ans
+    read -r -p "[Enter=確定 / e=AI編集 / r=再生成 / d=詳細再生成 / o=Ollama別モデル / m=ヒントで再生成 / s=スキップ / q=中止] " ans
     case "${ans:-}" in
       "" )
-        # 確定
         git commit -m "$message" -- "$f" || true
         mark_msg "$message"
         log "✅ $f → $message"
         break
         ;;
       e|E )
-        if [[ -n "${EDITOR:-}" ]]; then
-          tmpfile="$(mktemp)"
-          printf "%s" "$message" > "$tmpfile"
-          "$EDITOR" "$tmpfile"
-          message="$(cat "$tmpfile")"
-          rm -f "$tmpfile"
-        else
-          read -r -p "新しいメッセージ: " newmsg
-          [[ -n "$newmsg" ]] && message="$newmsg"
-        fi
+        new_message="$(edit_with_ai_comment "$message")"
+        [[ -n "$new_message" ]] && message="$new_message"
         ;;
       r|R )
         rejects+=("$message")
-        prompt+=$'\n'"※前案は不採用。もっと具体的に/重複回避。対象: $f"
-        newmsg="$(generate_message_once "$prompt")"
-        if [[ -n "$newmsg" ]]; then message="$newmsg"; else log "   -> 再生成失敗、保持"; fi
+        (( ${#rejects[@]} > REJECT_LIMIT )) && rejects=("${rejects[@]:1}")
+        rejects_json="$(printf '[%s]\n' "$(printf '"%s",' "${rejects[@]}" | sed 's/,$//')")"
+        newmsg="$(generate_message_once "$base_prompt" "$f" "$diff_text" "normal" "$rejects_json")"
+        [[ -n "$newmsg" ]] && message="$newmsg"
+        ;;
+      d|D )
+        rejects+=("$message")
+        (( ${#rejects[@]} > REJECT_LIMIT )) && rejects=("${rejects[@]:1}")
+        rejects_json="$(printf '[%s]\n' "$(printf '"%s",' "${rejects[@]}" | sed 's/,$//')")"
+        newmsg="$(generate_message_once "$base_prompt" "$f" "$diff_text" "detailed" "$rejects_json")"
+        [[ -n "$newmsg" ]] && message="$newmsg"
+        ;;
+      o|O )
+        if command -v ollama >/dev/null 2>&1; then
+          echo "利用可能なOllamaモデル:"
+          mapfile -t models < <(get_ollama_models)
+          for i in "${!models[@]}"; do
+            echo "$((i+1)). ${models[i]}"
+          done
+          read -r -p "モデル番号を選択 [1-${#models[@]}]: " model_num
+          if [[ "$model_num" =~ ^[0-9]+$ ]] && (( model_num >= 1 && model_num <= ${#models[@]} )); then
+            selected_model="${models[$((model_num-1))]}"
+            newmsg="$(generate_ollama "$base_prompt" "$selected_model")"
+            [[ -n "$newmsg" ]] && message="$newmsg"
+          fi
+        else
+          log "Ollama not found"
+        fi
         ;;
       m|M )
-        read -r -p "手入力メッセージ: " newmsg
-        [[ -n "$newmsg" ]] && message="$newmsg"
+        # ★ ユーザーヒントで再生成
+        read -r -p "AIに伝えるヒントを入力してください: " user_hint
+        if [[ -n "$user_hint" ]]; then
+          rejects+=("$message")
+          (( ${#rejects[@]} > REJECT_LIMIT )) && rejects=("${rejects[@]:1}")
+          rejects_json="$(printf '[%s]\n' "$(printf '"%s",' "${rejects[@]}" | sed 's/,$//')")"
+          hint_prompt="$base_prompt
+追加条件: $user_hint
+これまで却下された案: $rejects_json
+"
+          newmsg="$(generate_message_once "$hint_prompt" "$f" "$diff_text" "detailed" "$rejects_json")"
+          [[ -n "$newmsg" ]] && message="$newmsg"
+        fi
         ;;
       s|S )
         git restore --staged -- "$f" >/dev/null 2>&1 || true
-        log "   -> スキップ: $f（アンステージ済み）"
+        log "   -> スキップ: $f"
         break
         ;;
       q|Q )
@@ -277,6 +853,3 @@ $(printf "%s" "$diff_text" | head -n "$DIFF_HEAD_LINES")
     esac
   done
 done
-
-log "完了"
-

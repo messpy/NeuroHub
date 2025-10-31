@@ -1,0 +1,334 @@
+#!/usr/bin/env bash
+# tools/git_commit_ai (clean)
+set -euo pipefail
+
+log() { printf '%s\n' "$*" >&2; }
+
+LANG_CODE=ja
+MAX_LEN=40
+MAX_RETRY=2
+DIFF_HEAD_LINES=80
+
+SHOW_HELP=false
+SYNC_REMOTE=false
+SHOW_STATUS=false
+CREATE_PR=false
+FORCE_MODE=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help) SHOW_HELP=true ;;
+    --sync|--pull) SYNC_REMOTE=true ;;
+    --status|--st) SHOW_STATUS=true ;;
+    --pr|--pull-request) CREATE_PR=true ;;
+    --force|-f) FORCE_MODE=true ;;
+    *) log "unknown option: $1"; exit 1 ;;
+  esac
+  shift
+done
+
+show_help() {
+  cat <<'EOF'
+git commit ai
+
+  ./tools/git_commit_ai
+  ./tools/git_commit_ai --status
+  ./tools/git_commit_ai --sync
+
+Enter=確定 / e=編集 / r=再生成 / d=詳細 / o=Ollama / m=手入力 / s=スキップ / q=中止
+EOF
+}
+
+$SHOW_HELP && { show_help; exit 0; }
+
+if ! GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  log "gitリポジトリ内で実行してください"
+  exit 1
+fi
+cd "$GIT_ROOT"
+
+if $SHOW_STATUS; then
+  git status -sb
+  git diff --cached
+  exit 0
+fi
+
+# ====== config 読み込みざっくり ======
+CONF_ENV="$GIT_ROOT/config/.env"
+OLLAMA_HOST_VAL="http://127.0.0.1:11434"
+OLLAMA_MODEL="qwen2.5:1.5b-instruct"
+GEM_API_URL="https://generativelanguage.googleapis.com/v1"
+GEM_MODEL="gemini-2.5-flash"
+GEM_API_KEY="${GEMINI_API_KEY:-}"
+HF_HOST="https://router.huggingface.co/v1"
+HF_MODEL="openai/gpt-oss-20b:groq"
+HF_TOKEN="${HF_TOKEN:-}"
+
+if [[ -f "$CONF_ENV" ]]; then
+  # shellcheck disable=SC2046
+  export $(grep -E '^(GEMINI_API_KEY|HF_TOKEN|OLLAMA_HOST)=' "$CONF_ENV" | xargs -d '\n' -I{} echo "{}")
+  [[ -n "${GEMINI_API_KEY:-}" ]] && GEM_API_KEY="$GEMINI_API_KEY"
+  [[ -n "${HF_TOKEN:-}" ]] && HF_TOKEN="$HF_TOKEN"
+  [[ -n "${OLLAMA_HOST:-}" ]] && OLLAMA_HOST_VAL="$OLLAMA_HOST"
+fi
+
+log ">> PROVIDERS: Ollama($OLLAMA_MODEL), Gemini($GEM_MODEL${GEM_API_KEY:+:set}), HuggingFace($HF_MODEL${HF_TOKEN:+:set})"
+
+# ====== センシティブ検出 ======
+SENSITIVE_FILENAMES=(.env .env.local .env.production id_rsa id_ed25519 credentials.json service-account.json)
+SECRET_REGEXES=(
+  '-----BEGIN (RSA|DSA|EC|OPENSSH) PRIVATE KEY-----'
+  'ghp_[0-9A-Za-z]{36,}'
+  'github_pat_[0-9A-Za-z_]{20,}'
+  'sk-[a-zA-Z0-9]{48,}'
+  'eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*'
+)
+
+has_secret_in_cached_diff() {
+  local f="$1"
+  local bn; bn="$(basename "$f")"
+  for s in "${SENSITIVE_FILENAMES[@]}"; do
+    [[ "$bn" == "$s" ]] && return 0
+  done
+  local added
+  added="$(git diff --cached -- "$f" | grep '^+' | cut -c2- || true)"
+  [[ -z "$added" ]] && return 1
+  local rx
+  for rx in "${SECRET_REGEXES[@]}"; do
+    if grep -Eq "$rx" <<<"$added"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# ====== リモート確認 ======
+check_remote_conflicts() {
+  local br rb
+  br="$(git branch --show-current 2>/dev/null || echo main)"
+  rb="origin/$br"
+  if git show-ref --verify --quiet "refs/remotes/$rb"; then
+    if ! git merge-base --is-ancestor "$rb" HEAD; then
+      log "⚠️ リモートより遅れてる: $rb"
+      if $SYNC_REMOTE; then
+        git pull origin "$br"
+      elif ! $FORCE_MODE; then
+        read -r -p "pullしてからにする？ [y/N] " a
+        [[ ${a,,} != y ]] && exit 1
+      fi
+    fi
+  fi
+}
+
+check_remote_conflicts
+
+# ====== AI 呼び出し ======
+generate_gemini() {
+  local prompt="$1"
+  [[ -z "$GEM_API_KEY" ]] && return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  local url="${GEM_API_URL%/}/models/${GEM_MODEL}:generateContent?key=${GEM_API_KEY}"
+  local req resp code
+  req="$(jq -nc --arg t "$prompt" '{contents:[{parts:[{text:$t}]}],generationConfig:{maxOutputTokens:80,temperature:0.3}}')"
+  resp="$(curl -sS -w 'HTTPSTATUS:%{http_code}' -H 'Content-Type: application/json' -d "$req" "$url" || true)"
+  code="${resp##*HTTPSTATUS:}"
+  resp="${resp%HTTPSTATUS:*}"
+  [[ "$code" != 200 ]] && return 1
+  local text
+  text="$(jq -r '.candidates[0].content.parts[0].text // ""' <<<"$resp" | head -n1)"
+  [[ -z "$text" ]] && return 1
+  printf '%s\n' "$text"
+}
+
+generate_hf() {
+  local prompt="$1"
+  [[ -z "$HF_TOKEN" ]] && return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  local url="${HF_HOST%/}/chat/completions"
+  local req resp code
+  req="$(jq -nc --arg m "$HF_MODEL" --arg c "$prompt" '{model:$m,messages:[{role:"user",content:$c}],max_tokens:80,temperature:0.3}')"
+  resp="$(curl -sS -w 'HTTPSTATUS:%{http_code}' -H 'Content-Type: application/json' -H "Authorization: Bearer $HF_TOKEN" -d "$req" "$url" || true)"
+  code="${resp##*HTTPSTATUS:}"
+  resp="${resp%HTTPSTATUS:*}"
+  [[ "$code" != 200 ]] && return 1
+  local text
+  text="$(jq -r '.choices[0].message.content // ""' <<<"$resp" | head -n1)"
+  [[ -z "$text" ]] && return 1
+  printf '%s\n' "$text"
+}
+
+generate_ollama() {
+  local prompt="$1" model="${2:-$OLLAMA_MODEL}"
+  command -v ollama >/dev/null 2>&1 || return 1
+  OLLAMA_HOST="$OLLAMA_HOST_VAL" ollama list >/dev/null 2>&1 || return 1
+  local out
+  out="$(printf '%s' "$prompt" | OLLAMA_HOST="$OLLAMA_HOST_VAL" ollama run "$model" 2>/dev/null || true)"
+  out="$(printf '%s' "$out" | head -n1)"
+  [[ -z "$out" ]] && return 1
+  printf '%s\n' "$out"
+}
+
+make_base_prompt() {
+  cat <<'EOF'
+次のgit差分から、:prefix: 日本語の説明 の1行コミットメッセージを作ってください。
+prefixは :add: :fix: :update: :docs: :config: などを使ってください。
+EOF
+}
+
+generate_smart_default() {
+  local file="$1"
+  echo ":update: ${file##*/} 更新"
+}
+
+generate_message_once() {
+  local prompt="$1" file="$2" diff="$3" mode="${4:-normal}"
+  local full="$prompt"
+  [[ "$mode" == detailed ]] && full+=$'\nより技術的に詳しく。'
+  local msg=""
+  msg="$(generate_gemini "$full")" || msg="$(generate_hf "$full")" || msg="$(generate_ollama "$full")" || true
+  if [[ -z "$msg" ]]; then
+    msg="$(generate_smart_default "$file")"
+  fi
+  # 先頭が:じゃなかったらつける
+  if [[ "$msg" != :* ]]; then
+    msg=":update: $msg"
+  fi
+  # 長すぎたら切る
+  if ((${#msg} > MAX_LEN)); then
+    msg="${msg:0:MAX_LEN}"
+  fi
+  printf '%s\n' "$msg"
+}
+
+edit_with_ai_comment() {
+  local cur="$1"
+  local tmp
+  tmp="$(mktemp)"
+  {
+    echo "# AI Generated: 編集して保存してください"
+    echo "$cur"
+  } >"$tmp"
+  ${EDITOR:-nano} "$tmp"
+  local out
+  out="$(grep -v '^# AI Generated:' "$tmp" | sed '/^[[:space:]]*$/d' | head -n1)"
+  rm -f "$tmp"
+  printf '%s\n' "$out"
+}
+
+get_target_files() {
+  {
+    git diff --cached --name-only
+    git ls-files -m
+    git ls-files -o --exclude-standard
+    git ls-files -d
+  } | sort -u | grep -v '^$' || true
+}
+
+mapfile -t FILES < <(get_target_files)
+if ((${#FILES[@]} == 0)); then
+  log "コミット対象なし"
+  exit 0
+fi
+
+declare -A USED=()
+
+sep_line() { printf '\n#################### %s ####################\n' "$1"; }
+
+for f in "${FILES[@]}"; do
+  sep_line "$f"
+
+  # ステージ
+  if ! git diff --cached --name-only | grep -Fxq "$f"; then
+    if [[ -e "$f" ]]; then
+      git add -- "$f" >/dev/null 2>&1 || true
+    else
+      git rm -- "$f" >/dev/null 2>&1 || true
+    fi
+  fi
+
+  diff_text="$(git diff --cached -- "$f")"
+  [[ -z "$diff_text" ]] && { log "変更なし"; continue; }
+
+  if has_secret_in_cached_diff "$f"; then
+    log "⚠️ センシティブ検出 -> スキップ"
+    git restore --staged -- "$f" >/dev/null 2>&1 || true
+    continue
+  fi
+
+  if (($(echo "$diff_text" | wc -l) > 120)); then
+    diff_summary="$(echo "$diff_text" | head -n 40)"
+  else
+    diff_summary="$diff_text"
+  fi
+
+  prompt="$(make_base_prompt)
+==== 対象ファイル ====
+$f
+
+==== 差分 ====
+$diff_summary
+"
+
+  msg="$(generate_message_once "$prompt" "$f" "$diff_text" normal)"
+  tries=0
+  while { [[ -z "$msg" ]] || [[ -n "${USED[$msg]:-}" ]]; } && ((tries<MAX_RETRY)); do
+    prompt+=$'\n前と同じ1行は禁止。違う案をください。'
+    msg="$(generate_message_once "$prompt" "$f" "$diff_text" normal)"
+    ((tries++))
+  done
+
+  while :; do
+    echo "候補: $msg"
+    read -r -p "[Enter=OK/e=編集/r=再生成/d=詳細/m=手入力/s=skip/q=quit] " ans
+    case "${ans:-}" in
+      "" )
+        git commit -m "$msg" -- "$f" || true
+        USED["$msg"]=1
+        log "✅ committed: $msg"
+        break
+        ;;
+      e|E )
+        newmsg="$(edit_with_ai_comment "$msg")"
+        [[ -n "$newmsg" ]] && msg="$newmsg"
+        ;;
+      r|R )
+        prompt+=$'\nさっきと違う短い1行で。'
+        newmsg="$(generate_message_once "$prompt" "$f" "$diff_text" normal)"
+        [[ -n "$newmsg" ]] && msg="$newmsg"
+        ;;
+      d|D )
+        prompt+=$'\n技術的詳細をもう少し。'
+        newmsg="$(generate_message_once "$prompt" "$f" "$diff_text" detailed)"
+        [[ -n "$newmsg" ]] && msg="$newmsg"
+        ;;
+      m|M )
+        read -r -p "手入力: " newmsg
+        [[ -n "$newmsg" ]] && msg="$newmsg"
+        ;;
+      s|S )
+        git restore --staged -- "$f" >/dev/null 2>&1 || true
+        log "skip $f"
+        break
+        ;;
+      q|Q )
+        log "中止"
+        exit 1
+        ;;
+      * )
+        echo "?"
+        ;;
+    esac
+  done
+done
+
+echo
+log "✅ AI コミット完了"
+
+if $CREATE_PR; then
+  br="$(git branch --show-current 2>/dev/null || echo main)"
+  if [[ "$br" != "main" && "$br" != "master" ]]; then
+    echo "gh pr create --title \"$br\" --body \"AI generated commits\""
+  fi
+fi
+
+exit 0

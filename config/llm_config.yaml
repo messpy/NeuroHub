@@ -1,0 +1,20 @@
+llm:
+  providers:
+    ollama:
+      enabled: false
+      api_url: http://localhost:11434
+      model: qwen2.5:1.5b-instruct
+      max_tokens: 200
+      temperature: 0.3
+      timeout: 30
+      priority: 3
+  provider_priority: []
+  default_settings:
+    max_tokens: 200
+    temperature: 0.3
+    timeout: 30
+    auto_fallback: true
+  logging:
+    enabled: true
+    log_level: 2
+    store_debug_info: true
