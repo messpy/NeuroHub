@@ -292,8 +292,36 @@ has_secret_in_cached_diff() {
   return 1
 }
 
+# ===== テンプレート読み込み =====
+load_prompt_template() {
+  local template_file="$CONF_DIR/prompt_templates.yaml"
+  local template_type="$1"  # git_commit
+  local template_name="$2"  # base_prompt or detailed_prompt
+
+  if [[ -f "$template_file" ]] && command -v yq >/dev/null 2>&1; then
+    # yqでYAMLから読み込み
+    local template_content
+    template_content="$(yq eval ".prompts.$template_type.$template_name" "$template_file" 2>/dev/null || echo "")"
+    if [[ -n "$template_content" && "$template_content" != "null" ]]; then
+      echo "$template_content"
+      return 0
+    fi
+  fi
+
+  # フォールバック: 内蔵テンプレート
+  return 1
+}
+
 # ===== AI プロンプトベース =====
 make_base_prompt() {
+  # テンプレートから読み込み試行
+  local template_content
+  template_content="$(load_prompt_template "git_commit" "base_prompt")"
+
+  if [[ -n "$template_content" ]]; then
+    echo "$template_content"
+  else
+    # フォールバック: 内蔵プロンプト
 cat <<EOF
 次のgit差分から、適切なコミットメッセージを1行で生成してください。
 
@@ -315,6 +343,7 @@ cat <<EOF
 3. 最大${MAX_LEN}文字以内
 4. 変更されたファイルや機能がわかるようにする
 EOF
+  fi
 }
 
 # ===== 賢いデフォルト =====
@@ -596,8 +625,20 @@ $(echo "$diff_content" | head -n 40)
 "
   fi
 
+  # 詳細モードの場合はテンプレートまたは追加プロンプトを使用
   if [[ "$mode" == "detailed" ]]; then
-    prompt_full+=$'\n重要: 100文字以上で、どのファイルのどの機能を触ったかがわかるように、日本語で詳しく書いてください。'
+    local detailed_template
+    detailed_template="$(load_prompt_template "git_commit" "detailed_prompt")"
+
+    if [[ -n "$detailed_template" ]]; then
+      # テンプレートがある場合はそれを使用
+      prompt_full="$detailed_template"
+    else
+      # フォールバック: 追加プロンプト
+      prompt_full+=$'\n\n重要: より具体的で技術的な詳細を含むコミットメッセージを生成してください。'
+      prompt_full+=$'\nファイル内容や変更の背景を考慮し、開発者が理解しやすい表現を使用してください。'
+      prompt_full+=$'\n100文字以上で、どのファイルのどの機能を触ったかがわかるように、日本語で詳しく書いてください。'
+    fi
   fi
 
   if [[ "$rejects_json" != "[]" ]]; then

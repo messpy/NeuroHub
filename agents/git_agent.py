@@ -72,7 +72,9 @@ class GitAgent:
                     shell=True,
                     capture_output=True,
                     text=True,
-                    cwd=self.project_root
+                    cwd=self.project_root,
+                    encoding='utf-8',
+                    errors='replace'
                 )
                 if result.returncode == 0:
                     return [line.strip() for line in result.stdout.split('\n') if line.strip()]
@@ -104,7 +106,9 @@ class GitAgent:
                 shell=True,
                 capture_output=True,
                 text=True,
-                cwd=self.project_root
+                cwd=self.project_root,
+                encoding='utf-8',
+                errors='replace'
             )
             return result.stdout if result.returncode == 0 else ""
         except Exception:
@@ -124,7 +128,9 @@ class GitAgent:
                 shell=True,
                 capture_output=True,
                 text=True,
-                cwd=self.project_root
+                cwd=self.project_root,
+                encoding='utf-8',
+                errors='replace'
             )
             return result.returncode == 0
         except Exception:
@@ -155,35 +161,30 @@ class GitAgent:
 
         full_prompt = f"{prompt}\n\n==== 対象ファイル ====\n{file_path}\n\n==== 差分 ====\n{diff_content}"
 
-        # プロバイダー優先順位で試行
-        for provider_name in ['gemini', 'huggingface', 'ollama']:
-            try:
-                provider = self.providers[provider_name]
-                if not provider.is_configured():
-                    continue
+        # LLMリクエスト作成
+        from agents.llm_agent import LLMRequest
+        
+        request = LLMRequest(
+            prompt=full_prompt,
+            system_message=get_system_message("commit_message_generator"),
+            max_tokens=200,
+            temperature=0.3
+        )
+        
+        try:
+            # LLMエージェントで生成
+            response = self.llm_agent.generate_text(request)
+            
+            if response.is_success and response.content:
+                # フォーマット検証
+                message = response.content.strip()
+                if message.startswith(':') and len(message) <= 120:
+                    return message
+        
+        except Exception as e:
+            print(f"LLM生成エラー: {e}")
 
-                # システムメッセージ取得
-                system_msg = get_system_message("commit_message_generator")
-
-                # メッセージ生成
-                response = provider.generate_text(
-                    prompt=full_prompt,
-                    system_message=system_msg,
-                    max_tokens=200,
-                    temperature=0.3
-                )
-
-                if response.is_success and response.content:
-                    # フォーマット検証
-                    message = response.content.strip()
-                    if message.startswith(':') and len(message) <= 120:
-                        return message
-
-            except Exception as e:
-                print(f"[{provider_name}] エラー: {e}")
-                continue
-
-        # すべて失敗した場合はスマートデフォルト
+        # 失敗した場合はスマートデフォルト
         return self._generate_smart_default(file_path, diff_content)
 
     def _generate_smart_default(self, file_path: str, diff_content: str) -> str:
@@ -220,7 +221,9 @@ class GitAgent:
                 shell=True,
                 capture_output=True,
                 text=True,
-                cwd=self.project_root
+                cwd=self.project_root,
+                encoding='utf-8',
+                errors='replace'
             )
             return result.returncode == 0
         except Exception:
