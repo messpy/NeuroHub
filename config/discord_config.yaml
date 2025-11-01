@@ -1,0 +1,63 @@
+# Discord Bot 設定ファイル
+
+bot:
+  prefix: "!"
+  description: "NeuroHub AI Discord Bot - 拡張性抜群のモジュラーBot"
+  status: "NeuroHubで稼働中 | !help_custom でヘルプ"
+  activity_type: "playing"  # playing, watching, listening, streaming
+
+features:
+  llm_enabled: true
+  voice_enabled: true
+  anti_spam_enabled: true
+  knowledge_base_enabled: true
+  auto_plugin_load: true
+  vision_enabled: true
+  reaction_enabled: true
+
+# 荒らし対策設定
+anti_spam:
+  max_messages_per_minute: 10
+  max_duplicate_messages: 3
+  max_mentions_per_message: 5
+  max_emoji_per_message: 10
+  timeout_duration: 60
+  violation_threshold: 3
+  url_spam_threshold: 5
+  caps_lock_threshold: 0.7
+
+# 音声機能設定
+voice:
+  auto_disconnect_timeout: 300
+  max_queue_size: 50
+  default_volume: 0.5
+  tts_language: ja  # ja, en, zh-CN, etc.
+
+# プラグイン設定
+plugins:
+  auto_load:
+    - basic_commands
+    - llm_commands
+    - voice_commands
+    - admin_commands
+    - reaction_commands
+    - vision_commands
+
+  plugin_directory: "services/discord/plugins"# ログ設定
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR
+  log_to_file: true
+  log_file: "logs/discord_bot.log"
+  log_format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+# データベース設定
+database:
+  enable_llm_logging: true
+  enable_event_logging: true
+  enable_stats_tracking: true
+
+# 権限設定
+permissions:
+  admin_commands_require_admin: true
+  plugin_commands_require_admin: true
+  knowledge_add_require_manage_messages: true
