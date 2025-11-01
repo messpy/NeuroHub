@@ -52,6 +52,10 @@ class GitAgent:
         # 環境設定読み込み
         load_env_from_config()
 
+        # LLMエージェント初期化
+        from agents.llm_agent import LLMAgent
+        self.llm_agent = LLMAgent()
+
         # LLMプロバイダー初期化
         self.providers = {
             'gemini': GeminiConfig(),
@@ -163,24 +167,24 @@ class GitAgent:
 
         # LLMリクエスト作成
         from agents.llm_agent import LLMRequest
-        
+
         request = LLMRequest(
             prompt=full_prompt,
             system_message=get_system_message("commit_message_generator"),
             max_tokens=200,
             temperature=0.3
         )
-        
+
         try:
             # LLMエージェントで生成
             response = self.llm_agent.generate_text(request)
-            
+
             if response.is_success and response.content:
                 # フォーマット検証
                 message = response.content.strip()
                 if message.startswith(':') and len(message) <= 120:
                     return message
-        
+
         except Exception as e:
             print(f"LLM生成エラー: {e}")
 
