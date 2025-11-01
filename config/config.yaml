@@ -11,6 +11,55 @@ llm:
       enabled: 0
       model: meta-llama/Llama-3.1-8B-Instruct
   default_provider: ollama
+
+# MCP強化システム設定
+mcp:
+  enabled: true
+  server:
+    name: "NeuroHub Enhanced MCP Server"
+    version: "1.0.0"
+    port: 8080
+    timeout: 30
+  database:
+    enabled: true
+    auto_log: true
+    max_history: 10000
+  investigation:
+    enabled: true
+    max_agents: 3
+    default_depth: "normal"
+    auto_knowledge_creation: true
+  agents:
+    git:
+      enabled: true
+      priority: 1
+    web:
+      enabled: true
+      priority: 2
+    weather:
+      enabled: true
+      priority: 3
+    command:
+      enabled: true
+      priority: 4
+    natureremo:
+      enabled: false  # 環境変数設定後に有効化
+      priority: 5
+
+# NatureRemo API設定
+natureremo:
+  enabled: false
+  api_base_url: "https://api.nature.global"
+  timeout: 10
+  retry_count: 3
+
+# データベース設定
+database:
+  path: "data/neurohub.db"
+  backup_enabled: true
+  backup_interval: "daily"
+  fts_enabled: true
+
 project_name: NeuroHub
 version: 1.0.0
 auto_generated: true

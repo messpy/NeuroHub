@@ -359,9 +359,15 @@ def main():
         agent.interactive_mode()
 
     else:
-        # デフォルト: ファイル処理
-        results = agent.process_files(auto_commit=args.auto)
-        print(json.dumps(results, ensure_ascii=False, indent=2))
+        # デフォルト: Git状態表示
+        status = agent.get_git_status()
+        print(f"Git状態: {status.total_files}ファイル変更")
+        print(f"  Staged: {len(status.staged)}")
+        print(f"  Modified: {len(status.modified)}")
+        print(f"  Untracked: {len(status.untracked)}")
+
+        if status.total_files > 0:
+            print("\n詳細な処理には --interactive オプションを使用してください")
 
 
 if __name__ == "__main__":

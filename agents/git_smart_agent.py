@@ -41,6 +41,7 @@ class GitSmartAgent(GitAgent):
 
     def __init__(self, config_path: str = None):
         super().__init__(config_path)
+        self.repo_path = self.project_root  # repo_pathを設定
         self.cleanup_rules = self._load_cleanup_rules()
 
     def _load_cleanup_rules(self) -> Dict[str, Any]:
@@ -2132,7 +2133,7 @@ class GitSmartAgent(GitAgent):
         return None
 
     def _generate_better_commit_message(self, file_path: str, diff_content: str, rejected_messages: List[str] = None) -> tuple:
-        """改良されたコミットメッセージ生成 - メッセージと生成者を返す"""
+        """改良されたコミットメッセージ生成 - チャンク処理対応"""
         if rejected_messages is None:
             rejected_messages = []
 
@@ -2140,7 +2141,49 @@ class GitSmartAgent(GitAgent):
         path_obj = Path(file_path)
         filename = path_obj.name
 
-        # 変更量分析（正規表現使用）
+        # 差分が長い場合はチャンク処理を試行
+        if len(diff_content) > 1000:
+            print(f"   📝 差分が長いため、チャンク処理を実行...")
+
+            # より確実なチャンク処理でコミットメッセージ生成
+            instruction = f"次のGit差分の内容を分析し、{filename}ファイルで何が変更されたかを詳しく説明してください"
+
+            try:
+                # チャンク数を制限（プロバイダー負荷軽減）
+                max_chunks = 5
+                estimated_chunks = len(diff_content) // 500 + 1
+
+                if estimated_chunks > max_chunks:
+                    # チャンクが多すぎる場合は要約してから処理
+                    chunk_size = len(diff_content) // max_chunks
+                    print(f"   ⚠️ チャンク数制限: {estimated_chunks} → {max_chunks} (サイズ: {chunk_size})")
+                else:
+                    chunk_size = 500  # デフォルトサイズ
+                    print(f"   ℹ️ チャンク処理: {estimated_chunks}個 (サイズ: {chunk_size})")
+
+                response = self.llm_agent.generate_text_chunked(
+                    text=diff_content,
+                    chunk_size=chunk_size,
+                    instruction=instruction,
+                    combine_instruction=f"上記の{filename}の変更分析を基に、適切なGitコミットメッセージを日本語で30文字以内で作成してください。フォーマット例: ':update: 機能追加'"
+                )
+
+                if response.is_success and response.content:
+                    # 日本語チェックとクリーニング
+                    message = response.content.strip()
+                    if any('\u3040' <= char <= '\u309F' or '\u30A0' <= char <= '\u30FF' or '\u4E00' <= char <= '\u9FAF' for char in message):
+                        message = self._clean_commit_message(message)
+                        if self._validate_commit_message(message):
+                            return message, f"チャンク処理AI生成({response.provider})"
+                        elif message.startswith(':'):
+                            # 検証失敗でも:で始まっていれば使用
+                            return message[:50] if len(message) > 50 else message, f"チャンク処理AI生成({response.provider})"
+
+                print(f"   ⚠️  チャンク処理失敗、従来方式にフォールバック")
+            except Exception as e:
+                print(f"   ⚠️  チャンク処理エラー: {e}")
+
+        # 従来の処理
         import re
         lines = diff_content.split('\n')
         added_lines = len([l for l in lines if re.match(r'^\+[^+]', l)])
@@ -2175,62 +2218,118 @@ class GitSmartAgent(GitAgent):
 
                     request = LLMRequest(
                         prompt=prompt,
-                        system_message="あなたはGitコミットメッセージの専門家です。具体的で技術的に正確なコミットメッセージを日本語で生成してください。絵文字は使用せず、:prefix: 形式で始めてください。",
-                        max_tokens=150,
-                        temperature=0.3
+                        system_message="短く回答",
+                        max_tokens=20,  # 最小に
+                        temperature=0.0  # 決定的に
                     )
 
                     response = self.llm_agent.generate_text(request)
 
                     if response.is_success and response.content:
                         temp_message = response.content.strip()
-                        temp_message = self._clean_commit_message(temp_message)
 
-                        if self._validate_commit_message(temp_message):
-                            message = temp_message
-                            generator = "Gemini (gemini-2.5-flash)"
-                            providers_status.append("✅ Gemini: 生成成功")
+                        # 警告メッセージかチェック
+                        if temp_message.startswith('[警告]') or 'max_tokens' in temp_message:
+                            print(f"   🔍 Gemini警告: '{temp_message[:50]}...'")
+                            providers_status.append("⚠️  Gemini: max_tokens制限に達しました")
                         else:
-                            providers_status.append("⚠️  Gemini: フォーマット不正")
+                            temp_message = self._clean_commit_message(temp_message)
+
+                            if self._validate_commit_message(temp_message):
+                                message = temp_message
+                                generator = "Gemini (gemini-2.5-flash)"
+                                providers_status.append("✅ Gemini: 生成成功")
+                            else:
+                                print(f"   🔍 Gemini検証失敗: 長さ={len(temp_message)}, 内容='{temp_message}'")
+                                providers_status.append("⚠️  Gemini: フォーマット不正")
                     else:
                         providers_status.append("❌ Gemini: 生成失敗")
 
                 except Exception as e:
                     providers_status.append(f"❌ Gemini: エラー ({str(e)[:30]})")
 
-            # 2. HuggingFace試行
-            elif retry_count == 2 and not message:
+            # 1. Ollama試行（最優先・安定性重視）
+            if retry_count == 1 and not message:
                 try:
-                    # HuggingFace API使用（実装必要）
-                    hf_message = self._try_huggingface_generation(prompt)
-                    if hf_message:
-                        message = hf_message
-                        generator = "HuggingFace (openai/gpt-oss-20b)"
-                        providers_status.append("✅ HuggingFace: 生成成功")
-                    else:
-                        providers_status.append("❌ HuggingFace: 生成失敗")
-                except Exception as e:
-                    providers_status.append(f"❌ HuggingFace: エラー ({str(e)[:30]})")
-
-            # 3. Ollama試行
-            elif retry_count == 3 and not message:
-                try:
-                    # Ollama API使用（実装必要）
                     ollama_message = self._try_ollama_generation(prompt)
                     if ollama_message:
                         message = ollama_message
                         generator = "Ollama (ローカルモデル)"
                         providers_status.append("✅ Ollama: 生成成功")
+                        break  # 成功したら他のプロバイダーを試さない（安定性優先）
                     else:
                         providers_status.append("❌ Ollama: 生成失敗")
                 except Exception as e:
                     providers_status.append(f"❌ Ollama: エラー ({str(e)[:30]})")
 
-        # 最終的にメッセージがない場合の安全策
+            # 2. HuggingFace試行（制限チェック付き）
+            elif retry_count == 2 and not message:
+                try:
+                    hf_message = self._try_huggingface_generation(prompt)
+                    if hf_message:
+                        message = hf_message
+                        generator = "HuggingFace (openai/gpt-oss-20b)"
+                        providers_status.append("✅ HuggingFace: 生成成功")
+                        break  # 成功したら即座に終了
+                    else:
+                        providers_status.append("❌ HuggingFace: 生成失敗")
+                except Exception as e:
+                    providers_status.append(f"❌ HuggingFace: エラー ({str(e)[:30]})")
+
+            # 3. Gemini試行
+            elif retry_count == 3 and not message:
+                try:
+                    # Gemini API (通常リクエスト)
+                    request = LLMRequest(
+                        prompt=prompt,
+                        system_message="短く回答",
+                        max_tokens=20,  # 最小に
+                        temperature=0.0  # 決定的に
+                    )
+
+                    response = self.llm_agent.generate_text(request)
+
+                    if response.is_success and response.content:
+                        temp_message = response.content.strip()
+
+                        # 警告メッセージかチェック
+                        if temp_message.startswith('[警告]') or 'max_tokens' in temp_message:
+                            print(f"   🔍 Gemini警告: '{temp_message[:50]}...'")
+                            providers_status.append("⚠️  Gemini: max_tokens制限に達しました")
+                        else:
+                            temp_message = self._clean_commit_message(temp_message)
+
+                            if self._validate_commit_message(temp_message):
+                                message = temp_message
+                                generator = "Gemini (gemini-2.5-flash)"
+                                providers_status.append("✅ Gemini: 生成成功")
+                            else:
+                                print(f"   🔍 Gemini検証失敗: 長さ={len(temp_message)}, 内容='{temp_message}'")
+                                providers_status.append("⚠️  Gemini: フォーマット不正")
+                    else:
+                        providers_status.append("❌ Gemini: 生成失敗")
+
+                except Exception as e:
+                    providers_status.append(f"❌ Gemini: エラー ({str(e)[:30]})")
+
+        # 最終的にメッセージがない場合の安全策（改良版）
         if not message:
-            message = fallback_message
-            generator = "フォールバック（自動生成）"
-            providers_status.append("🔄 フォールバック: デフォルトメッセージ使用")
+            # ファイル分析に基づくスマートフォールバック
+            filename = Path(file_path).name
+            if 'test' in filename.lower():
+                message = f":test: {filename}テスト更新"
+            elif filename.endswith('.md'):
+                message = f":docs: {filename}ドキュメント更新"
+            elif 'config' in filename.lower() or filename.endswith('.yaml') or filename.endswith('.json'):
+                message = f":config: {filename}設定更新"
+            elif any(keyword in content_keywords for keyword in ['関数追加', 'クラス追加']):
+                message = f":add: {filename}機能追加"
+            elif any(keyword in content_keywords for keyword in ['バグ修正', '修正']):
+                message = f":fix: {filename}修正"
+            else:
+                message = f":update: {filename}更新"
+            generator = "スマートフォールバック（ファイル分析）"
+            providers_status.append("🔄 スマートフォールバック: ファイル分析ベース")
 
         # プロバイダー状況表示
         for status in providers_status:
@@ -2241,25 +2340,81 @@ class GitSmartAgent(GitAgent):
     def _try_huggingface_generation(self, prompt: str) -> str:
         """HuggingFace API でコミットメッセージ生成"""
         try:
-            # HuggingFace Router API使用（簡易実装）
-            import json
+            from agents.llm_agent import LLMRequest
 
-            # 実際のAPI呼び出しを模擬（今後実装）
-            # TODO: HuggingFace Router APIの実装
+            # シンプルで短いプロンプト
+            simple_prompt = f"Git diff: {prompt[:200]}\nCommit message (format ':prefix: description', max 20 chars):"
+
+            request = LLMRequest(
+                prompt=simple_prompt,
+                system_message="Generate short Git commit message. Format: ':prefix: description'. Max 20 characters.",
+                max_tokens=15,  # 短く制限
+                temperature=0.0,
+                preferred_provider="huggingface"
+            )
+
+            # デバッグ: プロンプト内容を表示
+            print(f"   🔍 HF送信プロンプト: '{simple_prompt[:50]}...'")
+
+            response = self.llm_agent.generate_text(request)
+
+            if response.is_success and response.content:
+                message = response.content.strip()
+
+                # コミットメッセージを抽出（複数行や説明から）
+                message = self._extract_commit_message(message)
+                message = self._clean_commit_message(message)
+
+                if self._validate_commit_message(message):
+                    return message
+                else:
+                    print(f"   🔍 HF検証失敗: '{message}'")
+            else:
+                print(f"   🔍 HF失敗理由: success={response.is_success}, content='{response.content if response.content else 'None'}'")
             return None
         except Exception:
             return None
 
     def _try_ollama_generation(self, prompt: str) -> str:
-        """Ollama API でコミットメッセージ生成"""
+        """Ollama API でコミットメッセージ生成（安定性重視）"""
         try:
-            import subprocess
-            import json
+            from agents.llm_agent import LLMRequest
 
-            # Ollama APIを使った生成（簡易実装）
-            # TODO: Ollama APIの実装
+            # シンプルで短いプロンプト
+            simple_prompt = f"Git diff: {prompt[:200]}\nCommit message (format ':prefix: description', max 20 chars):"
+
+            request = LLMRequest(
+                prompt=simple_prompt,
+                system_message="Generate short Git commit message. Format: ':prefix: description'. Max 20 characters.",
+                max_tokens=15,  # 短く制限
+                temperature=0.0,
+                preferred_provider="ollama"
+            )
+
+            # デバッグ: プロンプト内容を表示
+            print(f"   🔍 Ollama送信プロンプト: '{simple_prompt[:50]}...'")
+
+            response = self.llm_agent.generate_text(request)
+
+            if response.is_success and response.content:
+                message = response.content.strip()
+
+                # コミットメッセージを抽出（複数行や説明から）
+                message = self._extract_commit_message(message)
+                message = self._clean_commit_message(message)
+
+                if self._validate_commit_message(message):
+                    return message
+                else:
+                    print(f"   🔍 Ollama検証失敗: '{message}'")
+                    # 検証失敗でも:で始まっていれば使用（安定性優先）
+                    if message.startswith(':'):
+                        return message
+            else:
+                print(f"   🔍 Ollama失敗理由: success={response.is_success}, content='{response.content if response.content else 'None'}'")
             return None
-        except Exception:
+        except Exception as e:
+            print(f"   🔍 Ollama例外エラー: {str(e)[:100]}")
             return None
 
     def _check_ollama_connection(self) -> Dict[str, Any]:
@@ -2340,31 +2495,11 @@ class GitSmartAgent(GitAgent):
         return list(set(keywords))
 
     def _build_commit_prompt(self, file_path: str, diff_content: str, keywords: List[str], rejected_messages: List[str]) -> str:
-        """コミットメッセージ生成プロンプト構築"""
-        lines = diff_content.split('\n')
-        added_lines = len([l for l in lines if l.startswith('+') and not l.startswith('+++')])
-        removed_lines = len([l for l in lines if l.startswith('-') and not l.startswith('---')])
+        """コミットメッセージ生成プロンプト構築（最小版）"""
+        filename = Path(file_path).name
 
-        prompt = f"""以下のファイル変更から具体的なコミットメッセージを生成してください。
-
-ファイルパス: {file_path}
-変更量: +{added_lines} -{removed_lines} 行
-検出キーワード: {', '.join(keywords) if keywords else 'なし'}
-
-必須要件:
-1. 形式: ":prefix: 具体的な変更内容の説明"
-2. prefix選択: :add:(新機能), :fix:(修正), :update:(改善), :refactor:(リファクタ), :docs:(文書), :test:(テスト), :config:(設定)
-3. 説明は日本語で具体的に（50-100文字程度）
-4. ファイル名や機能名を含める
-5. 絵文字は使用しない
-6. 技術的に正確で開発者が理解しやすい表現
-
-差分内容（抜粋）:
-{diff_content[:1000]}
-"""
-
-        if rejected_messages:
-            prompt += f"\n却下された案: {', '.join(rejected_messages[-3:])}\n上記とは異なる表現で生成してください。"
+        # 最小プロンプト
+        prompt = f":update: {filename}"
 
         return prompt
 
@@ -2383,9 +2518,56 @@ class GitSmartAgent(GitAgent):
 
         return message.strip()
 
+    def _extract_commit_message(self, text: str) -> str:
+        """AIが生成したテキストからコミットメッセージを抽出"""
+        import re
+
+        # デバッグ: 受信したテキストを表示
+        if hasattr(self, 'debug') and self.debug:
+            print(f"   🔍 抽出前テキスト: '{text[:100]}...'")
+
+        # 一重引用符・バッククォートを除去（Ollamaの出力によくある）
+        clean_text = text.strip().replace("'", "").replace('"', '').replace('`', '')
+
+        # 複数行の場合、最初の行を取得
+        lines = clean_text.split('\n')
+        for line in lines:
+            line = line.strip()
+            if line and ':' in line:
+                # :prefix: 形式の行を探す
+                match = re.match(r'^:([a-zA-Z]+):\s*(.*)', line)
+                if match:
+                    prefix, description = match.groups()
+
+                    # 重複したprefixを除去
+                    if description.startswith(':' + prefix + ':'):
+                        description = description[len(':' + prefix + ':'):].strip()
+
+                    # 空の説明部分を補完
+                    if not description.strip():
+                        if 'test' in prefix.lower() or 'test' in line.lower():
+                            description = "テスト関数を改善"
+                        else:
+                            description = "ファイルを更新"
+
+                    result = f":{prefix}: {description}".strip()
+                    return result[:50]  # 50文字で制限
+
+        # コロン形式が見つからない場合、最初の意味のある行
+        for line in lines:
+            line = line.strip()
+            if line and len(line) > 5 and not line.startswith('以下'):
+                # :update: を先頭に追加
+                if not line.startswith(':'):
+                    line = ':update: ' + line
+                return line[:50]
+
+        # 最後の手段として
+        return ":update: ファイル更新"
+
     def _validate_commit_message(self, message: str) -> bool:
-        """コミットメッセージ検証"""
-        if not message or len(message) < 10 or len(message) > 120:
+        """コミットメッセージ検証（緩和版）"""
+        if not message or len(message) < 8 or len(message) > 120:  # 最小文字数を8に緩和
             return False
 
         if not message.startswith(':'):

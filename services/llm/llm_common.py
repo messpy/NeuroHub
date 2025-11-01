@@ -495,6 +495,222 @@ def print_environment_status(debug: bool = False) -> None:
 
 
 # ==========================================================
+# 安全な文字の折り返し機能
+# ==========================================================
+def safe_text_wrap(text: str, max_width: int = 80, prefer_word_break: bool = True) -> str:
+    """
+    安全な文字の折り返し機能（日本語対応）
+
+    Args:
+        text: 折り返す文字列
+        max_width: 1行の最大文字数
+        prefer_word_break: 単語境界での改行を優先する（日本語では文字境界）
+
+    Returns:
+        折り返し済みの文字列
+    """
+    if not text or max_width <= 0:
+        return text
+
+    lines = []
+    for line in text.split('\n'):
+        if len(line) <= max_width:
+            lines.append(line)
+            continue
+
+        # 長い行を安全に分割
+        wrapped_lines = _safe_wrap_line(line, max_width, prefer_word_break)
+        lines.extend(wrapped_lines)
+
+    return '\n'.join(lines)
+
+
+def _safe_wrap_line(line: str, max_width: int, prefer_word_break: bool) -> list[str]:
+    """
+    1行を安全に分割する内部関数
+
+    Args:
+        line: 分割する行
+        max_width: 最大幅
+        prefer_word_break: 単語境界優先
+
+    Returns:
+        分割された行のリスト
+    """
+    if len(line) <= max_width:
+        return [line]
+
+    result = []
+    current_pos = 0
+
+    while current_pos < len(line):
+        # 残り文字数が最大幅以下なら、そのまま追加
+        remaining = line[current_pos:]
+        if len(remaining) <= max_width:
+            result.append(remaining)
+            break
+
+        # 切断位置を決定
+        cut_pos = _find_safe_cut_position(
+            line, current_pos, current_pos + max_width, prefer_word_break
+        )
+
+        # 安全に切断できない場合は強制切断
+        if cut_pos <= current_pos:
+            cut_pos = current_pos + max_width
+
+        result.append(line[current_pos:cut_pos])
+        current_pos = cut_pos
+
+    return result
+
+
+def _find_safe_cut_position(line: str, start: int, max_end: int, prefer_word_break: bool) -> int:
+    """
+    安全な切断位置を見つける
+
+    Args:
+        line: 対象行
+        start: 開始位置
+        max_end: 最大終了位置
+        prefer_word_break: 単語境界優先
+
+    Returns:
+        切断位置
+    """
+    if max_end >= len(line):
+        return len(line)
+
+    # 単語境界優先の場合
+    if prefer_word_break:
+        # 英語の単語境界を探す（スペース、ハイフン等）
+        for i in range(max_end, start, -1):
+            if i < len(line) and line[i] in ' \t-_.,;:!?':
+                return i + 1
+
+        # 日本語の場合は句読点や助詞の後を探す
+        japanese_breaks = '。、！？：；）】」』｝〉》'
+        for i in range(max_end, start, -1):
+            if i < len(line) and line[i] in japanese_breaks:
+                return i + 1
+
+        # 漢字→ひらがな、ひらがな→カタカナ等の境界を探す
+        for i in range(max_end - 1, start, -1):
+            if i < len(line) - 1:
+                current_char = line[i]
+                next_char = line[i + 1]
+
+                # 文字種の境界を判定
+                if _is_char_boundary(current_char, next_char):
+                    return i + 1
+
+    # 適切な境界が見つからない場合は最大位置
+    return max_end
+
+
+def _is_char_boundary(char1: str, char2: str) -> bool:
+    """
+    2つの文字の間が適切な境界かどうかを判定
+
+    Args:
+        char1: 前の文字
+        char2: 後の文字
+
+    Returns:
+        境界として適切かどうか
+    """
+    import unicodedata
+
+    def get_char_type(char):
+        """文字の種類を判定"""
+        if char.isascii():
+            if char.isalpha():
+                return 'latin'
+            elif char.isdigit():
+                return 'digit'
+            else:
+                return 'symbol'
+
+        # Unicode カテゴリで判定
+        category = unicodedata.category(char)
+        name = unicodedata.name(char, '').upper()
+
+        if 'HIRAGANA' in name:
+            return 'hiragana'
+        elif 'KATAKANA' in name:
+            return 'katakana'
+        elif category == 'Lo':  # Other Letter (通常は漢字)
+            return 'kanji'
+        elif category.startswith('P'):  # Punctuation
+            return 'punct'
+        else:
+            return 'other'
+
+    type1 = get_char_type(char1)
+    type2 = get_char_type(char2)
+
+    # 異なる文字種の境界は適切
+    if type1 != type2:
+        return True
+
+    # 句読点の後は適切
+    if type1 == 'punct':
+        return True
+
+    return False
+
+
+def truncate_text_safely(text: str, max_length: int, suffix: str = "...") -> str:
+    """
+    文字列を安全に切り詰める（文字境界を考慮）
+
+    Args:
+        text: 対象文字列
+        max_length: 最大長さ
+        suffix: 切り詰め時に追加する接尾辞
+
+    Returns:
+        切り詰め済み文字列
+    """
+    if not text or len(text) <= max_length:
+        return text
+
+    if len(suffix) >= max_length:
+        return suffix[:max_length]
+
+    target_length = max_length - len(suffix)
+
+    # 文字境界を考慮して切り詰め位置を調整
+    cut_pos = _find_safe_cut_position(text, 0, target_length, prefer_word_break=True)
+
+    if cut_pos <= 0:
+        cut_pos = target_length
+
+    return text[:cut_pos] + suffix
+
+
+def validate_text_length(text: str, max_length: int, field_name: str = "text") -> tuple[bool, str]:
+    """
+    テキスト長を検証し、超過時は警告メッセージを返す
+
+    Args:
+        text: 検証するテキスト
+        max_length: 最大長さ
+        field_name: フィールド名（エラーメッセージ用）
+
+    Returns:
+        (検証結果, エラーメッセージ)
+    """
+    if not text:
+        return True, ""
+
+    if len(text) <= max_length:
+        return True, ""
+
+    return False, f"{field_name}の長さが上限({max_length}文字)を超えています: {len(text)}文字"
+
+
+# ==========================================================
 # 共通LLMプロバイダー基底クラス
 # ==========================================================
 class LLMProviderConfig:

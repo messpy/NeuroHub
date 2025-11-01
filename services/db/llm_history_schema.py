@@ -6,6 +6,7 @@ LLM実行履歴とデバッグ情報のDBスキーマ定義
 
 # LLM実行履歴テーブル
 LLM_HISTORY_SCHEMA = {
+    # 既存テーブル
     "llm_history": """
     CREATE TABLE IF NOT EXISTS llm_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,6 +64,65 @@ LLM_HISTORY_SCHEMA = {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
+    """,
+
+    # 新規: ユーザー情報テーブル
+    "users": """
+    CREATE TABLE IF NOT EXISTS users (
+        user_id TEXT PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE,
+        full_name TEXT,
+        preferred_provider TEXT DEFAULT 'ollama',  -- デフォルトプロバイダー
+        provider_config TEXT,    -- JSON形式のプロバイダー設定
+        settings TEXT,           -- JSON形式のユーザー設定
+        api_keys TEXT,           -- JSON形式の暗号化されたAPIキー
+        usage_stats TEXT,        -- JSON形式の使用統計
+        last_login DATETIME,
+        is_active BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
+
+    # 新規: 知識データベーステーブル
+    "knowledge_base": """
+    CREATE TABLE IF NOT EXISTS knowledge_base (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        category TEXT,           -- 'code', 'docs', 'faq', 'tutorial'
+        tags TEXT,               -- カンマ区切りのタグ
+        source_type TEXT,        -- 'manual', 'auto', 'import'
+        source_file TEXT,        -- 元ファイルパス
+        language TEXT,           -- プログラミング言語
+        relevance_score REAL,    -- 関連度スコア（0.0-1.0）
+        usage_count INTEGER DEFAULT 0,
+        user_id TEXT,
+        is_public BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+    )
+    """,
+
+    # 新規: 関連質問テーブル
+    "related_questions": """
+    CREATE TABLE IF NOT EXISTS related_questions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        knowledge_id INTEGER,
+        question TEXT NOT NULL,
+        answer TEXT,
+        question_type TEXT,      -- 'common', 'troubleshooting', 'howto'
+        difficulty_level INTEGER DEFAULT 1,  -- 1-5の難易度
+        tags TEXT,               -- カンマ区切りのタグ
+        usage_count INTEGER DEFAULT 0,
+        user_id TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (knowledge_id) REFERENCES knowledge_base(id),
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+    )
     """
 }
 
@@ -83,6 +143,27 @@ LLM_HISTORY_INDICES = {
     "llm_sessions": [
         "CREATE INDEX IF NOT EXISTS idx_llm_sessions_start_time ON llm_sessions(start_time)",
         "CREATE INDEX IF NOT EXISTS idx_llm_sessions_type ON llm_sessions(session_type)",
+    ],
+    "users": [
+        "CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)",
+        "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)",
+        "CREATE INDEX IF NOT EXISTS idx_users_last_login ON users(last_login)",
+        "CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active)",
+    ],
+    "knowledge_base": [
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_title ON knowledge_base(title)",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_category ON knowledge_base(category)",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_tags ON knowledge_base(tags)",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_language ON knowledge_base(language)",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_relevance ON knowledge_base(relevance_score)",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_user ON knowledge_base(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_public ON knowledge_base(is_public)",
+    ],
+    "related_questions": [
+        "CREATE INDEX IF NOT EXISTS idx_questions_knowledge ON related_questions(knowledge_id)",
+        "CREATE INDEX IF NOT EXISTS idx_questions_type ON related_questions(question_type)",
+        "CREATE INDEX IF NOT EXISTS idx_questions_difficulty ON related_questions(difficulty_level)",
+        "CREATE INDEX IF NOT EXISTS idx_questions_user ON related_questions(user_id)",
     ]
 }
 
@@ -103,6 +184,24 @@ LLM_FTS_SCHEMA = {
         stdout_text,
         stderr_text,
         content='command_history',
+        content_rowid='id'
+    )
+    """,
+    "knowledge_base_fts": """
+    CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_base_fts USING fts5(
+        title,
+        content,
+        tags,
+        content='knowledge_base',
+        content_rowid='id'
+    )
+    """,
+    "related_questions_fts": """
+    CREATE VIRTUAL TABLE IF NOT EXISTS related_questions_fts USING fts5(
+        question,
+        answer,
+        tags,
+        content='related_questions',
         content_rowid='id'
     )
     """

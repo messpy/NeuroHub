@@ -85,6 +85,19 @@ class LLMAgent:
         self._cache_ttl = 300  # 5分
         self._last_status_check = 0
 
+    def get_first_available_provider(self) -> Optional[str]:
+        """最初に利用可能なプロバイダーを取得（高速版）"""
+        for name in self.provider_priority:
+            provider = self.providers.get(name)
+            if provider and provider.is_configured():
+                try:
+                    # 軽量な接続チェック
+                    if provider.test_connection():
+                        return name
+                except Exception:
+                    continue
+        return None
+
     def check_provider_status(self, force_refresh: bool = False) -> Dict[str, ProviderStatus]:
         """全プロバイダーの状態をチェック"""
 
@@ -193,10 +206,16 @@ class LLMAgent:
                                  if p != request.preferred_provider]
                 provider_order.extend(other_providers)
         else:
-            # 最適なプロバイダーから順番に試行
-            status = self.check_provider_status()
-            provider_order = [name for name in self.provider_priority
-                            if status.get(name, {}).available]
+            # 最適なプロバイダーから順番に試行（最適化版）
+            if request.fallback_enabled:
+                # フォールバック有効時は全体チェック
+                status = self.check_provider_status()
+                provider_order = [name for name in self.provider_priority
+                                if status.get(name, {}).available]
+            else:
+                # フォールバック無効時は最初の利用可能なプロバイダーのみ
+                first_available = self.get_first_available_provider()
+                provider_order = [first_available] if first_available else []
 
         last_error = None
 
@@ -283,38 +302,303 @@ class LLMAgent:
 
     def _log_request(self, provider_name: str, request: LLMRequest,
                     response: LLMResponse, response_time: float):
-        """リクエストを履歴に記録"""
+        """リクエストを履歴に記録（エラー耐性強化版）"""
         try:
+            # 安全なトークン数取得
             token_counts = {}
-            if hasattr(response, 'tokens_input') and response.tokens_input:
-                token_counts['input'] = response.tokens_input
-            if hasattr(response, 'tokens_output') and response.tokens_output:
-                token_counts['output'] = response.tokens_output
-            if hasattr(response, 'tokens_used') and response.tokens_used:
-                token_counts['total'] = response.tokens_used
+            try:
+                if hasattr(response, 'tokens_input') and response.tokens_input:
+                    token_counts['input'] = int(response.tokens_input)
+                if hasattr(response, 'tokens_output') and response.tokens_output:
+                    token_counts['output'] = int(response.tokens_output)
+                if hasattr(response, 'tokens_used') and response.tokens_used:
+                    token_counts['total'] = int(response.tokens_used)
+            except (ValueError, TypeError) as e:
+                if self.debug:
+                    print(f"[LLMAgent] トークン数解析エラー: {e}")
 
+            # 安全なメタデータ取得
             debug_info = {}
-            if hasattr(response, 'metadata') and response.metadata:
-                debug_info = response.metadata
+            try:
+                if hasattr(response, 'metadata') and response.metadata:
+                    # 機密情報を除外した安全なメタデータ
+                    for key, value in response.metadata.items():
+                        if not any(secret in key.lower() for secret in ['key', 'token', 'password', 'secret']):
+                            debug_info[key] = str(value)[:500]  # 長すぎる値は切り詰め
+            except Exception as e:
+                if self.debug:
+                    print(f"[LLMAgent] メタデータ処理エラー: {e}")
 
+            # 安全な文字列処理
+            safe_prompt = str(request.prompt)[:1000] if request.prompt else ""
+            safe_response = str(response.content)[:2000] if response.content else ""
+            safe_error = str(response.error)[:500] if response.error else None
+            safe_model = str(response.model) if response.model and response.model != "none" else "unknown"
+
+            # 履歴記録実行
             self.history_manager.log_llm_request(
                 provider=provider_name,
-                model=response.model if response.model != "none" else "unknown",
-                prompt_text=request.prompt,
-                response_text=response.content,
-                status_code=response.status_code,
-                success=response.is_success,
-                error_message=response.error,
-                response_time_ms=int(response_time * 1000),
+                model=safe_model,
+                prompt_text=safe_prompt,
+                response_text=safe_response,
+                status_code=int(response.status_code),
+                success=bool(response.is_success),
+                error_message=safe_error,
+                response_time_ms=max(0, int(response_time * 1000)),
                 token_counts=token_counts,
                 debug_level=2 if response.is_success else 3,
                 debug_info=debug_info,
-                request_type=request.request_type
+                request_type=str(request.request_type) if request.request_type else "unknown"
             )
         except Exception as e:
-            print(f"[LLMAgent] 履歴記録エラー: {e}")
+            # ログ記録失敗は致命的ではないため、警告のみ
+            error_msg = f"[LLMAgent] 履歴記録エラー: {type(e).__name__}: {e}"
+            print(error_msg)
+            if self.debug:
+                import traceback
+                print(f"[LLMAgent] 詳細: {traceback.format_exc()}")
 
-    def generate_text_all_providers(self, request: LLMRequest) -> Dict[str, LLMResponse]:
+    def generate_text_chunked(self, text: str, chunk_size: int = 500,
+                             instruction: str = "要約してください",
+                             combine_instruction: str = "以下の要約を統合してください") -> LLMResponse:
+        """
+        長いテキストをチャンクに分割してAI処理し、結果を結合（エラー耐性強化版）
+
+        Args:
+            text: 処理対象のテキスト
+            chunk_size: チャンクサイズ（文字数）
+            instruction: 各チャンクに対する指示
+            combine_instruction: 結果統合時の指示
+        """
+        # 入力検証
+        if not text or not isinstance(text, str):
+            return LLMResponse(
+                status_code=400,
+                provider="chunked_error",
+                model="validation",
+                content="",
+                error="無効な入力テキスト"
+            )
+
+        if chunk_size <= 0:
+            chunk_size = 500
+
+        if len(text.strip()) <= chunk_size:
+            # チャンク分割不要
+            request = LLMRequest(
+                prompt=f"{instruction}\n\n{text}",
+                system_message="日本語で簡潔に回答してください",
+                max_tokens=min(len(text) // 2 + 50, 200),
+                temperature=0.1
+            )
+            return self.generate_text(request)
+
+        try:
+            # 安全なチャンク分割
+            chunks = []
+            current_pos = 0
+
+            while current_pos < len(text):
+                end_pos = min(current_pos + chunk_size, len(text))
+
+                # 文字境界を考慮した切断位置調整
+                if end_pos < len(text):
+                    # 句読点での切断を優先
+                    for i in range(end_pos, max(current_pos, end_pos - 50), -1):
+                        if text[i] in '。、！？\n':
+                            end_pos = i + 1
+                            break
+
+                chunk = text[current_pos:end_pos].strip()
+                if chunk:
+                    chunks.append(chunk)
+                current_pos = end_pos
+
+            if self.debug:
+                print(f"📝 テキストを{len(chunks)}個のチャンクに分割して処理中...")
+
+            # 各チャンクを処理（エラー耐性強化）
+            chunk_results = []
+            successful_chunks = 0
+
+            for i, chunk in enumerate(chunks):
+                try:
+                    if self.debug:
+                        print(f"   🔄 チャンク {i+1}/{len(chunks)} 処理中...")
+
+                    request = LLMRequest(
+                        prompt=f"{instruction}\n\n{chunk}",
+                        system_message="日本語で簡潔に回答してください",
+                        max_tokens=min(len(chunk) // 3 + 30, 150),
+                        temperature=0.1
+                    )
+
+                    response = self.generate_text(request)
+                    if response.is_success and response.content:
+                        chunk_results.append(response.content.strip())
+                        successful_chunks += 1
+                    else:
+                        # 失敗時は原文の要約を代用
+                        fallback_content = chunk[:100] + "..." if len(chunk) > 100 else chunk
+                        chunk_results.append(f"[原文: {fallback_content}]")
+
+                except Exception as e:
+                    error_msg = f"[チャンク{i+1}エラー: {e}]"
+                    chunk_results.append(error_msg)
+                    if self.debug:
+                        print(f"   ❌ {error_msg}")
+
+            # 成功率チェック
+            success_rate = successful_chunks / len(chunks) if chunks else 0
+            if success_rate < 0.3:  # 成功率30%未満は失敗とみなす
+                return LLMResponse(
+                    status_code=500,
+                    provider="chunked_error",
+                    model="processing",
+                    content="",
+                    error=f"チャンク処理成功率が低すぎます: {success_rate:.1%}"
+                )
+
+            # 結果を統合
+            if len(chunk_results) > 1:
+                try:
+                    if self.debug:
+                        print(f"   🔄 {len(chunk_results)}個の結果を統合中...")
+
+                    # 統合テキストの長さ制限
+                    combined_items = []
+                    total_length = 0
+                    max_combined_length = 1500  # 統合テキストの最大長
+
+                    for i, result in enumerate(chunk_results):
+                        item = f"結果{i+1}: {result}"
+                        if total_length + len(item) <= max_combined_length:
+                            combined_items.append(item)
+                            total_length += len(item)
+                        else:
+                            # 長すぎる場合は残りを省略
+                            combined_items.append(f"...他{len(chunk_results)-i}件")
+                            break
+
+                    combined_text = "\n".join(combined_items)
+
+                    final_request = LLMRequest(
+                        prompt=f"{combine_instruction}\n\n{combined_text}",
+                        system_message="統合結果を日本語で簡潔に回答してください",
+                        max_tokens=min(len(combined_text) // 4 + 50, 200),
+                        temperature=0.1
+                    )
+
+                    final_response = self.generate_text(final_request)
+                    if final_response.is_success:
+                        # 成功情報をメタデータに追加
+                        final_response.metadata = final_response.metadata or {}
+                        final_response.metadata.update({
+                            'chunk_count': len(chunks),
+                            'successful_chunks': successful_chunks,
+                            'success_rate': f"{success_rate:.1%}"
+                        })
+                        return final_response
+                    else:
+                        # 統合失敗時は最良の結果を返す
+                        best_result = max(chunk_results, key=len) if chunk_results else "処理失敗"
+                        return LLMResponse(
+                            status_code=200,
+                            provider="chunked_fallback",
+                            model="best_chunk",
+                            content=best_result,
+                            metadata={'fallback_reason': '統合処理失敗'}
+                        )
+
+                except Exception as e:
+                    # 統合処理例外
+                    best_result = chunk_results[0] if chunk_results else "処理失敗"
+                    return LLMResponse(
+                        status_code=200,
+                        provider="chunked_error",
+                        model="exception_fallback",
+                        content=best_result,
+                        error=f"統合処理例外: {e}"
+                    )
+            else:
+                # チャンクが1個だけの場合
+                result_content = chunk_results[0] if chunk_results else "処理失敗"
+                return LLMResponse(
+                    status_code=200 if chunk_results else 500,
+                    provider="chunked_single",
+                    model="single_chunk",
+                    content=result_content,
+                    metadata={'chunk_count': 1}
+                )
+
+        except Exception as e:
+            # 全体的な例外処理
+            return LLMResponse(
+                status_code=500,
+                provider="chunked_critical_error",
+                model="exception",
+                content="",
+                error=f"チャンク処理で予期しないエラー: {e}"
+            )
+            return self.generate_text(request)
+
+        # チャンク分割
+        chunks = []
+        for i in range(0, len(text), chunk_size):
+            chunk = text[i:i + chunk_size]
+            chunks.append(chunk)
+
+        print(f"📝 テキストを{len(chunks)}個のチャンクに分割して処理中...")
+
+        # 各チャンクを処理
+        chunk_results = []
+        for i, chunk in enumerate(chunks):
+            print(f"   🔄 チャンク {i+1}/{len(chunks)} 処理中...")
+
+            request = LLMRequest(
+                prompt=f"{instruction}\n\n{chunk}",
+                system_message="日本語で簡潔に回答してください",
+                max_tokens=80,
+                temperature=0.1
+            )
+
+            response = self.generate_text(request)
+            if response.is_success and response.content:
+                chunk_results.append(response.content.strip())
+            else:
+                chunk_results.append(f"[チャンク{i+1}処理失敗]")
+
+        # 結果を統合
+        if len(chunk_results) > 1:
+            print(f"   🔄 {len(chunk_results)}個の結果を統合中...")
+            combined_text = "\n".join([f"結果{i+1}: {result}" for i, result in enumerate(chunk_results)])
+
+            final_request = LLMRequest(
+                prompt=f"{combine_instruction}\n\n{combined_text}",
+                system_message="統合結果を日本語で簡潔に回答してください",
+                max_tokens=100,
+                temperature=0.1
+            )
+
+            final_response = self.generate_text(final_request)
+            if final_response.is_success:
+                return final_response
+            else:
+                # 統合失敗時は最初の結果を返す
+                return LLMResponse(
+                    content=chunk_results[0] if chunk_results else "処理失敗",
+                    is_success=bool(chunk_results),
+                    provider="chunked_fallback",
+                    response_time=0.0
+                )
+        else:
+            # チャンクが1個だけの場合
+            return LLMResponse(
+                content=chunk_results[0] if chunk_results else "処理失敗",
+                is_success=bool(chunk_results),
+                provider="chunked_single",
+                response_time=0.0
+            )
         """全プロバイダーからレスポンスを取得"""
 
         responses = {}
@@ -470,6 +754,12 @@ def main():
     parser.add_argument("--test", help="テストプロンプト")
     parser.add_argument("--provider", help="使用するプロバイダー指定")
 
+    # チャンク処理関連オプション
+    parser.add_argument("--chunk", type=int, help="チャンクサイズ（文字数）")
+    parser.add_argument("--file", help="入力ファイルパス（チャンク処理用）")
+    parser.add_argument("--text", help="入力テキスト（チャンク処理用）")
+    parser.add_argument("--instruction", default="要約してください", help="各チャンクへの指示")
+
     args = parser.parse_args()
 
     agent = LLMAgent()
@@ -478,6 +768,34 @@ def main():
         if args.status:
             report = agent.get_status_report()
             print(json.dumps(report, ensure_ascii=False, indent=2))
+
+        elif args.chunk:
+            # チャンク処理モード
+            if args.file:
+                try:
+                    with open(args.file, 'r', encoding='utf-8') as f:
+                        text = f.read()
+                except Exception as e:
+                    print(f"ファイル読み込みエラー: {e}")
+                    return
+            elif args.text:
+                text = args.text
+            else:
+                print("--file または --text を指定してください")
+                return
+
+            print(f"📝 チャンク処理開始 (サイズ: {args.chunk}文字)")
+            response = agent.generate_text_chunked(
+                text=text,
+                chunk_size=args.chunk,
+                instruction=args.instruction
+            )
+
+            print(f"\n✅ 処理完了")
+            print(f"プロバイダー: {response.provider}")
+            print(f"結果:\n{response.content}")
+            if response.error:
+                print(f"エラー: {response.error}")
 
         elif args.test:
             request = LLMRequest(
