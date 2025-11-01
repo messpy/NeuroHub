@@ -28,6 +28,20 @@ colorama>=0.4.0  # カラー出力
 google-generativeai>=0.3.0  # Gemini API
 openai>=1.0.0  # HuggingFace Router (OpenAI互換)
 
+# === 音声認識関連 ===
+SpeechRecognition>=3.10.0  # 音声認識
+PyAudio>=0.2.13  # マイク入力
+fuzzywuzzy>=0.18.0  # あいまい文字列マッチング
+python-Levenshtein>=0.20.0  # 高速文字列比較
+sounddevice>=0.4.6  # 音声デバイス制御
+numpy>=1.24.0  # 音声データ処理
+
+# === Discord Bot関連 ===
+discord.py>=2.3.0  # Discord Bot開発
+gTTS>=2.3.0  # Text-to-Speech (Google)
+PyNaCl>=1.5.0  # 音声機能に必要
+aiohttp>=3.8.0  # 非同期HTTP通信（Ollama Vision API用）
+
 # === オプション: 型チェック ===
 mypy>=1.0.0
 types-requests>=2.28.0
