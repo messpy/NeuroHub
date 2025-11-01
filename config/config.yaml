@@ -1,11 +1,14 @@
 llm:
   providers:
     ollama:
+      enabled: 1
       host: http://127.0.0.1:11434
-      model: qwen2.5:0.5b-instruct
+      model: qwen2.5:1.5b-instruct
     gemini:
+      enabled: 0
       model: gemini-1.5-flash
     huggingface:
+      enabled: 0
       model: meta-llama/Llama-3.1-8B-Instruct
   default_provider: ollama
 project_name: NeuroHub
