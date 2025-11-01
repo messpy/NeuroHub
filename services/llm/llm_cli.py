@@ -85,9 +85,22 @@ def run_provider(provider: str, prompt: str) -> tuple[int, str, dict]:
         return 1, f"[error] provider impl not found: {provider}", {}
 
     model = resolve_model(provider)
-    cmd = [sys.executable, str(impl), "--model", model, prompt]
 
-    p = subprocess.run(cmd, capture_output=True, text=True)
+    # プロバイダをPythonモジュールとして実行（相対インポート対応）
+    cwd = str(LLM_DIR.parent)  # services ディレクトリ
+    module_name = f"llm.provider_{provider}"
+
+    # プロバイダごとに引数形式を調整
+    if provider == "ollama":
+        cmd = [sys.executable, "-m", module_name, "--model", model, "--prompt", prompt]
+    else:  # gemini, huggingface
+        cmd = [sys.executable, "-m", module_name, "--model", model, prompt]
+
+    # 環境変数を設定
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(PROJECT_ROOT)
+
+    p = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, env=env)
     meta = {"provider": provider, "model": model, "impl": impl.name}
 
     # 成功時は stdout、失敗時は stderr を返す（上位で判定する）
