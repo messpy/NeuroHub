@@ -1,0 +1,350 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+音声トリガーシステム
+マイクから音声を拾って特定の単語に反応する高精度システム
+"""
+import sys
+from pathlib import Path
+import queue
+import threading
+import time
+from typing import List, Callable, Dict, Optional
+import json
+
+# 音声認識ライブラリ
+try:
+    import speech_recognition as sr
+    from fuzzywuzzy import fuzz
+    import sounddevice as sd
+    import numpy as np
+except ImportError as e:
+    print(f"必要なライブラリがインストールされていません: {e}")
+    print("\n以下のコマンドでインストールしてください:")
+    print("pip install SpeechRecognition pyaudio fuzzywuzzy python-Levenshtein sounddevice numpy")
+    sys.exit(1)
+
+ROOT = Path(__file__).resolve().parents[2]
+CONFIG_FILE = ROOT / "config" / "voice_trigger_config.json"
+
+
+class VoiceTrigger:
+    """音声トリガーシステム"""
+
+    def __init__(self,
+                 trigger_words: List[str],
+                 callback: Callable[[str, str], None],
+                 language: str = "ja-JP",
+                 fuzzy_threshold: int = 80,
+                 energy_threshold: int = 4000,
+                 pause_threshold: float = 0.8):
+        """
+        Args:
+            trigger_words: 反応する単語リスト
+            callback: トリガー時に呼ばれる関数 (認識テキスト, マッチした単語)
+            language: 認識言語 (ja-JP, en-US等)
+            fuzzy_threshold: あいまいマッチング閾値 (0-100)
+            energy_threshold: 音声認識の音量閾値
+            pause_threshold: 発話の区切り時間（秒）
+        """
+        self.trigger_words = [word.lower() for word in trigger_words]
+        self.callback = callback
+        self.language = language
+        self.fuzzy_threshold = fuzzy_threshold
+
+        # 音声認識設定
+        self.recognizer = sr.Recognizer()
+        self.recognizer.energy_threshold = energy_threshold
+        self.recognizer.pause_threshold = pause_threshold
+        self.recognizer.dynamic_energy_threshold = True
+
+        # マイク設定
+        self.microphone = None
+        self.is_listening = False
+        self.listen_thread = None
+
+        # 統計情報
+        self.stats = {
+            "total_recognized": 0,
+            "total_triggered": 0,
+            "trigger_history": []
+        }
+
+    def fuzzy_match(self, text: str) -> Optional[Dict]:
+        """
+        あいまいマッチングで単語を検出
+
+        Returns:
+            マッチした場合: {"word": マッチした単語, "score": スコア, "original": 元テキスト}
+            マッチしない場合: None
+        """
+        text_lower = text.lower()
+        best_match = None
+        best_score = 0
+
+        for trigger_word in self.trigger_words:
+            # 完全一致
+            if trigger_word in text_lower:
+                return {
+                    "word": trigger_word,
+                    "score": 100,
+                    "original": text,
+                    "match_type": "完全一致"
+                }
+
+            # 部分一致スコア
+            partial_score = fuzz.partial_ratio(trigger_word, text_lower)
+
+            # トークン一致スコア
+            token_score = fuzz.token_set_ratio(trigger_word, text_lower)
+
+            # 総合スコア
+            combined_score = max(partial_score, token_score)
+
+            if combined_score > best_score and combined_score >= self.fuzzy_threshold:
+                best_score = combined_score
+                best_match = {
+                    "word": trigger_word,
+                    "score": combined_score,
+                    "original": text,
+                    "match_type": "あいまい一致"
+                }
+
+        return best_match
+
+    def process_audio(self, audio_data, source):
+        """音声データを処理"""
+        try:
+            # Google Speech Recognition (ローカルでも動作)
+            text = self.recognizer.recognize_google(audio_data, language=self.language)
+            self.stats["total_recognized"] += 1
+
+            print(f"🎤 認識: {text}")
+
+            # トリガーワードチェック
+            match = self.fuzzy_match(text)
+            if match:
+                self.stats["total_triggered"] += 1
+                self.stats["trigger_history"].append({
+                    "timestamp": time.time(),
+                    "text": text,
+                    "match": match
+                })
+
+                print(f"✅ トリガー検出: {match['word']} (スコア: {match['score']}, {match['match_type']})")
+
+                # コールバック実行
+                if self.callback:
+                    self.callback(text, match)
+
+        except sr.UnknownValueError:
+            print("🔇 音声を認識できませんでした")
+        except sr.RequestError as e:
+            print(f"❌ 認識エラー: {e}")
+        except Exception as e:
+            print(f"❌ 処理エラー: {e}")
+
+    def listen_continuously(self):
+        """継続的に音声を監視"""
+        print(f"\n🎤 音声監視を開始しました")
+        print(f"📋 トリガーワード: {', '.join(self.trigger_words)}")
+        print(f"🔊 音量閾値: {self.recognizer.energy_threshold}")
+        print(f"🌐 言語: {self.language}")
+        print(f"🎯 あいまい一致閾値: {self.fuzzy_threshold}%")
+        print(f"\n💡 話しかけてください... (Ctrl+C で終了)\n")
+
+        with sr.Microphone() as source:
+            # 環境ノイズ調整
+            print("🔧 環境ノイズを調整中...")
+            self.recognizer.adjust_for_ambient_noise(source, duration=1)
+            print(f"✅ 調整完了 (音量閾値: {self.recognizer.energy_threshold})\n")
+
+            while self.is_listening:
+                try:
+                    print("👂 聞いています...", end="\r")
+                    audio = self.recognizer.listen(source, timeout=1, phrase_time_limit=5)
+
+                    # 別スレッドで処理
+                    threading.Thread(
+                        target=self.process_audio,
+                        args=(audio, source),
+                        daemon=True
+                    ).start()
+
+                except sr.WaitTimeoutError:
+                    continue
+                except Exception as e:
+                    if self.is_listening:
+                        print(f"\n⚠️  エラー: {e}")
+
+    def start(self):
+        """音声監視を開始"""
+        if self.is_listening:
+            print("既に監視中です")
+            return
+
+        self.is_listening = True
+        self.listen_thread = threading.Thread(target=self.listen_continuously, daemon=True)
+        self.listen_thread.start()
+
+    def stop(self):
+        """音声監視を停止"""
+        print("\n🛑 音声監視を停止しています...")
+        self.is_listening = False
+        if self.listen_thread:
+            self.listen_thread.join(timeout=2)
+        print("✅ 停止しました")
+
+    def get_stats(self) -> Dict:
+        """統計情報を取得"""
+        return {
+            **self.stats,
+            "trigger_rate": (self.stats["total_triggered"] / self.stats["total_recognized"] * 100)
+                           if self.stats["total_recognized"] > 0 else 0
+        }
+
+    def save_config(self):
+        """設定を保存"""
+        config = {
+            "trigger_words": self.trigger_words,
+            "language": self.language,
+            "fuzzy_threshold": self.fuzzy_threshold,
+            "energy_threshold": self.recognizer.energy_threshold,
+            "pause_threshold": self.recognizer.pause_threshold
+        }
+
+        CONFIG_FILE.parent.mkdir(exist_ok=True)
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+
+        print(f"💾 設定を保存しました: {CONFIG_FILE}")
+
+    @classmethod
+    def load_from_config(cls, callback: Callable):
+        """設定ファイルから読み込み"""
+        if not CONFIG_FILE.exists():
+            print(f"⚠️  設定ファイルが見つかりません: {CONFIG_FILE}")
+            return None
+
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+
+        return cls(
+            trigger_words=config.get("trigger_words", []),
+            callback=callback,
+            language=config.get("language", "ja-JP"),
+            fuzzy_threshold=config.get("fuzzy_threshold", 80),
+            energy_threshold=config.get("energy_threshold", 4000),
+            pause_threshold=config.get("pause_threshold", 0.8)
+        )
+
+
+def example_callback(text: str, match: Dict):
+    """トリガー検出時のコールバック例"""
+    print(f"\n{'='*60}")
+    print(f"🎯 トリガー発動!")
+    print(f"   認識テキスト: {text}")
+    print(f"   マッチ単語: {match['word']}")
+    print(f"   スコア: {match['score']}%")
+    print(f"   タイプ: {match['match_type']}")
+    print(f"{'='*60}\n")
+
+    # ここに実際の処理を追加
+    # 例: 特定のコマンドを実行、通知を送る、など
+
+
+def main():
+    """メイン実行"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="音声トリガーシステム")
+    parser.add_argument('--words', '-w', nargs='+',
+                       help='トリガーワード（複数指定可）')
+    parser.add_argument('--language', '-l', default='ja-JP',
+                       help='認識言語 (デフォルト: ja-JP)')
+    parser.add_argument('--threshold', '-t', type=int, default=80,
+                       help='あいまい一致閾値 0-100 (デフォルト: 80)')
+    parser.add_argument('--energy', '-e', type=int, default=4000,
+                       help='音量閾値 (デフォルト: 4000)')
+    parser.add_argument('--save', '-s', action='store_true',
+                       help='設定を保存')
+    parser.add_argument('--load', action='store_true',
+                       help='設定を読み込み')
+    parser.add_argument('--test-mic', action='store_true',
+                       help='マイクテスト')
+
+    args = parser.parse_args()
+
+    # マイクテスト
+    if args.test_mic:
+        print("\n🎤 マイクテストを開始...")
+        recognizer = sr.Recognizer()
+        with sr.Microphone() as source:
+            print("環境ノイズ調整中...")
+            recognizer.adjust_for_ambient_noise(source, duration=2)
+            print(f"✅ 音量閾値: {recognizer.energy_threshold}")
+            print("\n何か話してください...")
+            try:
+                audio = recognizer.listen(source, timeout=5, phrase_time_limit=5)
+                text = recognizer.recognize_google(audio, language=args.language)
+                print(f"✅ 認識成功: {text}")
+            except Exception as e:
+                print(f"❌ エラー: {e}")
+        return
+
+    # 設定読み込み
+    if args.load:
+        trigger = VoiceTrigger.load_from_config(example_callback)
+        if trigger is None:
+            print("デフォルト設定を使用します")
+            trigger = VoiceTrigger(
+                trigger_words=["こんにちは", "起動", "ニューロハブ"],
+                callback=example_callback
+            )
+    else:
+        # トリガーワード設定
+        trigger_words = args.words if args.words else ["こんにちは", "起動", "ニューロハブ"]
+
+        trigger = VoiceTrigger(
+            trigger_words=trigger_words,
+            callback=example_callback,
+            language=args.language,
+            fuzzy_threshold=args.threshold,
+            energy_threshold=args.energy
+        )
+
+    # 設定保存
+    if args.save:
+        trigger.save_config()
+
+    # 音声監視開始
+    try:
+        trigger.start()
+
+        # メインループ
+        while True:
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        print("\n")
+        trigger.stop()
+
+        # 統計表示
+        stats = trigger.get_stats()
+        print("\n" + "="*60)
+        print("📊 統計情報")
+        print("="*60)
+        print(f"総認識回数: {stats['total_recognized']}")
+        print(f"トリガー回数: {stats['total_triggered']}")
+        print(f"トリガー率: {stats['trigger_rate']:.1f}%")
+
+        if stats['trigger_history']:
+            print("\n📜 トリガー履歴:")
+            for i, h in enumerate(stats['trigger_history'][-5:], 1):
+                print(f"  {i}. {h['text']} → {h['match']['word']} ({h['match']['score']}%)")
+
+        print("="*60 + "\n")
+
+
+if __name__ == "__main__":
+    main()
