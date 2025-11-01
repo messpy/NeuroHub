@@ -1,0 +1,222 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neurohub"
+version = "0.1.0"
+description = "NeuroHub - Advanced AI Agent System with MCP Integration"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "requests",
+    "python-dotenv",
+    "aiohttp",
+    "asyncio",
+    "discord.py",
+    "openai",
+    "anthropic",
+    "sqlalchemy",
+    "pydantic",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=7.0.0",
+    "pytest-mock>=3.15.0",
+    "pytest-asyncio>=1.2.0",
+    "black>=24.0.0",
+    "isort>=5.12.0",
+    "flake8>=7.0.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+]
+
+[tool.pytest.ini_options]
+# テストディレクトリ
+testpaths = ["tests"]
+
+# テストファイルパターン
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# 並行実行とカバレッジ
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+    "--tb=short",
+    "--cov=agents",
+    "--cov=services", 
+    "--cov=tools",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-report=xml",
+    "--cov-fail-under=85",
+]
+
+# 非同期テスト設定
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+# マーカー定義
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests", 
+    "unit: marks tests as unit tests",
+    "smoke: marks tests as smoke tests",
+    "agent: marks tests for agent modules",
+    "service: marks tests for service modules",
+    "mcp: marks tests for MCP functionality",
+    "discord: marks tests for Discord bot functionality",
+    "git: marks tests for Git agent functionality",
+    "llm: marks tests for LLM functionality",
+    "db: marks tests for database functionality",
+]
+
+# テスト検出除外パターン
+norecursedirs = [
+    ".*",
+    "build",
+    "dist",
+    "CVS",
+    "_darcs",
+    "{arch}",
+    "*.egg",
+    "venv*",
+    "_archive",
+    "old",
+    "logs",
+    "data",
+    "__pycache__",
+]
+
+# フィルタ設定
+filterwarnings = [
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+# カバレッジ対象
+source = ["agents", "services", "tools"]
+
+# 除外パターン  
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/venv*/*",
+    "*/_archive/*",
+    "*/old/*",
+    "*/logs/*",
+    "*/data/*",
+    "setup.py",
+    "conftest.py",
+]
+
+# 並行実行対応
+parallel = true
+concurrency = ["thread", "multiprocessing"]
+
+[tool.coverage.report]
+# レポート設定
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+# カバレッジしきい値
+precision = 2
+show_missing = true
+skip_covered = false
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312", "py313"]
+include = "\\.pyi?$"
+extend-exclude = '''
+/(
+  # directories
+  \\.eggs
+  | \\.git
+  | \\.hg
+  | \\.mypy_cache
+  | \\.tox
+  | \\.venv
+  | venv_linux
+  | _archive
+  | old
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 100
+known_first_party = ["agents", "services", "tools", "config"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+[tool.flake8]
+max-line-length = 100
+exclude = [
+    ".git",
+    "__pycache__",
+    "venv*",
+    "_archive",
+    "old",
+    "build",
+    "dist",
+]
+ignore = [
+    "E203",  # whitespace before ':'
+    "E501",  # line too long (handled by black)
+    "W503",  # line break before binary operator
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+exclude = [
+    "venv_linux/",
+    "_archive/",
+    "old/",
+    "tests/",
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "discord",
+    "discord.ext.commands",
+    "openai",
+    "anthropic",
+]
+ignore_missing_imports = true
