@@ -93,6 +93,19 @@ OLLAMA_BASE_URL=http://localhost:11434
 
 ## 🎯 基本的な使用方法
 
+### ⚡ LLMプロバイダー切り替え
+
+```bash
+# Ollamaに切り替え（ローカル・無料・推奨）
+python -c "import yaml; from pathlib import Path; config_file = Path('config/llm_config.yaml'); config = yaml.safe_load(open(config_file, 'r', encoding='utf-8')); config.setdefault('llm', {}).setdefault('providers', {}).setdefault('ollama', {}).update({'enabled': True, 'model': 'qwen2.5:1.5b-instruct', 'api_url': 'http://localhost:11434', 'max_tokens': 500, 'temperature': 0.3, 'timeout': 30, 'priority': 1}); [config['llm']['providers'][p].update({'enabled': False}) for p in config['llm']['providers'] if p != 'ollama']; yaml.dump(config, open(config_file, 'w', encoding='utf-8'), allow_unicode=True, default_flow_style=False); print('✅ Ollamaに切り替えました')"
+
+# LLMテスト（Ollama使用）
+python agents/llm_agent.py --test "日本語で自己紹介してください" --provider ollama
+
+# 現在の設定確認
+python -c "import yaml; config = yaml.safe_load(open('config/llm_config.yaml', 'r', encoding='utf-8')); [print(f'{k}: {v.get(\"model\")} (enabled={v.get(\"enabled\")})') for k,v in config.get('llm', {}).get('providers', {}).items()]"
+```
+
 ### AIエージェント（統合機能）
 
 ```bash
@@ -113,6 +126,77 @@ python tools/agent_cli.py chunk --text "長いテキスト内容..." --chunk-siz
 # 設定管理
 python agents/config_agent.py
 ```
+
+### 新機能: 🎤 音声トリガーシステム
+
+```bash
+# ライブラリインストール
+pip install SpeechRecognition PyAudio fuzzywuzzy python-Levenshtein sounddevice numpy
+
+# デモ起動（音声でAIと会話）
+python tools/voice_ai_demo.py
+
+# カスタムトリガーワード設定
+python services/tts/voice_trigger.py --words "起動" "ニューロ" "AI"
+
+# 設定を保存
+python services/tts/voice_trigger.py --words "起動" --threshold 85 --save
+
+# マイクテスト
+python services/tts/voice_trigger.py --test-mic
+```
+
+**特徴:**
+- 🎯 高精度音声認識（Google Speech Recognition）
+- 🔧 あいまいマッチング（発音が近ければ自動補正）
+- 🌐 多言語対応（日本語、英語、中国語など）
+- 💾 設定保存・読み込み機能
+- 📊 認識率・トリガー履歴の統計
+
+詳細: [VOICE_TRIGGER_GUIDE.md](docs/VOICE_TRIGGER_GUIDE.md)
+
+---
+
+### 新機能: 🤖 Discord Bot（拡張性抜群！）
+
+**拡張性抜群のモジュラー型Discord Bot！LLM連携、音声機能、荒らし対策を完備。**
+
+```bash
+# ライブラリインストール
+pip install discord.py python-dotenv gTTS PyNaCl
+
+# Discord Bot Token取得
+# https://discord.com/developers/applications
+
+# .envファイルにトークン設定
+# DISCORD_BOT_TOKEN=YOUR_TOKEN_HERE
+
+# Bot起動
+python tools/run_discord_bot.py
+```
+
+**主な機能:**
+- 🔌 **プラグインシステム**: 機能を簡単に追加可能
+- 🤖 **LLM連携**: Ollama等のLLM統合、メンション応答
+- 🎵 **音声機能**: ボイスチャンネル参加、TTS、音声認識（将来）
+- 🛡️ **荒らし対策**: レート制限、スパム検出、自動タイムアウト
+- 📚 **ナレッジベース**: データベース統合、検索機能
+- 📊 **統計記録**: コマンド実行数、LLM履歴の自動記録
+
+**基本コマンド:**
+```bash
+!ping                    # Bot応答速度確認
+!info                    # Bot情報表示
+@NeuroHub [質問]         # AIに質問
+!knowledge [ワード]       # ナレッジベース検索
+!join                    # ボイスチャンネル参加
+!tts [テキスト]          # テキスト読み上げ
+!plugin list             # プラグイン一覧（管理者）
+```
+
+詳細: **[DISCORD_BOT_GUIDE.md](docs/DISCORD_BOT_GUIDE.md)** ← 完全ガイド！
+
+---
 
 ### 新機能: MCP強化システム
 
