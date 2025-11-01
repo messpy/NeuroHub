@@ -1,8 +1,167 @@
-# NeuroHub
+# NeuroHub - AI-Powered Development Assistant
+
+**🧠 マルチLLMプロバイダー対応の高度なGit & 開発支援ツールセット**
+
+NeuroHubは、AI駆動のコミットメッセージ生成、自動化されたワークフロー、インテリジェントなコマンド実行を提供する包括的な開発支援プラットフォームです。
+
+## 🌟 主要機能
+
+### 🤖 Pythonエージェントシステム
+- **GitAgent**: AI駆動のコミットメッセージ生成と自動Git操作
+- **LLMAgent**: マルチプロバイダーLLM管理（Gemini、HuggingFace、Ollama）
+- **ConfigAgent**: 設定の自動検出・生成・最適化
+- **CommandAgent**: 安全なコマンド実行と履歴管理
+
+### 🛠️ 独立ツール
+- **git_commit_ai**: シェルベースの軽量コミット支援ツール
+- **LLMプロバイダー**: 統一APIでの多様なAIモデル連携
+- **履歴管理**: SQLite + FTS5による高速検索対応データベース
+
+### 🔧 アーキテクチャ特徴
+- **独立性**: toolsフォルダのツールは完全に独立動作
+- **統合性**: agentsフォルダで高機能な統合環境
+- **拡張性**: モジュラー設計による容易な機能追加
+- **安全性**: セーフモード、権限チェック、サンドボックス実行
+
+## 🚀 クイックスタート
+
+### 1. セットアップ
+
+```bash
+# プロジェクトクローン
+git clone https://github.com/messpy/NeuroHub.git
+cd NeuroHub
+
+# 依存関係インストール
+pip install -r requirements.txt
+
+# データベース初期化
+python setup_database.py
+
+# 設定自動生成
+python agents/config_agent.py --generate
+```
+
+### 2. 基本使用方法
+
+```bash
+# 🎯 AI コミットメッセージ生成（独立ツール）
+tools/git_commit_ai
+
+# 🤖 Python Gitエージェント（高機能）
+python agents/git_agent.py --auto
+
+# 🔧 対話型コマンド実行
+python agents/command_agent.py --interactive
+
+# 📊 LLM プロバイダーテスト
+python agents/llm_agent.py --test "こんにちは"
+```
+
+## 📋 API キー設定
+
+### 環境変数設定（`.env` ファイル推奨）
+
+```bash
+# Gemini API
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.0-flash-exp
+
+# HuggingFace
+HF_TOKEN=your_huggingface_token_here
+HF_MODEL=meta-llama/Llama-3.2-3B-Instruct
+
+# Ollama（ローカル）
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=qwen2.5:1.5b-instruct
+```
+
+### API キー取得方法
+
+1. **Gemini**: [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. **HuggingFace**: [HuggingFace Settings](https://huggingface.co/settings/tokens)
+3. **Ollama**: ローカルインストール - [公式サイト](https://ollama.ai/)
+
+## 🎯 使用例
+
+### Git コミット自動化
+
+```bash
+# ファイル変更
+echo "新機能追加" >> feature.py
+
+# AI コミットメッセージ生成 + 自動コミット
+python agents/git_agent.py --auto
+
+# 出力例:
+# ✅ コミット完了: ":add: feature.py 新機能実装"
+```
+
+### インタラクティブ Git 管理
+
+```bash
+python agents/git_agent.py --interactive
+
+# Git状態確認、ファイル選択、メッセージ生成、レビュー、コミット
+# までの全フローを対話的に実行
+```
+
+### マルチプロバイダー LLM
+
+```python
+from agents.llm_agent import LLMAgent, LLMRequest
+
+agent = LLMAgent()
+
+request = LLMRequest(
+    prompt="Pythonでフィボナッチ数列を生成する関数を書いて",
+    max_tokens=200,
+    temperature=0.3
+)
+
+response = agent.generate_text(request)
+print(response.content)
+```
+
+### セーフコマンド実行
+
+```bash
+python agents/command_agent.py git status
+python agents/command_agent.py "python -m pytest tests/ -v"
+python agents/command_agent.py --async-mode "python long_running_script.py"
+```
+
+## 🏗️ プロジェクト構造
+
+```
+NeuroHub/
+├── agents/                    # 🤖 Pythonエージェント
+│   ├── git_agent.py          # Git操作 + AI統合
+│   ├── llm_agent.py          # LLM管理・選択
+│   ├── config_agent.py       # 設定管理・最適化
+│   └── command_agent.py      # セーフコマンド実行
+├── tools/                     # 🛠️ 独立ツール
+│   └── git_commit_ai         # 軽量コミット支援
+├── services/                  # 🔧 コアサービス
+│   ├── llm/                  # LLMプロバイダー
+│   ├── db/                   # データベース管理
+│   └── mcp/                  # MCP統合
+├── config/                    # ⚙️ 設定ファイル
+│   ├── llm_config.yaml       # LLM設定
+│   ├── agent_config.yaml     # エージェント設定
+│   └── prompt_templates.yaml # プロンプトテンプレート
+├── tests/                     # 🧪 テストスイート
+│   ├── agents/               # エージェントテスト
+│   ├── services/             # サービステスト
+│   └── tools/                # ツールテスト
+└── docs/                     # 📚 ドキュメント
+```
+
+---
 
 ## 🛠️ Installation（環境準備）
 
-> ※ Ubuntu / Debian / Raspberry Pi / WSL2 / macOS 共通  
+> ※ Ubuntu / Debian / Raspberry Pi / WSL2 / macOS 共通
 > （Windows の場合は WSL2 推奨）
 
 ### (1) Python（必須）
