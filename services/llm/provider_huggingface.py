@@ -30,7 +30,11 @@ except Exception as e:
     print(f"[warn] dotenv load skipped ({e})", file=sys.stderr)
 
 # === 共通ユーティリティ ===
-from .llm_common import DebugLogger, load_config, get_llm_model_from_config, parse_opt_kv, LLMProviderConfig, make_api_request, LLMResponse, create_llm_response, LLMResponse, create_llm_response
+try:
+    from .llm_common import DebugLogger, load_config, get_llm_model_from_config, parse_opt_kv, LLMProviderConfig, make_api_request, LLMResponse, create_llm_response
+except ImportError:
+    # 直接実行時の対応
+    from llm_common import DebugLogger, load_config, get_llm_model_from_config, parse_opt_kv, LLMProviderConfig, make_api_request, LLMResponse, create_llm_response
 
 # === Hugging Face設定の共通化 ===
 class HuggingFaceConfig(LLMProviderConfig):
@@ -164,11 +168,34 @@ class HuggingFaceConfig(LLMProviderConfig):
 
             data = response.json()
 
-            # コンテンツ抽出
+            # コンテンツ抽出（改良版）
             try:
+                # まず通常のcontent構造を試す
                 content = data["choices"][0]["message"]["content"]
+
+                # contentが空の場合、reasoningフィールドを確認
+                if not content or not content.strip():
+                    reasoning = data["choices"][0]["message"].get("reasoning", "")
+                    if reasoning and reasoning.strip():
+                        content = reasoning
+
             except (KeyError, IndexError, TypeError):
-                content = json.dumps(data, ensure_ascii=False)
+                try:
+                    # フォールバック: 他の可能な構造を確認
+                    choices = data.get("choices", [])
+                    if choices:
+                        choice = choices[0]
+                        message = choice.get("message", {})
+                        content = (
+                            message.get("content", "") or
+                            message.get("reasoning", "") or
+                            message.get("text", "")
+                        )
+
+                    if not content:
+                        content = f"[HFレスポンス解析エラー] {json.dumps(data, ensure_ascii=False)}"
+                except Exception:
+                    content = json.dumps(data, ensure_ascii=False)
 
             # トークン情報の抽出（HuggingFaceの場合）
             usage = data.get("usage", {})
@@ -242,6 +269,20 @@ def main() -> int:
     if args.test:
         print("=== Hugging Face Router 接続テスト ===")
         success = config.test_connection()
+        if success:
+            # 接続成功後、実際のプロンプトテストを実行
+            print("\n=== レスポンステスト ===")
+            test_prompt = "今の日時は？"
+            print(f"プロンプト: {test_prompt}")
+
+            try:
+                response = config.infer(test_prompt, {"max_tokens": 150})
+                print(f"✅ レスポンス成功")
+                print(f"内容: {response.content}")
+                print(f"レスポンス時間: {response.response_time:.2f}秒")
+            except Exception as e:
+                print(f"❌ レスポンスエラー: {str(e)}")
+                return 1
         return 0 if success else 1
 
     # === モデルリスト表示 ===

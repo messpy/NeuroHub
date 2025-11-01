@@ -19,6 +19,18 @@ from urllib.request import urlopen
 
 # ====== パス設定 ======
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+# === .env の読み込み ===
+try:
+    from dotenv import load_dotenv
+    ENV_PATH = PROJECT_ROOT / ".env"
+    if ENV_PATH.exists():
+        load_dotenv(ENV_PATH, override=False)
+        print(f"[info] loaded .env from {ENV_PATH}", file=sys.stderr)
+    else:
+        print(f"[warn] .env not found at {ENV_PATH}", file=sys.stderr)
+except Exception as e:
+    print(f"[warn] dotenv load skipped ({e})", file=sys.stderr)
 LLM_DIR = PROJECT_ROOT / "services" / "llm"
 CONFIG_DIR = PROJECT_ROOT / "config"
 ENV_FILE = CONFIG_DIR / ".env"
@@ -164,7 +176,7 @@ def main(argv: List[str]) -> int:
 
         f.write("\nLogsDir: " + str(today_dir) + "\n")
 
-    print(summary_path.read_text())
+    print(summary_path.read_text(encoding="utf-8"))
     return 1 if any(r["status"] == "NG" for r in results.values() if "status" in r) else 0
 
 

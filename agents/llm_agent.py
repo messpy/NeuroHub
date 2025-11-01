@@ -10,7 +10,7 @@ import sys
 import json
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any, Union, Union
 from dataclasses import dataclass, asdict
 
 # プロジェクトパスを追加
@@ -37,10 +37,11 @@ class LLMRequest:
     prompt: str
     system_message: str = ""
     request_type: str = "general"
-    max_tokens: int = 200
+    max_tokens: int = 500  # デフォルトを500に増加
     temperature: float = 0.3
     preferred_provider: Optional[str] = None
     fallback_enabled: bool = True
+    get_all_responses: bool = False  # 全プロバイダーからレスポンス取得
 
 
 @dataclass
@@ -104,8 +105,9 @@ class LLMAgent:
                     test_result = provider.test_connection()
                     response_time = time.time() - start_time
 
-                    available = test_result.get('success', False)
-                    error_msg = test_result.get('error')
+                    # test_connectionはboolを返すため、直接使用
+                    available = bool(test_result)
+                    error_msg = None if available else "接続テスト失敗"
                 else:
                     available = False
                     response_time = None
@@ -173,8 +175,12 @@ class LLMAgent:
 
         return best_provider
 
-    def generate_text(self, request: LLMRequest) -> LLMResponse:
+    def generate_text(self, request: LLMRequest) -> Union[LLMResponse, Dict[str, LLMResponse]]:
         """テキスト生成（自動プロバイダー選択）"""
+
+        # 全プロバイダーからレスポンス取得の場合
+        if request.get_all_responses:
+            return self.generate_text_all_providers(request)
 
         start_time = time.time()
 
@@ -205,13 +211,39 @@ class LLMAgent:
                 max_tokens = api_defaults.get('max_tokens', request.max_tokens)
                 temperature = api_defaults.get('temperature', request.temperature)
 
-                # テキスト生成
-                response = provider.generate_text(
-                    prompt=request.prompt,
-                    system_message=request.system_message,
-                    max_tokens=max_tokens,
-                    temperature=temperature
-                )
+                # テキスト生成（プロバイダーに応じて適切なメソッド呼び出し）
+                if hasattr(provider, 'generate_text'):
+                    response = provider.generate_text(
+                        prompt=request.prompt,
+                        system_message=request.system_message,
+                        max_tokens=max_tokens,
+                        temperature=temperature
+                    )
+                elif hasattr(provider, 'infer'):
+                    # inferメソッドを使用（Gemini, HuggingFace, Ollama）
+                    opts = {
+                        'max_tokens': max_tokens,
+                        'temperature': temperature
+                    }
+
+                    if provider_name == 'ollama':
+                        # Ollamaはoptsを受け取らない
+                        response = provider.infer(request.prompt)
+                    else:
+                        # Gemini, HuggingFaceはoptsを受け取る
+                        if provider_name == 'huggingface' and request.system_message:
+                            response = provider.infer(
+                                request.prompt,
+                                opts=opts,
+                                system_text=request.system_message
+                            )
+                        else:
+                            response = provider.infer(
+                                request.prompt,
+                                opts=opts
+                            )
+                else:
+                    raise AttributeError(f"Provider {provider_name} has no generate_text or infer method")
 
                 # 履歴に記録
                 self._log_request(
@@ -281,6 +313,74 @@ class LLMAgent:
             )
         except Exception as e:
             print(f"[LLMAgent] 履歴記録エラー: {e}")
+
+    def generate_text_all_providers(self, request: LLMRequest) -> Dict[str, LLMResponse]:
+        """全プロバイダーからレスポンスを取得"""
+
+        responses = {}
+        status = self.check_provider_status()
+
+        for provider_name in self.provider_priority:
+            if not status.get(provider_name, {}).available:
+                continue
+
+            try:
+                provider = self.providers[provider_name]
+                if not provider.is_configured():
+                    continue
+
+                # API設定取得
+                api_defaults = get_api_defaults(provider_name)
+                max_tokens = api_defaults.get('max_tokens', request.max_tokens)
+                temperature = api_defaults.get('temperature', request.temperature)
+
+                # テキスト生成
+                if hasattr(provider, 'generate_text'):
+                    response = provider.generate_text(
+                        prompt=request.prompt,
+                        system_message=request.system_message,
+                        max_tokens=max_tokens,
+                        temperature=temperature
+                    )
+                elif hasattr(provider, 'infer'):
+                    opts = {
+                        'max_tokens': max_tokens,
+                        'temperature': temperature
+                    }
+
+                    if provider_name == 'ollama':
+                        response = provider.infer(request.prompt)
+                    else:
+                        if provider_name == 'huggingface' and request.system_message:
+                            response = provider.infer(
+                                request.prompt,
+                                opts=opts,
+                                system_text=request.system_message
+                            )
+                        else:
+                            response = provider.infer(
+                                request.prompt,
+                                opts=opts
+                            )
+                else:
+                    continue
+
+                responses[provider_name] = response
+
+            except Exception as e:
+                # エラーレスポンスを作成
+                from services.llm.llm_common import create_llm_response
+                error_response = create_llm_response(
+                    status_code=500,
+                    provider=provider_name,
+                    model="unknown",
+                    content="",
+                    error=str(e),
+                    response_time=0.0
+                )
+                responses[provider_name] = error_response
+
+        return responses
 
     def generate_commit_message(self, file_path: str, diff_content: str,
                               detailed: bool = False) -> str:

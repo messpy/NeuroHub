@@ -1,428 +1,279 @@
-# NeuroHub - AI-Powered Development Assistant
+# NeuroHub - Linux環境向け高度なGit & AI開発支援ツール
 
-**🧠 マルチLLMプロバイダー対応の高度なGit & 開発支援ツールセット**
+**🐧 Linux最適化されたマルチLLMプロバイダー対応開発支援プラットフォーム**
 
-NeuroHubは、AI駆動のコミットメッセージ生成、自動化されたワークフロー、インテリジェントなコマンド実行を提供する包括的な開発支援プラットフォームです。
+NeuroHubは、AI駆動のコミットメッセージ生成、自動化されたワークフロー、インテリジェントなコマンド実行を提供するLinux環境に最適化された包括的な開発支援プラットフォームです。
 
 ## 🌟 主要機能
 
-### 🤖 Pythonエージェントシステム
-- **GitAgent**: AI駆動のコミットメッセージ生成と自動Git操作
-- **LLMAgent**: マルチプロバイダーLLM管理（Gemini、HuggingFace、Ollama）
-- **ConfigAgent**: 設定の自動検出・生成・最適化
-- **CommandAgent**: 安全なコマンド実行と履歴管理
+### 🤖 統合AIエージェント（agents/）
+- **git_smart_agent**: AI駆動のコミットメッセージ生成と対話型Git操作
+- **llm_agent**: 3プロバイダー統合管理（Gemini、HuggingFace、Ollama）
+- **command_agent**: 安全なコマンド実行とログ管理
+- **config_agent**: 設定管理とYAML生成
 
-### 🛠️ 独立ツール
-- **git_commit_ai**: シェルベースの軽量コミット支援ツール
-- **LLMプロバイダー**: 統一APIでの多様なAIモデル連携
-- **履歴管理**: SQLite + FTS5による高速検索対応データベース
+### 🛠️ 独立ユーティリティ（services/agent/）
+- **weather_agent**: APIキー不要の天気予報ツール
+- **web_agent**: Webページ解析とLLM Q&A
+- **agent_cli**: 統一CLIインターフェース
 
-### 🔧 アーキテクチャ特徴
-- **独立性**: toolsフォルダのツールは完全に独立動作
-- **統合性**: agentsフォルダで高機能な統合環境
-- **拡張性**: モジュラー設計による容易な機能追加
-- **安全性**: セーフモード、権限チェック、サンドボックス実行
+### 🔧 コマンドラインツール（tools/）
+- **git_commit_ai**: 軽量Gitコミット支援
+- **project_organizer**: プロジェクト構造管理
 
-## 🚀 クイックスタート
+## 🚀 Linux環境クイックスタート
 
-### 1. セットアップ
+### 1. 自動セットアップ（推奨）
 
 ```bash
 # プロジェクトクローン
 git clone https://github.com/messpy/NeuroHub.git
 cd NeuroHub
 
+# Linux環境自動セットアップ
+chmod +x setup_neurohub_linux.sh
+./setup_neurohub_linux.sh
+```
+
+### 2. 手動セットアップ
+
+```bash
+# 依存関係インストール（Ubuntu/Debian）
+sudo apt update && sudo apt install -y python3 python3-pip python3-venv git
+
+# Python仮想環境作成
+python3 -m venv venv_linux
+source venv_linux/bin/activate
+
 # 依存関係インストール
+pip install --upgrade pip
 pip install -r requirements.txt
 
 # データベース初期化
-python setup_database.py
-
-# 設定自動生成
-python agents/config_agent.py --generate
+python3 setup_database.py
 ```
 
-### 2. 基本使用方法
+### 3. 環境設定
+
+`.env` ファイルを作成：
 
 ```bash
-# 🎯 AI コミットメッセージ生成（独立ツール）
-tools/git_commit_ai
-
-# 🤖 Python Gitエージェント（高機能）
-python agents/git_agent.py --auto
-
-# 🔧 対話型コマンド実行
-python agents/command_agent.py --interactive
-
-# 📊 LLM プロバイダーテスト
-python agents/llm_agent.py --test "こんにちは"
-```
-
-## 📋 API キー設定
-
-### 環境変数設定（`.env` ファイル推奨）
-
-```bash
-# Gemini API
+# 必須: Gemini API Key
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.0-flash-exp
 
-# HuggingFace
-HF_TOKEN=your_huggingface_token_here
-HF_MODEL=meta-llama/Llama-3.2-3B-Instruct
+# 必須: HuggingFace API Key
+HUGGINGFACE_API_KEY=your_huggingface_token_here
 
-# Ollama（ローカル）
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=qwen2.5:1.5b-instruct
+# オプション: Ollama（ローカル）
+OLLAMA_BASE_URL=http://localhost:11434
 ```
 
-### API キー取得方法
+## 🎯 基本的な使用方法
+
+### AIエージェント（統合機能）
+
+```bash
+# 仮想環境アクティベート
+source venv_linux/bin/activate
+
+# AI Git統合（対話型）
+python3 agents/git_smart_agent.py
+
+# LLMプロバイダーテスト
+python3 agents/llm_agent.py
+
+# 設定管理
+python3 agents/config_agent.py
+```
+
+### 独立ユーティリティ
+
+```bash
+# 天気予報（APIキー不要）
+python3 services/agent/weather_agent.py
+python3 services/agent/weather_agent.py "Tokyo"
+
+# Webページ解析
+python3 services/agent/web_agent.py https://example.com "要約して"
+
+# 統一CLI
+python3 services/agent/agent_cli.py weather Tokyo
+python3 services/agent/agent_cli.py web https://example.com "質問"
+```
+
+### コマンドラインツール
+
+```bash
+# 軽量Gitコミット支援
+./tools/git_commit_ai
+
+# プロジェクト整理
+python3 tools/project_organizer.py
+```
+
+## 🧪 テスト実行
+
+```bash
+# 全プロバイダー統合テスト
+python3 tests/test_comprehensive_working.py
+
+# 全テストスイート
+python3 -m pytest tests/ -v
+
+# Linuxテストランナー
+chmod +x tests/run_tests_linux.sh
+./tests/run_tests_linux.sh
+```
+
+## 📋 API Key取得方法
 
 1. **Gemini**: [Google AI Studio](https://makersuite.google.com/app/apikey)
 2. **HuggingFace**: [HuggingFace Settings](https://huggingface.co/settings/tokens)
-3. **Ollama**: ローカルインストール - [公式サイト](https://ollama.ai/)
-
-## 🎯 使用例
-
-### Git コミット自動化
+3. **Ollama**: [公式サイト](https://ollama.ai/)からインストール
 
 ```bash
-# ファイル変更
-echo "新機能追加" >> feature.py
-
-# AI コミットメッセージ生成 + 自動コミット
-python agents/git_agent.py --auto
-
-# 出力例:
-# ✅ コミット完了: ":add: feature.py 新機能実装"
-```
-
-### インタラクティブ Git 管理
-
-```bash
-python agents/git_agent.py --interactive
-
-# Git状態確認、ファイル選択、メッセージ生成、レビュー、コミット
-# までの全フローを対話的に実行
-```
-
-### マルチプロバイダー LLM
-
-```python
-from agents.llm_agent import LLMAgent, LLMRequest
-
-agent = LLMAgent()
-
-request = LLMRequest(
-    prompt="Pythonでフィボナッチ数列を生成する関数を書いて",
-    max_tokens=200,
-    temperature=0.3
-)
-
-response = agent.generate_text(request)
-print(response.content)
-```
-
-### セーフコマンド実行
-
-```bash
-python agents/command_agent.py git status
-python agents/command_agent.py "python -m pytest tests/ -v"
-python agents/command_agent.py --async-mode "python long_running_script.py"
+# Ollama インストール（Linux）
+curl -fsSL https://ollama.com/install.sh | sh
+ollama serve &
+ollama pull qwen2.5:1.5b-instruct
 ```
 
 ## 🏗️ プロジェクト構造
 
 ```
 NeuroHub/
-├── agents/                    # 🤖 Pythonエージェント
-│   ├── git_agent.py          # Git操作 + AI統合
-│   ├── llm_agent.py          # LLM管理・選択
-│   ├── config_agent.py       # 設定管理・最適化
-│   └── command_agent.py      # セーフコマンド実行
-├── tools/                     # 🛠️ 独立ツール
-│   └── git_commit_ai         # 軽量コミット支援
-├── services/                  # 🔧 コアサービス
+├── agents/                    # 🤖 統合AIエージェント
+│   ├── git_smart_agent.py    # AI Git統合
+│   ├── llm_agent.py          # マルチLLM管理
+│   ├── command_agent.py      # コマンド実行
+│   └── config_agent.py       # 設定管理
+├── services/                  # 🔧 マイクロサービス
+│   ├── agent/                # 独立ユーティリティ
+│   │   ├── weather_agent.py  # 天気予報
+│   │   ├── web_agent.py      # Web解析
+│   │   └── agent_cli.py      # 統一CLI
 │   ├── llm/                  # LLMプロバイダー
-│   ├── db/                   # データベース管理
-│   └── mcp/                  # MCP統合
+│   └── db/                   # データベース管理
+├── tools/                     # 🛠️ コマンドラインツール
+│   ├── git_commit_ai         # 軽量Gitツール
+│   └── project_organizer.py  # プロジェクト管理
 ├── config/                    # ⚙️ 設定ファイル
-│   ├── llm_config.yaml       # LLM設定
-│   ├── agent_config.yaml     # エージェント設定
-│   └── prompt_templates.yaml # プロンプトテンプレート
 ├── tests/                     # 🧪 テストスイート
-│   ├── agents/               # エージェントテスト
-│   ├── services/             # サービステスト
-│   └── tools/                # ツールテスト
-└── docs/                     # 📚 ドキュメント
+├── docs/                     # 📚 ドキュメント
+└── venv_linux/               # 🐧 Linux仮想環境
 ```
 
----
+## 📊 実装状況
 
-## 🛠️ Installation（環境準備）
+### ✅ 完全動作確認済み（Linux）
+- **LLMAgent**: 3プロバイダー統合・自動フォールバック
+- **git_smart_agent**: AIコミットメッセージ生成
+- **プロバイダー接続**: Gemini、HuggingFace、Ollama
+- **weather_agent**: IP位置推定＋天気予報
+- **web_agent**: Webページ解析＋LLM Q&A
 
-> ※ Ubuntu / Debian / Raspberry Pi / WSL2 / macOS 共通
-> （Windows の場合は WSL2 推奨）
+### ⚠️ 調整中
+- **command_agent**: インターフェース最適化
+- **config_agent**: 設定自動生成
 
-### (1) Python（必須）
+### 🐧 Linux最適化
+- **パス区切り**: Unix形式（/）統一
+- **権限管理**: chmod、実行権限対応
+- **環境変数**: ~/.bashrc自動設定
+- **パッケージ管理**: apt、pip要求
+
+## 📈 パフォーマンス（Linux環境）
+
+| プロバイダー | レスポンス時間 | 特徴 |
+|-------------|---------------|------|
+| Gemini | ~1.0秒 | 安定・高品質 |
+| HuggingFace | ~0.3秒 | 高速レスポンス |
+| Ollama | ~1.6秒 | ローカル・プライベート |
+
+## 🎯 使用例
+
+### AI Git統合ワークフロー
 
 ```bash
-python3 --version
-なければ：
+# ファイル編集
+echo "new feature" >> feature.py
 
-Debian / Ubuntu
+# AI統合Gitワークフロー
+python3 agents/git_smart_agent.py
+# → ファイル分析
+# → コミットメッセージ生成
+# → 対話型確認
+# → 自動コミット
+```
 
-bash
-コードをコピーする
-sudo apt update
-sudo apt install -y python3 python3-pip python3-venv
-仮想環境(任意推奨)
+### 天気予報統合
 
-bash
-コードをコピーする
-python3 -m venv venv
-source venv/bin/activate
-依存ライブラリ導入：
+```bash
+# IP位置推定天気
+python3 services/agent/weather_agent.py
 
-bash
-コードをコピーする
-pip install -r requirements.txt
-(2) Ollama インストール（ローカル LLM）
-Linux
+# 都市指定
+python3 services/agent/weather_agent.py "Tokyo"
 
-bash
-コードをコピーする
-curl -fsSL https://ollama.com/install.sh | sh
-macOS
+# 詳細予報
+python3 services/agent/weather_agent.py --lat 35.68 --lon 139.76 --forecast hourly
+```
 
-bash
-コードをコピーする
-brew install ollama
-ollama run llama3
-動作確認：
+### Web解析統合
 
-bash
-コードをコピーする
-curl http://localhost:11434/api/tags
-(3) HuggingFace CLI（任意 / Web Agentで利用）
-bash
-コードをコピーする
-pip install huggingface_hub
-APIキー設定例：
+```bash
+# ページ要約
+python3 services/agent/web_agent.py https://example.com "3行で要約"
 
-bash
-コードをコピーする
-huggingface-cli login
-（API不要なモデルのみ使用する場合は省略可）
+# 価格確認
+python3 services/agent/web_agent.py https://shop.example.com "価格は？"
+```
 
-✅ Usage（ツール実行例）
-Weather Agent（天気・IP推定）
-bash
-コードをコピーする
-python services/agent/agent_cli.py weather
-都市名指定：
+## 🛠️ 開発者向け
 
-bash
-コードをコピーする
-python services/agent/agent_cli.py weather Osaka
-24時間予報 + JSON：
+### テスト実行
 
-bash
-コードをコピーする
-python services/agent/agent_cli.py weather -- \
-  --lat 35.68 --lon 139.76 \
-  --forecast hourly --hours 24 --json
-出力保存：
+```bash
+# 統合テスト
+python3 tests/test_comprehensive_working.py
 
-bash
-コードをコピーする
-python services/agent/agent_cli.py weather "Tokyo" --output
-Web Agent（URL解析 & LLM QA）
-bash
-コードをコピーする
-python services/agent/agent_cli.py web \
-  https://booth.pm/ja/items/7414326 \
-  "価格は？" --pretty
-⚙️ Components
-bash
-コードをコピーする
-services/agent/
- ├ agent_cli.py        ← 入口（Web/Weather統一）
- ├ weather_agent.py    ← Weather実装
- └ web_agent.py        ← Web解析 & QA
-📌 Git操作（開発向け）
-すべての変更をステージから外す：
+# 個別テスト
+python3 tests/test_llm_agent_updated.py
+python3 tests/test_integration_comprehensive.py
 
-bash
-コードをコピーする
-git restore --staged .
-特定ファイルのみ：
+# テストカバレッジ
+python3 -m pytest tests/ --cov=agents --cov=services
+```
 
-bash
-コードをコピーする
-git restore --staged services/agent/weather_agent.py
-状態確認：
+### デバッグ
 
-bash
-コードをコピーする
-git status
-🚀 ポート採用とネットワーク
-機能	通信先	備考
-Weather	Open-Meteo, ip-api, Nominatim	すべて APIキー不要
-Web Agent	Webページ(HTML)	LLM解析に依存
+```bash
+# LLMプロバイダー直接テスト
+python3 -c "from agents.llm_agent import LLMAgent; print(LLMAgent().check_provider_status())"
 
-※ ローカルLLM（Ollama）使用時は localhost:11434
+# Git状態確認
+python3 -c "from agents.git_smart_agent import GitSmartAgent; print(GitSmartAgent().get_git_status())"
+```
 
-✅ Optional（強化予定）
-優先	内容
-1	Discordへ自動天気通知（systemd + webhook）
-2	自然言語判定「今日雨？」 → weather_agent実行
-3	位置情報：Wi-Fi SSIDで切り替え
-4	予報グラフ画像生成
+## 🤝 コントリビューション
 
+1. フォーク
+2. フィーチャーブランチ作成: `git checkout -b feature/amazing-feature`
+3. テスト実行: `python3 -m pytest tests/ -v`
+4. コミット: `./tools/git_commit_ai` または `python3 agents/git_smart_agent.py`
+5. プッシュ: `git push origin feature/amazing-feature`
+6. プルリクエスト作成
 
-# NeuroHub
+## 📄 ライセンス
 
-# -*- coding: utf-8 -*-
+MIT License - 詳細は [LICENSE](LICENSE) ファイルを参照
 
-"""
-weather_agent.py
-- IPから自動位置推定（引数無しでOK）
-- 現在気温 / 時間予報 / 日次予報
-- 保存は --output 時のみ
-- APIキー不要
-"""
+## 🆘 サポート
 
-import sys
-import argparse
-import datetime
-from typing import Dict, Any, Optional
-import requests
-import yaml
-import json
-import re
-from pathlib import Path
-
-UA = "NeuroHubWeather/1.0"
-TIMEOUT = 8
-
-#========================
-# Util
-#========================
-
-def geolocate_by_ip(lang="ja") -> Dict[str, Any]:
-    headers = {"User-Agent": UA}
-
-    # ip-api.com（http）
-    try:
-        r = requests.get("http://ip-api.com/json", headers=headers, timeout=TIMEOUT)
-        if r.ok:
-            j = r.json()
-            if j.get("status") == "success":
-                return {
-                    "lat": float(j["lat"]),
-                    "lon": float(j["lon"]),
-                    "query_name": j.get("city"),
-                    "admin1": j.get("regionName"),
-                    "country": j.get("country"),
-                    "lang": lang,
-                    "ip_geo": {
-                        "source": "ip-api.com",
-                        "ip": j.get("query"),
-                        "city": j.get("city"),
-                        "region": j.get("regionName"),
-                        "org": j.get("org"),
-
-
-# Weather Agent
-
-ex)
-
-python services/agent/web_agent.py https://github.com/messpy --prompt "これいくら？" --output
-
-# IP推定：引数なし
-python services/agent/weather_agent.py
-# 都市名
-python services/agent/weather_agent.py "Osaka"
-# 座標・温度単位・24時間予報
-python services/agent/weather_agent.py --lat 35.68 --lon 139.76 --unit f --forecast hourly --hours 24
-
-
-# WEB Agent
-
-ex)
-python services/agent/web_agent.py https://www.python.org "要約して"
-
-python services/agent/web_agent.py \
-  https://booth.pm/ja/items/7414326 \
-  "これいくら？" --pretty
-python services/agent/web_agent.py \
-  https://www.openai.com \
-  "3行で要約して"
-python services/agent/web_agent.py \
-  https://ja.wikipedia.org/wiki/Git \
-  "gitとは何？"
-
-# JSON
-python services/agent/web_agent.py \
-  https://www.python.org \
-  "要約" > result.json
-cat result.json
-
-printf "Python homepage\n" | \
-python services/agent/web_agent.py https://www.python.org "Pythonとは？"
-
-## 🧠 Agent CLI – How to Use
-
-`agent_cli.py` は Web解析 & 天気情報（Weather/Web Agent）を
-統一CLIから実行できます。
+- **Issues**: [GitHub Issues](https://github.com/messpy/NeuroHub/issues)
+- **Documentation**: [docs/](docs/) フォルダ
+- **Linux Setup**: `./setup_neurohub_linux.sh`
 
 ---
 
-### ✔️ 前提：実行場所（プロジェクトルート）
-
-```bash
-cd ~/work/NeuroHub
-🌦️ Weather Agent（天気）
-引数なし → IPから現在地推定
-
-bash
-コードをコピーする
-python services/agent/agent_cli.py weather
-都市名指定
-
-bash
-コードをコピーする
-python services/agent/agent_cli.py weather Osaka
-座標指定（例：東京駅付近）
-
-bash
-コードをコピーする
-python services/agent/agent_cli.py weather -- \
-  --lat 35.68 --lon 139.76
-24時間予報（JSON形式）
-
-bash
-コードをコピーする
-python services/agent/agent_cli.py weather -- \
-  --forecast hourly --hours 24 --json
-保存（自動命名 / ./weather_logs）
-
-bash
-コードをコピーする
-python services/agent/agent_cli.py weather "Tokyo" --output
-🌐 Web Agent（URL解析 & Q&A）
-BOOTHページの価格を聞く
-
-bash
-コードをコピーする
-python services/agent/agent_cli.py web \
-  https://booth.pm/ja/items/7414326 \
-  "これいくら？" --pretty
-Webページを3行で要約
-
-bash
-コードをコピーする
-python services/agent/agent_cli.py web \
-  https://www.python.org \
-  "3行で要約して"
+**🐧 Ready to boost your Linux development workflow with AI? Get started now!**

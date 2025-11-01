@@ -31,7 +31,11 @@ except Exception as e:
     print(f"[warn] dotenv load skipped ({e})", file=sys.stderr)
 
 # === 共通ユーティリティ ===
-from .llm_common import DebugLogger, load_config, get_llm_model_from_config, parse_opt_kv, LLMProviderConfig, make_api_request, LLMResponse, create_llm_response
+try:
+    from .llm_common import DebugLogger, load_config, get_llm_model_from_config, parse_opt_kv, LLMProviderConfig, make_api_request, LLMResponse, create_llm_response
+except ImportError:
+    # 直接実行時の対応
+    from llm_common import DebugLogger, load_config, get_llm_model_from_config, parse_opt_kv, LLMProviderConfig, make_api_request, LLMResponse, create_llm_response
 
 # === Gemini設定の共通化 ===
 class GeminiConfig(LLMProviderConfig):
@@ -156,11 +160,43 @@ class GeminiConfig(LLMProviderConfig):
 
             data = response.json()
 
-            # コンテンツ抽出
+            # コンテンツ抽出（改良版）
+            content = ""
             try:
-                content = data["candidates"][0]["content"]["parts"][0]["text"]
-            except (KeyError, IndexError, TypeError):
-                content = json.dumps(data, ensure_ascii=False)
+                candidates = data.get("candidates", [])
+                if candidates:
+                    candidate = candidates[0]
+                    candidate_content = candidate.get("content", {})
+
+                    # parts配列からテキスト抽出
+                    parts = candidate_content.get("parts", [])
+                    if parts:
+                        # 最初のパートのテキストを取得
+                        for part in parts:
+                            if isinstance(part, dict) and "text" in part:
+                                text = part["text"].strip()
+                                if text:
+                                    content = text
+                                    break
+
+                    # partsが空または見つからない場合
+                    if not content:
+                        finish_reason = candidate.get("finishReason", "")
+                        if finish_reason == "MAX_TOKENS":
+                            content = "[警告] max_tokensに達しました。より長い応答が必要な場合はmax_tokensを増やしてください。"
+                        elif finish_reason == "SAFETY":
+                            content = "[エラー] セーフティフィルターによりブロックされました。プロンプトを変更してください。"
+                        elif finish_reason == "STOP":
+                            content = "[情報] 応答が正常に完了しました（内容が空）。"
+                        else:
+                            # デバッグ用：実際のレスポンス構造を表示
+                            content = f"[Gemini解析エラー] finishReason: {finish_reason}, 構造: {json.dumps(candidate_content, ensure_ascii=False, indent=2)}"
+
+                if not content:
+                    content = f"[Geminiレスポンス解析失敗] {json.dumps(data, ensure_ascii=False)}"
+
+            except Exception as e:
+                content = f"[Gemini例外エラー] {str(e)}: {json.dumps(data, ensure_ascii=False)}"
 
             # トークン情報の抽出（Geminiの場合）
             usage_metadata = data.get("usageMetadata", {})
@@ -232,6 +268,20 @@ def main() -> int:
     if args.test:
         print("=== Gemini API 接続テスト ===")
         success = config.test_connection()
+        if success:
+            # 接続成功後、実際のプロンプトテストを実行
+            print("\n=== レスポンステスト ===")
+            test_prompt = "今の日時は？"
+            print(f"プロンプト: {test_prompt}")
+
+            try:
+                response = config.infer(test_prompt, {"max_tokens": 150})
+                print(f"✅ レスポンス成功")
+                print(f"内容: {response.content}")
+                print(f"レスポンス時間: {response.response_time:.2f}秒")
+            except Exception as e:
+                print(f"❌ レスポンスエラー: {str(e)}")
+                return 1
         return 0 if success else 1
 
     # === モデルリスト表示 ===

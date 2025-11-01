@@ -480,6 +480,55 @@ ensure_ollama_running() {
   return 0
 }
 
+# ===== LLMエージェント使用版生成 =====
+generate_with_llm_agent() {
+  local prompt_full="$1"
+
+  # PythonスクリプトでLLMエージェントを使用
+  local python_script
+  python_script=$(cat << 'EOF'
+import sys
+import os
+sys.path.insert(0, os.path.abspath('.'))
+from agents.llm_agent import LLMAgent, LLMRequest
+
+try:
+    agent = LLMAgent()
+    request = LLMRequest(prompt=sys.argv[1], max_tokens=150)
+    response = agent.generate_text(request)
+
+    if response.status_code == 200 and response.content:
+        content = response.content.strip()
+        # コミットメッセージ形式の最初の行を抽出
+        lines = content.split('\n')
+        for line in lines:
+            line = line.strip()
+            if line.startswith(':'):
+                print(line)
+                exit(0)
+        # :で始まらない場合は最初の行を使用
+        if lines:
+            first_line = lines[0].strip()
+            if first_line and not first_line.startswith('**'):
+                print(first_line)
+                exit(0)
+    exit(1)
+except Exception as e:
+    print(f"Error: {e}", file=sys.stderr)
+    exit(1)
+EOF
+)
+
+  local msg
+  msg="$(python -c "$python_script" "$prompt_full" 2>/dev/null || true)"
+
+  if [[ -n "$msg" ]]; then
+    printf '%s\n' "$msg"
+    return 0
+  fi
+  return 1
+}
+
 # ===== 各プロバイダー生成 =====
 generate_gemini() {
   local prompt_full="$1" msg=""
@@ -647,6 +696,15 @@ $(echo "$diff_content" | head -n 40)
     prompt_full+=$'\n上記と重複しない新しい案を出してください。'
   fi
 
+  # まずLLMエージェントを試す
+  msg="$(generate_with_llm_agent "$prompt_full")"
+  local agent_ok=$?
+  if [[ $agent_ok -eq 0 && -n "$msg" && "$msg" =~ ^: ]]; then
+    printf '%s\n' "$msg"
+    return 0
+  fi
+
+  # フォールバック: 個別のプロバイダー
   msg="$(generate_gemini "$prompt_full")"
   local gemini_ok=$?
   if [[ $gemini_ok -ne 0 || -z "$msg" || ! "$msg" =~ ^: ]]; then

@@ -19,11 +19,11 @@ import hashlib
 
 class ProjectOrganizer:
     """プロジェクト整理クラス"""
-    
+
     def __init__(self, project_root: Path):
         self.project_root = Path(project_root)
         self.rules = self._load_organization_rules()
-        
+
     def _load_organization_rules(self) -> Dict[str, Any]:
         """整理ルール定義"""
         return {
@@ -90,7 +90,7 @@ class ProjectOrganizer:
         """重複ファイル検出"""
         file_hashes = defaultdict(list)
         duplicates = {}
-        
+
         # ハッシュ計算
         for file_path in self.project_root.rglob("*"):
             if file_path.is_file() and not self._should_ignore(file_path):
@@ -100,23 +100,23 @@ class ProjectOrganizer:
                         file_hashes[file_hash].append(str(file_path.relative_to(self.project_root)))
                 except:
                     continue
-        
+
         # 重複抽出
         for file_hash, files in file_hashes.items():
             if len(files) > 1:
                 duplicates[f"hash_{file_hash[:8]}"] = files
-        
+
         return duplicates
 
     def analyze_similar_files(self) -> Dict[str, List[str]]:
         """類似ファイル検出（名前ベース）"""
         similar_groups = defaultdict(list)
-        
+
         # ファイル名パターン分析
         for file_path in self.project_root.rglob("*.py"):
             if file_path.is_file():
                 name = file_path.stem
-                
+
                 # パターン抽出
                 base_patterns = [
                     name.replace("_test", "").replace("test_", ""),
@@ -124,12 +124,12 @@ class ProjectOrganizer:
                     name.replace("simple_", "").replace("_simple", ""),
                     name.replace("fix_", "").replace("_fix", ""),
                 ]
-                
+
                 for pattern in base_patterns:
                     if pattern and len(pattern) > 3:
                         key = f"pattern_{pattern}"
                         similar_groups[key].append(str(file_path.relative_to(self.project_root)))
-        
+
         # 2個以上のグループのみ返す
         return {k: v for k, v in similar_groups.items() if len(v) > 1}
 
@@ -140,7 +140,7 @@ class ProjectOrganizer:
             "venv/", "venv_linux/", ".env",
             "node_modules/", ".pytest_cache/"
         ]
-        
+
         path_str = str(file_path)
         return any(pattern in path_str for pattern in ignore_patterns)
 
@@ -151,7 +151,7 @@ class ProjectOrganizer:
             "actions": [],
             "summary": {}
         }
-        
+
         # 1. 重複ファイル処理
         duplicates = self.analyze_duplicates()
         for group, files in duplicates.items():
@@ -166,11 +166,11 @@ class ProjectOrganizer:
                             "keep": newest_file,
                             "reason": f"重複ファイル（{group}）"
                         })
-        
+
         # 2. ディレクトリ統合
         for target_dir, source_patterns in self.rules["merge_directories"].items():
             target_path = self.project_root / target_dir
-            
+
             for pattern in source_patterns:
                 for source_path in self.project_root.glob(pattern):
                     if source_path.is_dir() and source_path != target_path:
@@ -180,15 +180,15 @@ class ProjectOrganizer:
                             "target": target_dir,
                             "reason": f"ディレクトリ統合: {pattern}"
                         })
-        
+
         # 3. ファイル統合
         for target_file, source_patterns in self.rules["file_consolidation"].items():
             target_path = self.project_root / target_file
             matching_files = []
-            
+
             for pattern in source_patterns:
                 matching_files.extend(self.project_root.glob(pattern))
-            
+
             if len(matching_files) > 1:
                 # 統合対象ファイルを選択
                 for source_path in matching_files:
@@ -199,12 +199,12 @@ class ProjectOrganizer:
                             "target": target_file,
                             "reason": f"ファイル統合: {pattern}"
                         })
-        
+
         # 4. MCP統合
         mcp_files = []
         for pattern in self.rules["mcp_consolidation"]["services/mcp/"]:
             mcp_files.extend(self.project_root.glob(pattern))
-        
+
         for mcp_file in mcp_files:
             if mcp_file.is_file() and "services/mcp/" not in str(mcp_file):
                 plan["actions"].append({
@@ -213,7 +213,7 @@ class ProjectOrganizer:
                     "target": f"services/mcp/{mcp_file.name}",
                     "reason": "MCP関連ファイル統合"
                 })
-        
+
         # 5. 削除対象
         for pattern in self.rules["delete_patterns"]:
             for file_path in self.project_root.glob(pattern):
@@ -223,18 +223,18 @@ class ProjectOrganizer:
                         "file": str(file_path.relative_to(self.project_root)),
                         "reason": f"不要ファイル: {pattern}"
                     })
-        
+
         # サマリー作成
         action_types = defaultdict(int)
         for action in plan["actions"]:
             action_types[action["type"]] += 1
-        
+
         plan["summary"] = {
             "total_actions": len(plan["actions"]),
             "by_type": dict(action_types),
             "affected_files": len(set(action.get("file", action.get("source", "")) for action in plan["actions"]))
         }
-        
+
         return plan
 
     def execute_plan(self, plan: Dict[str, Any], dry_run: bool = True) -> Dict[str, Any]:
@@ -245,7 +245,7 @@ class ProjectOrganizer:
             "failed": [],
             "skipped": []
         }
-        
+
         for action in plan["actions"]:
             try:
                 if action["type"] == "delete_duplicate":
@@ -256,11 +256,11 @@ class ProjectOrganizer:
                         results["executed"].append(action)
                     else:
                         results["skipped"].append({**action, "reason": "ファイルが存在しない"})
-                
+
                 elif action["type"] == "merge_directory":
                     source_path = self.project_root / action["source"]
                     target_path = self.project_root / action["target"]
-                    
+
                     if source_path.exists():
                         if not dry_run:
                             target_path.mkdir(parents=True, exist_ok=True)
@@ -277,11 +277,11 @@ class ProjectOrganizer:
                         results["executed"].append(action)
                     else:
                         results["skipped"].append({**action, "reason": "ディレクトリが存在しない"})
-                
+
                 elif action["type"] == "consolidate_file":
                     source_path = self.project_root / action["source"]
                     target_path = self.project_root / action["target"]
-                    
+
                     if source_path.exists():
                         if not dry_run:
                             target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -296,11 +296,11 @@ class ProjectOrganizer:
                         results["executed"].append(action)
                     else:
                         results["skipped"].append({**action, "reason": "ファイルが存在しない"})
-                
+
                 elif action["type"] == "move_to_mcp":
                     source_path = self.project_root / action["source"]
                     target_path = self.project_root / action["target"]
-                    
+
                     if source_path.exists():
                         if not dry_run:
                             target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -308,7 +308,7 @@ class ProjectOrganizer:
                         results["executed"].append(action)
                     else:
                         results["skipped"].append({**action, "reason": "ファイルが存在しない"})
-                
+
                 elif action["type"] == "delete":
                     file_path = self.project_root / action["file"]
                     if file_path.exists():
@@ -320,10 +320,10 @@ class ProjectOrganizer:
                         results["executed"].append(action)
                     else:
                         results["skipped"].append({**action, "reason": "ファイルが存在しない"})
-                
+
             except Exception as e:
                 results["failed"].append({**action, "error": str(e)})
-        
+
         return results
 
     def generate_report(self, plan: Dict[str, Any]) -> str:
@@ -336,12 +336,12 @@ class ProjectOrganizer:
 
 ## アクション種別
 """
-        
+
         for action_type, count in plan['summary']['by_type'].items():
             report += f"- {action_type}: {count}件\n"
-        
+
         report += "\n## 詳細アクション\n\n"
-        
+
         for i, action in enumerate(plan['actions'][:20], 1):  # 上位20件
             report += f"{i}. **{action['type']}**: "
             if 'source' in action:
@@ -349,46 +349,46 @@ class ProjectOrganizer:
             else:
                 report += f"`{action.get('file', 'N/A')}`"
             report += f" ({action['reason']})\n"
-        
+
         if len(plan['actions']) > 20:
             report += f"\n... 他 {len(plan['actions']) - 20}件\n"
-        
+
         return report
 
 
 def main():
     """メイン関数"""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Project Organizer - プロジェクト整理ツール")
     parser.add_argument("--analyze", action="store_true", help="分析のみ実行")
     parser.add_argument("--execute", action="store_true", help="整理実行")
     parser.add_argument("--dry-run", action="store_true", help="ドライラン（実際の変更なし）")
     parser.add_argument("--report", type=str, help="レポート出力ファイル")
-    
+
     args = parser.parse_args()
-    
+
     project_root = Path(__file__).parent.parent
     organizer = ProjectOrganizer(project_root)
-    
+
     if args.analyze or not args.execute:
         print("🔍 プロジェクト分析中...")
         plan = organizer.create_organization_plan()
-        
+
         print(f"📊 整理計画:")
         print(f"   総アクション数: {plan['summary']['total_actions']}")
         print(f"   影響ファイル数: {plan['summary']['affected_files']}")
-        
+
         for action_type, count in plan['summary']['by_type'].items():
             print(f"   {action_type}: {count}件")
-        
+
         # レポート生成
         if args.report:
             report = organizer.generate_report(plan)
             with open(args.report, 'w', encoding='utf-8') as f:
                 f.write(report)
             print(f"📄 レポート出力: {args.report}")
-        
+
         # 詳細表示（上位10件）
         print("\n📋 主要アクション（上位10件）:")
         for i, action in enumerate(plan['actions'][:10], 1):
@@ -397,17 +397,17 @@ def main():
                 print(f"{action['source']} → {action.get('target', 'DELETE')}")
             else:
                 print(f"{action.get('file', 'N/A')}")
-    
+
     if args.execute:
         print("\n🚀 整理実行中...")
         plan = organizer.create_organization_plan()
         results = organizer.execute_plan(plan, dry_run=args.dry_run)
-        
+
         print(f"✅ 実行完了:")
         print(f"   実行: {len(results['executed'])}件")
         print(f"   スキップ: {len(results['skipped'])}件")
         print(f"   失敗: {len(results['failed'])}件")
-        
+
         if results['failed']:
             print("\n❌ 失敗項目:")
             for failed in results['failed'][:5]:

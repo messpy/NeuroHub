@@ -7,9 +7,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]  # ~/work/NeuroHub
-WEATHER = ROOT / "services" / "agent" / "weather_agent.py"
-WEB = ROOT / "services" / "agent" / "web_agent.py"
+ROOT = Path(__file__).resolve().parents[1]  # ~/NeuroHub
+WEATHER = ROOT / "agents" / "specialized" / "weather_agent.py"
+WEB = ROOT / "agents" / "specialized" / "web_agent.py"
 
 def run(cmd: list[str]) -> int:
     p = subprocess.run(cmd, stdout=sys.stdout, stderr=sys.stderr)
@@ -56,4 +56,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

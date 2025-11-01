@@ -31,16 +31,32 @@ python provider_ollama.py --create my-assistant --modelfile my_modelfile.txt --d
 # ===== llm_common から .env / config 読み込み =====
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from .llm_common import (
-    load_env_from_config,
-    load_config,
-    get_llm_model_from_config,
-    DebugLogger,
-    LLMProviderConfig,
-    make_api_request,
-    LLMResponse,
-    create_llm_response,
-)
+# ===== llm_common から .env / config 読み込み =====
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+try:
+    from .llm_common import (
+        load_env_from_config,
+        load_config,
+        get_llm_model_from_config,
+        DebugLogger,
+        LLMProviderConfig,
+        make_api_request,
+        LLMResponse,
+        create_llm_response,
+    )
+except ImportError:
+    # 直接実行時の対応
+    from llm_common import (
+        load_env_from_config,
+        load_config,
+        get_llm_model_from_config,
+        DebugLogger,
+        LLMProviderConfig,
+        make_api_request,
+        LLMResponse,
+        create_llm_response,
+    )
 
 load_env_from_config()   # ~/work/NeuroHub/config/.env を反映
 
@@ -64,10 +80,106 @@ class OllamaConfig(LLMProviderConfig):
 
         # フォールバックモデルを動的に取得
         self.fallback_models = self._get_fallback_models()
-        self.current_model = None  # 実際に利用可能なモデル
+        self.current_model = self.preferred_model  # まず優先モデルを設定
 
         # サーバー確認と自動起動
         self._ensure_server_running()
+
+        # 利用可能なモデルから選択
+        self._select_available_model()
+
+    def _ensure_server_running(self) -> bool:
+        """Ollamaサーバーが起動していることを確認・必要に応じて起動"""
+        try:
+            # まず接続テスト
+            if self._test_server_connection():
+                return True
+
+            self.debug_logger.dbg("Ollamaサーバーが停止中 - 起動を試行")
+
+            # サーバー起動試行
+            return self._start_ollama_server()
+
+        except Exception as e:
+            self.debug_logger.dbg(f"サーバー確認エラー: {e}")
+            return False
+
+    def _test_server_connection(self) -> bool:
+        """サーバー接続テスト"""
+        try:
+            response = urllib.request.urlopen(f"{self.host}/api/tags", timeout=5)
+            return response.status == 200
+        except Exception:
+            return False
+
+    def _start_ollama_server(self) -> bool:
+        """Ollamaサーバーを起動"""
+        import subprocess
+        import time
+
+        try:
+            self.debug_logger.dbg("Ollamaサーバーを起動中...")
+
+            # Windows環境での起動
+            if os.name == 'nt':
+                self._server_process = subprocess.Popen(
+                    ["ollama", "serve"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+            else:
+                self._server_process = subprocess.Popen(
+                    ["ollama", "serve"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+
+            # 起動待機
+            for i in range(30):
+                if self._test_server_connection():
+                    self.debug_logger.dbg("Ollamaサーバー起動成功")
+                    return True
+                time.sleep(1)
+
+            self.debug_logger.dbg("Ollamaサーバー起動タイムアウト")
+            return False
+
+        except Exception as e:
+            self.debug_logger.dbg(f"サーバー起動エラー: {e}")
+            return False
+
+    def _select_available_model(self):
+        """利用可能なモデルを選択"""
+        try:
+            # 利用可能なモデル一覧を取得
+            available_models = self.list_models()
+            model_names = [model.get("name", "") for model in available_models]
+
+            # 優先モデルが利用可能かチェック
+            if self.preferred_model in model_names:
+                self.current_model = self.preferred_model
+                self.debug_logger.dbg(f"選択モデル: {self.current_model}")
+                return
+
+            # フォールバックモデルを確認
+            for fallback in self.fallback_models:
+                if fallback in model_names:
+                    self.current_model = fallback
+                    self.debug_logger.dbg(f"フォールバック選択: {self.current_model}")
+                    return
+
+            # 利用可能な最初のモデルを使用
+            if model_names:
+                self.current_model = model_names[0]
+                self.debug_logger.dbg(f"自動選択: {self.current_model}")
+            else:
+                self.debug_logger.dbg("利用可能なモデルがありません")
+
+        except Exception as e:
+            self.debug_logger.dbg(f"モデル選択エラー: {e}")
+            # デフォルトモデルを設定
+            self.current_model = self.default_model
 
     def _ensure_server_running(self) -> bool:
         """Ollamaサーバーが動いているか確認し、必要に応じて起動"""
@@ -270,9 +382,23 @@ class OllamaConfig(LLMProviderConfig):
         """
         /api/generate → 404/405 のとき /api/chat へフォールバック。
         戻り値はLLMResponseオブジェクト。
+        サーバー監視・自動起動機能付き
         """
         import time
         start_time = time.time()
+
+        # Ollamaサーバー自動起動確認
+        if not self._ensure_server_running():
+            response_time = time.time() - start_time
+            return create_llm_response(
+                status_code=503,
+                provider="ollama",
+                model=self.current_model,
+                content="",
+                error="Ollamaサーバーが起動していません",
+                response_time=response_time,
+                metadata={"server_auto_start_failed": True}
+            )
 
         try:
             try:
@@ -474,9 +600,10 @@ if __name__ == "__main__":
     from llm_common import DebugLogger
 
     parser = argparse.ArgumentParser(description="Ollama LLM provider")
+    parser.add_argument("prompt", nargs="*", help="Prompt to generate (positional argument)")
     parser.add_argument("--test", action="store_true", help="Test connection")
     parser.add_argument("--model", type=str, help="Model name to use")
-    parser.add_argument("--prompt", type=str, help="Prompt to generate")
+    parser.add_argument("--prompt", type=str, help="Prompt to generate (alternative)")
     parser.add_argument("--host", type=str, help="Ollama host URL")
     parser.add_argument("--list", action="store_true", help="List available models")
     parser.add_argument("--pull", type=str, help="Pull a model")
@@ -488,13 +615,31 @@ if __name__ == "__main__":
                         help="Debug level: 0=content only, 1=basic info, 2=token info, 3=full details")
     args = parser.parse_args()
 
+    # プロンプトの処理 - 位置引数を優先
+    prompt_text = " ".join(args.prompt) if args.prompt else args.prompt
+
     debug_logger = DebugLogger(args.debug > 0, args.debug)
 
     try:
         config = OllamaConfig(host=args.host, debug_logger=debug_logger)
 
         if args.test:
-            config.test_connection()
+            print("=== Ollama 接続テスト ===")
+            success = config.test_connection()
+            if success:
+                # 接続成功後、実際のプロンプトテストを実行
+                print("\n=== レスポンステスト ===")
+                test_prompt = "今の日時は？"
+                print(f"プロンプト: {test_prompt}")
+
+                try:
+                    response = config.infer(test_prompt)
+                    print(f"✅ レスポンス成功")
+                    print(f"内容: {response.content}")
+                    print(f"レスポンス時間: {response.response_time:.2f}秒")
+                except Exception as e:
+                    print(f"❌ レスポンスエラー: {str(e)}")
+            exit(0 if success else 1)
         elif args.list:
             models = config.list_models(show_details=args.debug > 2)
             if models:
@@ -536,9 +681,10 @@ if __name__ == "__main__":
                 print("Model deletion successful")
             else:
                 print("Model deletion failed")
-        elif args.model and args.prompt:
+        elif args.model and (prompt_text or getattr(args, 'prompt', None)):
             config.ensure_model_available(args.model)
-            response = config.infer(args.prompt)
+            final_prompt = prompt_text or getattr(args, 'prompt', None)
+            response = config.infer(final_prompt)
 
             # デバッグレベルに応じた出力
             if args.debug > 0:
