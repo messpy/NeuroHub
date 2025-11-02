@@ -21,7 +21,8 @@ import time
 import traceback
 from typing import Optional, Dict
 from pathlib import Path
-from agents.common import BaseAgent, AgentConfig
+from agents.common import BaseAgent
+from agents.config_agent import AgentConfig
 
 from services.llm.llm_common import (
     load_env_from_config,
