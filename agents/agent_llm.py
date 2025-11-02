@@ -834,5 +834,44 @@ def main():
         agent.cleanup()
 
 
+# =====================
+# Discord Bot用非同期ラッパー
+# =====================
+
+async def generate_response(prompt: str, system_message: str = "", provider: str = None) -> str:
+    """
+    非同期応答生成（Discord Bot用）
+
+    Args:
+        prompt: プロンプト
+        system_message: システムメッセージ
+        provider: プロバイダー名
+
+    Returns:
+        応答テキスト
+    """
+    import asyncio
+
+    def _generate():
+        agent = LLMAgent(provider=provider)
+        request = LLMRequest(
+            prompt=prompt,
+            system_message=system_message or "あなたは親切なAIアシスタントです。日本語で簡潔に答えてください。",
+            max_tokens=2000,
+            temperature=0.7
+        )
+        response = agent.generate_text(request)
+        agent.cleanup()
+        
+        if isinstance(response, LLMResponse):
+            return response.text
+        else:
+            return str(response)
+
+    # 非同期実行
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _generate)
+
+
 if __name__ == "__main__":
     main()
