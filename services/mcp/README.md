@@ -6,22 +6,23 @@ MCPモジュールは、弱いLLMでもエラーなしで動作する自動プ�
 
 ## 🎯 主要機能
 
-※設計機能がない。
-設計をしてやること。
-エラーの場合は検索機能を使用する
-構文エラーの場合は終わらない様にする。
-DB作成の時はサンプルコードを取ってくる様にする
+### 0. プロジェクト設計 (今後実装予定)
+- 要件分析・設計フェーズ
+- アーキテクチャ設計
+- ファイル構造設計
+- 命名規則自動生成
 
-構文エラーの場合は
 ### 1. 自動プロジェクト生成 (`auto_project_generator.py`)
 - CLIアプリケーション自動生成
 - テストコード自動生成
 - README自動作成
 
 ### 2. 自動デバッグ (`auto_debugger.py`)
-- 構文エラー自動修正
+- **構文エラー自動修正**（終了しない仕組み）
 - 5回連続エラー防止機構
 - 複数の修正手法自動切り替え
+- エラー発生時の検索機能統合
+- DB作成時のサンプルコード自動取得
 
 ### 3. バックグラウンドLLMサポート (`background_llm_support.py`)
 - 並行タスク実行
@@ -34,17 +35,13 @@ DB作成の時はサンプルコードを取ってくる様にする
 - セキュリティチェック
 
 ## 📁 ディレクトリ構造
- 
-※ 設計担当がない。
-プロジェクト命名のファイルがない
-要約用のファイルがない。コーディングの長さやプログラムによって関数名などを取得するもの
 
 ```
 services/mcp/
 ├── README.md                          # このファイル
 ├── CODING_RULES.md                    # コーディングルール（詳細版）
 ├── CONFIG.md                          # 設定ガイド
-├── TEMPLATE.md                        # プロジェクトテンプレート
+├── TEMPLATE.md                        # プロジェクトテンプレート（今後作成）
 ├── core.py                            # MCPコア機能
 ├── mcp_enhanced.py                    # MCP強化版
 ├── auto_project_generator.py          # プロジェクト自動生成
@@ -56,11 +53,19 @@ services/mcp/
 ├── prompt_optimizer.py                # プロンプト最適化
 ├── llm_investigator.py                # LLM調査機能
 ├── cmd_exec.py                        # コマンド実行
-├── natureremo_agent.py                # Nature Remo連携 ※いらない。NatureRemoは別のサービスなので
 ├── ai_prj_coding.py                   # AIプロジェクトコーディング
 ├── utils.py                           # ユーティリティ関数
 └── challenges/                        # チャレンジ課題
     └── mcp_health_check.py            # ヘルスチェック
+
+### 今後追加予定
+├── project_designer.py                # プロジェクト設計担当
+├── naming_generator.py                # プロジェクト命名・関数名自動生成
+├── code_summarizer.py                 # コード要約・関数抽出
+└── templates/                         # プロジェクトテンプレート集
+    ├── cli_basic.template
+    ├── db_app.template
+    └── web_scraper.template
 ```
 
 ## 🚀 使用方法
