@@ -1,0 +1,4 @@
+sqlite3
+alembic
+sqlalchemy
+typer

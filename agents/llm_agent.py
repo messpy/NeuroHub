@@ -32,12 +32,13 @@ from services.db.llm_history_manager import LLMHistoryManager
 
 
 @dataclass
+@dataclass
 class LLMRequest:
     """LLMリクエスト情報"""
     prompt: str
     system_message: str = ""
     request_type: str = "general"
-    max_tokens: int = 500  # デフォルトを500に増加
+    max_tokens: int = 4000  # コード生成に十分なトークン数
     temperature: float = 0.3
     preferred_provider: Optional[str] = None
     fallback_enabled: bool = True
@@ -58,7 +59,14 @@ class ProviderStatus:
 class LLMAgent:
     """LLM統合管理エージェント"""
 
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path: str = None, provider: str = None):
+        """
+        初期化
+
+        Args:
+            config_path: 設定ファイルパス
+            provider: 優先プロバイダー ('gemini', 'ollama', 'huggingface')
+        """
         self.project_root = project_root
         self.config = load_config()
         self.history_manager = LLMHistoryManager()
@@ -74,8 +82,12 @@ class LLMAgent:
         }
 
         # プロバイダー優先順位（設定可能）
-        self.provider_priority = self.config.get('llm', {}).get('provider_priority',
-                                                               ['gemini', 'huggingface', 'ollama'])
+        if provider:
+            # 指定されたプロバイダーを最優先にする
+            self.provider_priority = [provider] + [p for p in ['gemini', 'huggingface', 'ollama'] if p != provider]
+        else:
+            self.provider_priority = self.config.get('llm', {}).get('provider_priority',
+                                                                   ['gemini', 'huggingface', 'ollama'])
 
         # セッション開始
         self.session_id = self.history_manager.start_session("llm_agent")

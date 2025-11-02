@@ -605,6 +605,10 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, help="Model name to use")
     parser.add_argument("--prompt", type=str, help="Prompt to generate (alternative)")
     parser.add_argument("--host", type=str, help="Ollama host URL")
+    parser.add_argument("--build-mcp-model", action="store_true",
+                       help="MCP専用モデルをビルド（docs/MCP_CODING_RULES.mdを使用）")
+    parser.add_argument("--model-name", type=str,
+                       help="ビルドするモデル名（--build-mcp-modelと併用）")
     parser.add_argument("--list", action="store_true", help="List available models")
     parser.add_argument("--pull", type=str, help="Pull a model")
     parser.add_argument("--create", type=str, help="Create custom model from Modelfile")
@@ -674,6 +678,29 @@ if __name__ == "__main__":
                 print("Model creation successful")
             else:
                 print("Model creation failed")
+        elif args.build_mcp_model:
+            # MCP専用モデルをビルド
+            from modelfile_generator import ModelfileGenerator
+            
+            generator = ModelfileGenerator()
+            model_name = args.model_name or "neurohub-mcp-assistant"
+            
+            print(f"🔨 MCP専用モデルをビルド中...")
+            print(f"📄 ルールファイル: docs/MCP_CODING_RULES.md")
+            print(f"🏷️  モデル名: {model_name}")
+            
+            success = generator.generate_and_build(
+                purpose="mcp",
+                model_name=model_name
+            )
+            
+            if success:
+                print(f"\n✅ モデルビルド成功!")
+                print(f"\n使用方法:")
+                print(f"  python provider_ollama.py --model {model_name} --prompt \"コード生成して\"")
+            else:
+                print(f"\n❌ モデルビルド失敗")
+                exit(1)
         elif args.delete:
             print(f"Deleting model: {args.delete}")
             success = config.delete_model(args.delete, debug_logger)

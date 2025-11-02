@@ -23,7 +23,7 @@ class TestEnvironmentSetup:
         """一時ディレクトリフィクスチャの確認"""
         assert temp_dir.exists()
         assert temp_dir.is_dir()
-        
+
         # テストファイル作成
         test_file = temp_dir / "test.txt"
         test_file.write_text("テスト")
@@ -41,7 +41,7 @@ class TestEnvironmentSetup:
         assert "python" in sample_files
         assert "json" in sample_files
         assert "text" in sample_files
-        
+
         # Pythonファイルの内容確認
         py_content = sample_files["python"].read_text()
         assert "def hello_world" in py_content
@@ -71,7 +71,7 @@ class TestBasicFunctionality:
         """例外処理テスト"""
         with pytest.raises(ValueError):
             int("not_a_number")
-        
+
         with pytest.raises(ZeroDivisionError):
             1 / 0
 
@@ -83,18 +83,18 @@ class TestAsyncFunctionality:
     async def test_async_basic(self):
         """基本的な非同期テスト"""
         import asyncio
-        
+
         async def async_func():
             await asyncio.sleep(0.001)
             return "success"
-        
+
         result = await async_func()
         assert result == "success"
 
     async def test_async_with_mock(self):
         """非同期モックテスト"""
         from unittest.mock import AsyncMock
-        
+
         mock_func = AsyncMock(return_value="mocked_result")
         result = await mock_func()
         assert result == "mocked_result"
@@ -111,7 +111,7 @@ class TestUtilityFunctions:
         new_dir = temp_dir / "new_directory"
         new_dir.mkdir()
         assert new_dir.exists()
-        
+
         # ファイル作成
         new_file = new_dir / "file.txt"
         new_file.write_text("content")

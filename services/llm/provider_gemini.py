@@ -68,7 +68,9 @@ class GeminiConfig(LLMProviderConfig):
             if "top_p" in opts:
                 gen["topP"] = float(opts["top_p"])
             if "max_tokens" in opts:
-                gen["maxOutputTokens"] = int(opts["max_tokens"])
+                max_tokens_value = int(opts["max_tokens"])
+                gen["maxOutputTokens"] = max_tokens_value
+                print(f"[DEBUG-GEMINI] maxOutputTokens設定: {max_tokens_value}")
             if gen:
                 payload["generationConfig"] = gen
 

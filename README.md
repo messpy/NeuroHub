@@ -23,6 +23,8 @@ NeuroHubは、AI駆動のコミットメッセージ生成、チャンク処理�
 - **mcp_enhanced**: データベース統合MCPサーバー・14種類のメソッド対応
 - **llm_investigator**: LLM自発調査エージェント・複数エージェント協調
 - **natureremo_agent**: NatureRemo API統合・スマートホーム制御
+- **auto_project_generator**: 高度な自動プロジェクト生成・外部ライブラリ対応
+- **advanced_validator**: 5回連続成功検証システム・統計レポート機能
 - **標準フロー準拠**: MCPプロトコル完全対応・エラーハンドリング
 
 ### 💾 統合データベースシステム（services/db/）
@@ -228,6 +230,26 @@ response = await mcp_server.handle_request({
     }
 })
 # 結果: {'confidence': 0.90, 'recommendations': [...]}
+
+# 高度なプロジェクト自動生成（外部ライブラリ対応）
+response = await mcp_server.handle_request({
+    "method": "project.generate_advanced",
+    "params": {
+        "topic": "機械学習データ前処理パイプライン",
+        "libraries": ["pandas", "numpy", "scikit-learn"],
+        "complexity": "complex"
+    }
+})
+
+# 5回連続成功検証テスト
+response = await mcp_server.handle_request({
+    "method": "validation.run_advanced_test",
+    "params": {
+        "target_success_count": 5,
+        "include_external_libs": True,
+        "report_detail": True
+    }
+})
 
 # データベース統計の取得
 response = await mcp_server.handle_request({

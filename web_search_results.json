@@ -1,0 +1,53 @@
+{
+  "requests": {
+    "success": true,
+    "term": "requests",
+    "results": [
+      {
+        "term": "requests",
+        "title": "Requests",
+        "url": "https://ja.wikipedia.org/wiki/Requests",
+        "snippet": "Requestsは、HTTP向けのPythonのライブラリである。\nApache License 2.0の条件に基づいて配布されている。\nこのプロジェクトの目標は、HTTPリクエストを簡単で人間に優しいものにすることである。",
+        "source": "wikipedia_ja",
+        "confidence": 0.9,
+        "timestamp": "2025-11-01T17:38:34.062027"
+      }
+    ],
+    "source": "live_search",
+    "execution_time": 0.9645938873291016
+  },
+  "pandas": {
+    "success": true,
+    "term": "pandas",
+    "results": [
+      {
+        "term": "pandas",
+        "title": "Pandas",
+        "url": "https://ja.wikipedia.org/wiki/Pandas",
+        "snippet": "pandasは、プログラミング言語Pythonにおいて、データ解析を支援する機能を提供するライブラリである。特に、数表および時系列データを操作するためのデータ構造と演算を提供する。PandasはBSDライセンスのもとで提供されている。",
+        "source": "wikipedia_ja",
+        "confidence": 0.9,
+        "timestamp": "2025-11-01T17:38:35.281534"
+      }
+    ],
+    "source": "live_search",
+    "execution_time": 1.0638659000396729
+  },
+  "numpy": {
+    "success": true,
+    "term": "numpy",
+    "results": [
+      {
+        "term": "numpy",
+        "title": "NumPy",
+        "url": "https://en.wikipedia.org/wiki/NumPy",
+        "snippet": "NumPy is a library for the Python programming language, adding support for large, multi-dimensional arrays and matrices, along with a large collection of high-level mathematical functions to operate on these arrays. The predecessor of NumPy, Numeric, was originally created by Jim Hugunin with contributions from several other developers. In 2005, Travis Oliphant created NumPy by incorporating features of the competing Numarray into Numeric, with extensive modifications. NumPy is open-source software and has many contributors. NumPy is fiscally sponsored by NumFOCUS.",
+        "source": "wikipedia_en",
+        "confidence": 0.8,
+        "timestamp": "2025-11-01T17:38:36.490937"
+      }
+    ],
+    "source": "live_search",
+    "execution_time": 1.2044041156768799
+  }
+}

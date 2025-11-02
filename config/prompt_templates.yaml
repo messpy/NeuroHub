@@ -101,12 +101,12 @@ prompts:
 # API設定のテンプレート
 api_defaults:
   gemini:
-    max_tokens: 200
+    max_tokens: 8000  # コード生成に十分なトークン数（大幅増加）
     temperature: 0.3
     safety_settings: strict
 
   huggingface:
-    max_tokens: 200
+    max_tokens: 4000  # コード生成に十分なトークン数
     temperature: 0.3
     top_p: 0.9
 

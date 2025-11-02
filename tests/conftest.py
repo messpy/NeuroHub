@@ -94,16 +94,16 @@ def test_config() -> Dict[str, Any]:
 # def db_session(db_engine):
 #     """テスト用データベースセッション"""
 #     from services.db.models import Base
-    
+
 #     # テーブル作成
 #     Base.metadata.create_all(db_engine)
-    
+
 #     # セッション作成
 #     Session = sessionmaker(bind=db_engine)
 #     session = Session()
-    
+
 #     yield session
-    
+
 #     # クリーンアップ
 #     session.rollback()
 #     session.close()
@@ -114,7 +114,7 @@ def test_config() -> Dict[str, Any]:
 def mock_db_manager():
     """モックデータベースマネージャー"""
     # from services.db.database_manager import DatabaseManager
-    
+
     manager = Mock()
     manager.engine = Mock()
     manager.Session = Mock()
@@ -130,7 +130,7 @@ def mock_db_manager():
 def mock_llm_agent():
     """モックLLMエージェント"""
     # from agents.llm_agent import LLMAgent
-    
+
     agent = Mock()
     agent.provider = "test"
     agent.model = "test-model"
@@ -168,7 +168,7 @@ def mock_anthropic_client():
 def mock_git_agent():
     """モックGitエージェント"""
     # from agents.git_smart_agent import GitSmartAgent
-    
+
     agent = Mock()
     agent.repo = Mock()
     agent.get_status = AsyncMock(return_value={"status": "clean"})
@@ -181,18 +181,18 @@ def mock_git_agent():
 def git_repo(temp_dir):
     """テスト用Gitリポジトリ（簡易版）"""
     # import git  # GitPythonがインストールされていない場合の代替
-    
+
     repo_path = temp_dir / "test_repo"
     repo_path.mkdir()
-    
+
     # .gitディレクトリを作成してGitリポジトリの形を作る
     git_dir = repo_path / ".git"
     git_dir.mkdir()
-    
+
     # 初期ファイル作成
     test_file = repo_path / "test.txt"
     test_file.write_text("テストファイル")
-    
+
     return repo_path
 
 
@@ -202,7 +202,7 @@ def git_repo(temp_dir):
 def mock_mcp_server():
     """モックMCPサーバー"""
     # from services.mcp.mcp_enhanced import MCPEnhancedServer
-    
+
     server = Mock()
     server.is_running = Mock(return_value=True)
     server.start = AsyncMock()
@@ -215,7 +215,7 @@ def mock_mcp_server():
 def mock_mcp_client():
     """モックMCPクライアント"""
     # from services.mcp.mcp_enhanced import MCPEnhancedClient
-    
+
     client = Mock()
     client.is_connected = Mock(return_value=True)
     client.connect = AsyncMock()
@@ -230,7 +230,7 @@ def mock_mcp_client():
 def mock_discord_bot():
     """モックDiscordボット"""
     # from services.discord.discord_bot import DiscordBot
-    
+
     bot = Mock()
     bot.user = Mock()
     bot.user.id = 123456789
@@ -259,7 +259,7 @@ def mock_discord_context():
 def sample_files(temp_dir):
     """サンプルファイル群"""
     files = {}
-    
+
     # Python ファイル
     py_file = temp_dir / "sample.py"
     py_file.write_text('''
@@ -271,17 +271,17 @@ if __name__ == "__main__":
     print(hello_world())
 ''')
     files['python'] = py_file
-    
+
     # JSON ファイル
     json_file = temp_dir / "config.json"
     json_file.write_text('{"key": "value", "number": 42}')
     files['json'] = json_file
-    
+
     # テキストファイル
     txt_file = temp_dir / "readme.txt"
     txt_file.write_text("これはテスト用のREADMEファイルです。")
     files['text'] = txt_file
-    
+
     return files
 
 
@@ -295,10 +295,10 @@ def mock_http_session():
         mock_response.status = 200
         mock_response.json = AsyncMock(return_value={"status": "success"})
         mock_response.text = AsyncMock(return_value="success")
-        
+
         mock_session.return_value.__aenter__.return_value.get.return_value.__aenter__.return_value = mock_response
         mock_session.return_value.__aenter__.return_value.post.return_value.__aenter__.return_value = mock_response
-        
+
         yield mock_session
 
 
@@ -309,15 +309,15 @@ def capture_logs():
     """ログキャプチャ"""
     import logging
     from io import StringIO
-    
+
     log_capture = StringIO()
     handler = logging.StreamHandler(log_capture)
     logger = logging.getLogger()
     logger.addHandler(handler)
     logger.setLevel(logging.DEBUG)
-    
+
     yield log_capture
-    
+
     logger.removeHandler(handler)
 
 
@@ -353,7 +353,7 @@ def pytest_collection_modifyitems(config, items):
         # 統合テストは自動的にslowマーク
         if "integration" in item.keywords:
             item.add_marker(pytest.mark.slow)
-        
+
         # ファイル名でマーク自動付与
         if "test_db" in item.nodeid:
             item.add_marker(pytest.mark.db)
@@ -373,14 +373,14 @@ def pytest_collection_modifyitems(config, items):
 def cleanup_environment():
     """各テスト後の環境クリーンアップ"""
     yield
-    
+
     # 環境変数のクリーンアップ
     test_env_vars = [
         "TEST_DATABASE_URL",
         "TEST_API_KEY",
         "TEST_CONFIG_PATH",
     ]
-    
+
     for var in test_env_vars:
         if var in os.environ:
             del os.environ[var]
@@ -392,24 +392,24 @@ def cleanup_environment():
 def benchmark_timer():
     """ベンチマーク用タイマー"""
     import time
-    
+
     class Timer:
         def __init__(self):
             self.start_time = None
             self.end_time = None
-        
+
         def start(self):
             self.start_time = time.perf_counter()
             return self
-        
+
         def stop(self):
             self.end_time = time.perf_counter()
             return self
-        
+
         @property
         def elapsed(self):
             if self.start_time and self.end_time:
                 return self.end_time - self.start_time
             return None
-    
+
     return Timer()
