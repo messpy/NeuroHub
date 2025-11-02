@@ -16,10 +16,10 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 try:
-    from services.llm.provider_gemini import GeminiConfig
-    from services.llm.provider_huggingface import HuggingFaceConfig
-    from services.llm.provider_ollama import OllamaConfig
-    from services.llm.llm_common import LLMResponse, create_llm_response
+    from services.ai.provider_gemini import GeminiConfig
+    from services.ai.provider_huggingface import HuggingFaceConfig
+    from services.ai.provider_ollama import OllamaConfig
+    from services.ai.llm_common import LLMResponse, create_llm_response
 except ImportError as e:
     print(f"Import error: {e}")
     # フォールバック定義
@@ -52,8 +52,8 @@ class TestGeminiProvider:
     @pytest.fixture
     def mock_gemini_config(self):
         """モックされたGeminiConfig"""
-        with patch('services.llm.provider_gemini.load_config') as mock_config:
-            with patch('services.llm.provider_gemini.load_env_from_config'):
+        with patch('services.ai.provider_gemini.load_config') as mock_config:
+            with patch('services.ai.provider_gemini.load_env_from_config'):
                 mock_config.return_value = {
                     'llm': {
                         'providers': {
@@ -86,7 +86,7 @@ class TestGeminiProvider:
         mock_gemini_config.api_key = None
         assert mock_gemini_config.is_configured() is False
 
-    @patch('services.llm.provider_gemini.make_api_request')
+    @patch('services.ai.provider_gemini.make_api_request')
     def test_test_connection_success(self, mock_request, mock_gemini_config):
         """接続テスト成功"""
         mock_request.return_value = (200, {'candidates': [{'content': {'parts': [{'text': 'test'}]}}]})
@@ -97,7 +97,7 @@ class TestGeminiProvider:
         assert message is None
         assert isinstance(response_time, float)
 
-    @patch('services.llm.provider_gemini.make_api_request')
+    @patch('services.ai.provider_gemini.make_api_request')
     def test_test_connection_failure(self, mock_request, mock_gemini_config):
         """接続テスト失敗"""
         mock_request.return_value = (401, {'error': {'message': 'Invalid API key'}})
@@ -107,7 +107,7 @@ class TestGeminiProvider:
         assert success is False
         assert 'Invalid API key' in message
 
-    @patch('services.llm.provider_gemini.make_api_request')
+    @patch('services.ai.provider_gemini.make_api_request')
     def test_generate_text_success(self, mock_request, mock_gemini_config):
         """テキスト生成成功テスト"""
         mock_request.return_value = (200, {
@@ -129,7 +129,7 @@ class TestGeminiProvider:
         assert response.content == 'Generated response'
         assert response.provider == 'gemini'
 
-    @patch('services.llm.provider_gemini.make_api_request')
+    @patch('services.ai.provider_gemini.make_api_request')
     def test_generate_text_api_error(self, mock_request, mock_gemini_config):
         """API エラーテスト"""
         mock_request.return_value = (400, {'error': {'message': 'Bad request'}})
@@ -146,8 +146,8 @@ class TestHuggingFaceProvider:
     @pytest.fixture
     def mock_hf_config(self):
         """モックされたHuggingFaceConfig"""
-        with patch('services.llm.provider_huggingface.load_config') as mock_config:
-            with patch('services.llm.provider_huggingface.load_env_from_config'):
+        with patch('services.ai.provider_huggingface.load_config') as mock_config:
+            with patch('services.ai.provider_huggingface.load_env_from_config'):
                 mock_config.return_value = {
                     'llm': {
                         'providers': {
@@ -180,7 +180,7 @@ class TestHuggingFaceProvider:
         mock_hf_config.token = None
         assert mock_hf_config.is_configured() is False
 
-    @patch('services.llm.provider_huggingface.make_api_request')
+    @patch('services.ai.provider_huggingface.make_api_request')
     def test_test_connection_success(self, mock_request, mock_hf_config):
         """接続テスト成功"""
         mock_request.return_value = (200, {
@@ -193,7 +193,7 @@ class TestHuggingFaceProvider:
         assert message is None
         assert isinstance(response_time, float)
 
-    @patch('services.llm.provider_huggingface.make_api_request')
+    @patch('services.ai.provider_huggingface.make_api_request')
     def test_generate_text_success(self, mock_request, mock_hf_config):
         """テキスト生成成功テスト"""
         mock_request.return_value = (200, {
@@ -221,8 +221,8 @@ class TestOllamaProvider:
     @pytest.fixture
     def mock_ollama_config(self):
         """モックされたOllamaConfig"""
-        with patch('services.llm.provider_ollama.load_config') as mock_config:
-            with patch('services.llm.provider_ollama.load_env_from_config'):
+        with patch('services.ai.provider_ollama.load_config') as mock_config:
+            with patch('services.ai.provider_ollama.load_env_from_config'):
                 mock_config.return_value = {
                     'llm': {
                         'providers': {
@@ -246,7 +246,7 @@ class TestOllamaProvider:
         """常に設定済みとするテスト（Ollamaはローカル）"""
         assert mock_ollama_config.is_configured() is True
 
-    @patch('services.llm.provider_ollama.make_api_request')
+    @patch('services.ai.provider_ollama.make_api_request')
     def test_test_connection_success(self, mock_request, mock_ollama_config):
         """接続テスト成功"""
         # /api/tags エンドポイントの応答
@@ -259,7 +259,7 @@ class TestOllamaProvider:
         assert success is True
         assert message is None
 
-    @patch('services.llm.provider_ollama.make_api_request')
+    @patch('services.ai.provider_ollama.make_api_request')
     def test_test_connection_server_down(self, mock_request, mock_ollama_config):
         """サーバー停止時テスト"""
         mock_request.side_effect = Exception("Connection refused")
@@ -269,7 +269,7 @@ class TestOllamaProvider:
         assert success is False
         assert 'Connection refused' in message
 
-    @patch('services.llm.provider_ollama.make_api_request')
+    @patch('services.ai.provider_ollama.make_api_request')
     def test_generate_text_success(self, mock_request, mock_ollama_config):
         """テキスト生成成功テスト"""
         mock_request.return_value = (200, {
@@ -334,12 +334,12 @@ class TestLLMProviderIntegration:
 
     def test_provider_interface_consistency(self):
         """プロバイダーインターフェース一貫性テスト"""
-        with patch('services.llm.provider_gemini.load_config'), \
-             patch('services.llm.provider_gemini.load_env_from_config'), \
-             patch('services.llm.provider_huggingface.load_config'), \
-             patch('services.llm.provider_huggingface.load_env_from_config'), \
-             patch('services.llm.provider_ollama.load_config'), \
-             patch('services.llm.provider_ollama.load_env_from_config'):
+        with patch('services.ai.provider_gemini.load_config'), \
+             patch('services.ai.provider_gemini.load_env_from_config'), \
+             patch('services.ai.provider_huggingface.load_config'), \
+             patch('services.ai.provider_huggingface.load_env_from_config'), \
+             patch('services.ai.provider_ollama.load_config'), \
+             patch('services.ai.provider_ollama.load_env_from_config'):
 
             providers = [
                 GeminiConfig(),
@@ -358,9 +358,9 @@ class TestLLMProviderIntegration:
                 assert callable(provider.test_connection)
                 assert callable(provider.generate_text)
 
-    @patch('services.llm.provider_gemini.make_api_request')
-    @patch('services.llm.provider_huggingface.make_api_request')
-    @patch('services.llm.provider_ollama.make_api_request')
+    @patch('services.ai.provider_gemini.make_api_request')
+    @patch('services.ai.provider_huggingface.make_api_request')
+    @patch('services.ai.provider_ollama.make_api_request')
     def test_all_providers_response_format(self, mock_ollama_req, mock_hf_req, mock_gemini_req):
         """全プロバイダーのレスポンス形式統一テスト"""
         # モックレスポンス設定
@@ -377,12 +377,12 @@ class TestLLMProviderIntegration:
             'done': True
         })
 
-        with patch('services.llm.provider_gemini.load_config'), \
-             patch('services.llm.provider_gemini.load_env_from_config'), \
-             patch('services.llm.provider_huggingface.load_config'), \
-             patch('services.llm.provider_huggingface.load_env_from_config'), \
-             patch('services.llm.provider_ollama.load_config'), \
-             patch('services.llm.provider_ollama.load_env_from_config'):
+        with patch('services.ai.provider_gemini.load_config'), \
+             patch('services.ai.provider_gemini.load_env_from_config'), \
+             patch('services.ai.provider_huggingface.load_config'), \
+             patch('services.ai.provider_huggingface.load_env_from_config'), \
+             patch('services.ai.provider_ollama.load_config'), \
+             patch('services.ai.provider_ollama.load_env_from_config'):
 
             providers = [
                 GeminiConfig(),

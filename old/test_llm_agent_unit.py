@@ -56,12 +56,12 @@ class TestLLMAgentCore:
     @pytest.fixture
     def llm_agent(self, mock_config, mock_providers):
         """LLMエージェントフィクスチャ"""
-        with patch('agents.llm_agent.load_config', return_value=mock_config), \
-             patch('agents.llm_agent.load_env_from_config'), \
-             patch('agents.llm_agent.LLMHistoryManager') as mock_history, \
-             patch('agents.llm_agent.GeminiConfig', return_value=mock_providers['gemini']), \
-             patch('agents.llm_agent.HuggingFaceConfig', return_value=mock_providers['huggingface']), \
-             patch('agents.llm_agent.OllamaConfig', return_value=mock_providers['ollama']):
+        with patch('agents.agent_llm.load_config', return_value=mock_config), \
+             patch('agents.agent_llm.load_env_from_config'), \
+             patch('agents.agent_llm.LLMHistoryManager') as mock_history, \
+             patch('services.ai.provider_gemini.GeminiConfig', return_value=mock_providers['gemini']), \
+             patch('services.ai.provider_huggingface.HuggingFaceConfig', return_value=mock_providers['huggingface']), \
+             patch('agents.agent_llm.OllamaConfig', return_value=mock_providers['ollama']):
 
             # モックhistory_manager設定
             mock_history_instance = Mock()
@@ -163,7 +163,7 @@ class TestLLMAgentTextGeneration:
             mock_gemini.test_connection.return_value = True
 
             # LLMResponseモック
-            from services.llm.llm_common import LLMResponse
+            from services.ai.llm_common import LLMResponse
             mock_response = LLMResponse(
                 status_code=200,
                 content="テストレスポンス",
@@ -175,9 +175,9 @@ class TestLLMAgentTextGeneration:
             )
             mock_gemini.generate_text.return_value = mock_response
 
-            with patch('agents.llm_agent.GeminiConfig', return_value=mock_gemini), \
-                 patch('agents.llm_agent.HuggingFaceConfig'), \
-                 patch('agents.llm_agent.OllamaConfig'):
+            with patch('services.ai.provider_gemini.GeminiConfig', return_value=mock_gemini), \
+                 patch('services.ai.provider_huggingface.HuggingFaceConfig'), \
+                 patch('agents.agent_llm.OllamaConfig'):
 
                 from agents.agent_llm import LLMAgent
                 agent = LLMAgent()
@@ -413,7 +413,7 @@ class TestLLMAgentIntegration:
             mock_provider.is_configured.return_value = True
             mock_provider.test_connection.return_value = True
 
-            from services.llm.llm_common import LLMResponse
+            from services.ai.llm_common import LLMResponse
             mock_response = LLMResponse(
                 status_code=200,
                 content="統合テストレスポンス",
@@ -425,9 +425,9 @@ class TestLLMAgentIntegration:
             )
             mock_provider.generate_text.return_value = mock_response
 
-            with patch('agents.llm_agent.GeminiConfig', return_value=mock_provider), \
-                 patch('agents.llm_agent.HuggingFaceConfig'), \
-                 patch('agents.llm_agent.OllamaConfig'):
+            with patch('services.ai.provider_gemini.GeminiConfig', return_value=mock_provider), \
+                 patch('services.ai.provider_huggingface.HuggingFaceConfig'), \
+                 patch('agents.agent_llm.OllamaConfig'):
 
                 from agents.agent_llm import LLMAgent, LLMRequest
 
