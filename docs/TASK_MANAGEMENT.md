@@ -75,6 +75,7 @@
 | ✅ DONE-010 | 3つのLLM「こんにちは」テスト | 2025-11-02 | test_hello_llm.py作成、Ollama/Gemini/HuggingFace全成功 (3/3 PASSED) |
 | ✅ DONE-011 | MCP新フロー実装 | 2025-11-02 | spec_normalizer.py, command_validator.py, project_designer.py作成、test_mcp_workflow.py (6/6 PASSED) |
 | ✅ DONE-012 | 日本語ドキュメント体系整備 | 2025-11-02 | docs/jp/構造化、エージェント別設計書、HTML版生成（24ファイル、6677行追加） |
+| ✅ DONE-013 | Docker対応実装 | 2025-11-02 | Dockerfile, docker-compose.yml, .dockerignore, DOCKER_SETUP.md作成、Windows/ラズパイ統一環境（7ファイル、648行追加） |
 
 ---
 
