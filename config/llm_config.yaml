@@ -5,39 +5,39 @@ llm:
     max_tokens: 200
     temperature: 0.3
     timeout: 30
-  
+
   logging:
     enabled: true
     log_level: 2
     store_debug_info: true
-  
+
   # 用途別プロバイダー優先度設定
   priority_profiles:
     default:
       - ollama
       - gemini
       - huggingface
-    
+
     coding:
       # コーディング用：精度重視
       - ollama
       - gemini
       - huggingface
-    
+
     explanation:
       # 説明生成用：自然な文章重視
       - ollama
       - gemini
-    
+
     image_analysis:
       # 画像分析用：マルチモーダル対応モデル優先
       - gemini  # Gemini Vision対応
       - ollama  # llava等のビジョンモデル
-    
+
     safe_mode:
       # 安全第一：ローカルのみ
       - ollama
-  
+
   providers:
     ollama:
       enabled: true
@@ -49,7 +49,7 @@ llm:
       timeout: 30
       # ビジョンモデル設定（画像分析用）
       vision_model: llava:7b
-    
+
     gemini:
       enabled: false  # API KEY設定後に有効化
       priority: 2
@@ -60,7 +60,7 @@ llm:
       timeout: 30
       # ビジョンモデル設定
       vision_model: gemini-1.5-flash
-    
+
     huggingface:
       enabled: false  # API KEY設定後に有効化
       priority: 3

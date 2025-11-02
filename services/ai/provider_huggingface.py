@@ -124,8 +124,12 @@ class HuggingFaceConfig(LLMProviderConfig):
                 content = json.dumps(data, ensure_ascii=False)
 
             usage = data.get('usage', {})
-            return create_llm_response(200, 'huggingface', self.current_model, content, None, elapsed,
-                                     usage.get('total_tokens'), usage.get('prompt_tokens'), usage.get('completion_tokens'))
+            return create_llm_response(
+                200, 'huggingface', self.current_model, content, None, elapsed,
+                tokens_used=usage.get('total_tokens'),
+                tokens_input=usage.get('prompt_tokens'),
+                tokens_output=usage.get('completion_tokens')
+            )
         except Exception as e:
             return create_llm_response(500, 'huggingface', self.current_model, '', str(e), time.time() - start)
 

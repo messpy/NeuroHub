@@ -26,12 +26,12 @@ providers:
     base_url: "http://localhost:11434"
     default_model: "llama3.2:latest"
     timeout: 120
-    
+
   gemini:
     api_key: "${GEMINI_API_KEY}"  # .envから読み込み
     default_model: "gemini-2.5-flash"
     timeout: 60
-    
+
   huggingface:
     api_key: "${HUGGINGFACE_API_KEY}"
     base_url: "https://router.huggingface.co/v1"
@@ -287,7 +287,7 @@ prompt_optimization:
   max_tokens: 4096
   temperature: 0.7
   top_p: 0.9
-  
+
   # コンテキスト圧縮
   compression:
     enabled: true
@@ -302,14 +302,14 @@ prompt_optimization:
 auto_debugger:
   max_retries: 5
   timeout: 300  # 秒
-  
+
   # エラー検知パターン
   error_patterns:
     - "SyntaxError"
     - "IndentationError"
     - "NameError"
     - "TypeError"
-  
+
   # 修正手法
   fix_strategies:
     - "syntax_check"

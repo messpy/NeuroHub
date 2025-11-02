@@ -16,11 +16,11 @@ from datetime import datetime
 
 class HTMLDocGenerator:
     """HTML ドキュメント生成クラス"""
-    
+
     def __init__(self, docs_dir: str = "docs/jp", output_dir: str = "docs/html"):
         """
         初期化
-        
+
         Args:
             docs_dir: ソースMarkdownディレクトリ
             output_dir: 出力HTMLディレクトリ
@@ -28,7 +28,7 @@ class HTMLDocGenerator:
         self.docs_dir = Path(docs_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Markdownパーサー設定
         self.md = markdown.Markdown(
             extensions=[
@@ -39,33 +39,33 @@ class HTMLDocGenerator:
                 'fenced_code'
             ]
         )
-    
+
     def generate_all(self):
         """全Markdownファイルを HTML に変換"""
         print("🚀 HTML ドキュメント生成開始...")
-        
+
         # トップページ生成
         self._generate_index()
-        
+
         # 全Markdownファイル変換
         md_files = list(self.docs_dir.rglob("*.md"))
         print(f"📄 {len(md_files)}個のMarkdownファイルを検出")
-        
+
         for md_file in md_files:
             self._convert_md_to_html(md_file)
-        
+
         # CSS生成
         self._generate_css()
-        
+
         # JavaScript生成
         self._generate_js()
-        
+
         print(f"✅ HTML生成完了: {self.output_dir}")
-    
+
     def _convert_md_to_html(self, md_path: Path):
         """
         Markdownファイルを HTML に変換
-        
+
         Args:
             md_path: Markdownファイルパス
         """
@@ -73,35 +73,35 @@ class HTMLDocGenerator:
         rel_path = md_path.relative_to(self.docs_dir)
         html_path = self.output_dir / rel_path.with_suffix('.html')
         html_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Markdown読み込み
         with open(md_path, 'r', encoding='utf-8') as f:
             md_content = f.read()
-        
+
         # HTML変換
         html_content = self.md.convert(md_content)
-        
+
         # タイトル抽出
         title = self._extract_title(md_content)
-        
+
         # HTMLテンプレート適用
         full_html = self._apply_template(html_content, title, rel_path)
-        
+
         # HTML保存
         with open(html_path, 'w', encoding='utf-8') as f:
             f.write(full_html)
-        
+
         print(f"  ✓ {md_path.name} → {html_path.name}")
-    
+
     def _extract_title(self, md_content: str) -> str:
         """Markdownからタイトル抽出"""
         match = re.search(r'^#\s+(.+)$', md_content, re.MULTILINE)
         return match.group(1) if match else "NeuroHub Documentation"
-    
+
     def _apply_template(self, content: str, title: str, rel_path: Path) -> str:
         """
         HTMLテンプレート適用
-        
+
         Args:
             content: 本文HTML
             title: ページタイトル
@@ -110,10 +110,10 @@ class HTMLDocGenerator:
         # ルートからの相対パス計算
         depth = len(rel_path.parts) - 1
         root_path = "../" * depth if depth > 0 else "./"
-        
+
         # ナビゲーション生成
         nav_html = self._generate_nav(rel_path)
-        
+
         # テンプレート
         template = f"""<!DOCTYPE html>
 <html lang="ja">
@@ -133,7 +133,7 @@ class HTMLDocGenerator:
                 {nav_html}
             </nav>
         </aside>
-        
+
         <main class="content">
             <div class="breadcrumb">
                 {self._generate_breadcrumb(rel_path)}
@@ -151,7 +151,7 @@ class HTMLDocGenerator:
 </body>
 </html>"""
         return template
-    
+
     def _generate_nav(self, current_path: Path) -> str:
         """ナビゲーションメニュー生成"""
         nav_items = {
@@ -169,7 +169,7 @@ class HTMLDocGenerator:
                 "Command": "agents/command/README.html"
             }
         }
-        
+
         html = "<ul>"
         for label, link in nav_items.items():
             if isinstance(link, dict):
@@ -181,21 +181,21 @@ class HTMLDocGenerator:
             else:
                 html += f'<li><a href="{link}">{label}</a></li>'
         html += "</ul>"
-        
+
         return html
-    
+
     def _generate_breadcrumb(self, rel_path: Path) -> str:
         """パンくずリスト生成"""
         parts = rel_path.parts[:-1]  # ファイル名除く
         breadcrumb = '<a href="index.html">ホーム</a>'
-        
+
         path_accumulator = ""
         for part in parts:
             path_accumulator += part + "/"
             breadcrumb += f' &gt; <a href="{path_accumulator}README.html">{part}</a>'
-        
+
         return breadcrumb
-    
+
     def _generate_index(self):
         """トップページ生成"""
         index_content = """
@@ -219,19 +219,19 @@ class HTMLDocGenerator:
 
 *このドキュメントはMarkdownから自動生成されています*
 """
-        
+
         index_html = self.md.convert(index_content)
         full_html = self._apply_template(
             index_html,
             "NeuroHub Documentation",
             Path("index.html")
         )
-        
+
         with open(self.output_dir / "index.html", 'w', encoding='utf-8') as f:
             f.write(full_html)
-        
+
         print("  ✓ index.html 生成")
-    
+
     def _generate_css(self):
         """CSS生成"""
         css = """/* NeuroHub Documentation CSS */
@@ -429,19 +429,19 @@ article a:hover {
         position: relative;
         height: auto;
     }
-    
+
     .content {
         margin-left: 0;
         padding: 20px;
     }
 }
 """
-        
+
         with open(self.output_dir / "style.css", 'w', encoding='utf-8') as f:
             f.write(css)
-        
+
         print("  ✓ style.css 生成")
-    
+
     def _generate_js(self):
         """JavaScript生成"""
         js = """// NeuroHub Documentation JavaScript
@@ -462,11 +462,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         block.parentElement.appendChild(button);
     });
-    
+
     // 目次ハイライト
     const headers = document.querySelectorAll('h2, h3');
     const navLinks = document.querySelectorAll('.sidebar-nav a');
-    
+
     window.addEventListener('scroll', function() {
         let current = '';
         headers.forEach(function(header) {
@@ -475,7 +475,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 current = header.getAttribute('id');
             }
         });
-        
+
         navLinks.forEach(function(link) {
             link.classList.remove('active');
             if (link.getAttribute('href').includes(current)) {
@@ -485,10 +485,10 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 """
-        
+
         with open(self.output_dir / "script.js", 'w', encoding='utf-8') as f:
             f.write(js)
-        
+
         print("  ✓ script.js 生成")
 
 

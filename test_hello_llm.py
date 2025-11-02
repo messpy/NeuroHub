@@ -29,9 +29,9 @@ def test_ollama_hello():
         if not config.is_configured():
             print("❌ Ollama未設定")
             return False
-        
+
         response = config.infer("こんにちは")
-        
+
         if response.status_code == 200:
             print(f"✅ Ollama応答成功")
             print(f"  モデル: {response.model}")
@@ -53,9 +53,9 @@ def test_gemini_hello():
         if not config.is_configured():
             print("❌ Gemini未設定（API キー不足）")
             return False
-        
+
         response = config.infer("こんにちは")
-        
+
         if response.status_code == 200:
             print(f"✅ Gemini応答成功")
             print(f"  モデル: {response.model}")
@@ -77,9 +77,9 @@ def test_huggingface_hello():
         if not config.is_configured():
             print("❌ HuggingFace未設定（API キー不足）")
             return False
-        
+
         response = config.infer("こんにちは")
-        
+
         if response.status_code == 200:
             print(f"✅ HuggingFace応答成功")
             print(f"  モデル: {response.model}")
@@ -98,26 +98,26 @@ def main():
     print("=" * 60)
     print("3つのLLMプロバイダー「こんにちは」応答テスト")
     print("=" * 60)
-    
+
     results = {
         "Ollama": test_ollama_hello(),
         "Gemini": test_gemini_hello(),
         "HuggingFace": test_huggingface_hello()
     }
-    
+
     print("\n" + "=" * 60)
     print("結果サマリー")
     print("=" * 60)
-    
+
     success_count = sum(results.values())
     total_count = len(results)
-    
+
     for provider, success in results.items():
         status = "✅ 成功" if success else "❌ 失敗"
         print(f"{provider:15s}: {status}")
-    
+
     print(f"\n成功率: {success_count}/{total_count} ({success_count/total_count*100:.1f}%)")
-    
+
     if success_count == total_count:
         print("\n🎉 全プロバイダー成功！")
         return 0

@@ -20,6 +20,7 @@ mode: agent
    - 🐧 使用者は全員LinuxでNeuroHubを動かしている
    - 💻 コマンド例: `wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && python3 script.py"`
    - テストを重視しコードのエラーは必ず修正する
+   - 削除コマンドは使わないこと oldに移動すること
 3. **タスク管理**
    - 📋 **作業開始前**: 必ず `docs/TASK_MANAGEMENT.md` のタスクリストを確認
    - ✅ **作業完了後**: 完了したタスクをチェック、新規タスクを追加 #  copilotさんへのお願いを読んで再度確認する　タスクが終わればそちらを完了リストに追加する

@@ -125,8 +125,12 @@ class GeminiConfig(LLMProviderConfig):
                 content = json.dumps(data, ensure_ascii=False)
 
             usage = data.get('usageMetadata', {})
-            return create_llm_response(200, 'gemini', self.current_model, content, None, elapsed,
-                                     usage.get('totalTokenCount'), usage.get('promptTokenCount'), usage.get('candidatesTokenCount'))
+            return create_llm_response(
+                200, 'gemini', self.current_model, content, None, elapsed,
+                tokens_used=usage.get('totalTokenCount'),
+                tokens_input=usage.get('promptTokenCount'),
+                tokens_output=usage.get('candidatesTokenCount')
+            )
         except Exception as e:
             return create_llm_response(500, 'gemini', self.current_model, '', str(e), time.time() - start)
 

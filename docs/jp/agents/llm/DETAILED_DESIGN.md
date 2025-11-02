@@ -85,30 +85,30 @@ class LLMResponse:
 def __init__(self, config_path: str = None, provider: str = None):
     """
     初期化
-    
+
     Args:
         config_path: 設定ファイルパス（デフォルト: config/llm_config.yaml）
         provider: 優先プロバイダー（'ollama', 'gemini', 'huggingface'）
     """
     # 1. プロジェクトルート設定
     self.project_root = Path(__file__).parent.parent
-    
+
     # 2. 設定ファイル読み込み
     self.config = load_config(config_path)
-    
+
     # 3. 環境変数読み込み
     load_env_from_config()
-    
+
     # 4. プロバイダー初期化
     self.providers = {
         'ollama': OllamaProvider(),
         'gemini': GeminiProvider(),
         'huggingface': HuggingFaceProvider()
     }
-    
+
     # 5. 優先順位設定
     self.provider_priority = self._set_priority(provider)
-    
+
     # 6. 履歴管理初期化
     self.history_manager = LLMHistoryManager()
     self.session_id = self.history_manager.start_session("llm_agent")
@@ -124,7 +124,7 @@ def __init__(self, config_path: str = None, provider: str = None):
 def get_available_providers(self) -> List[str]:
     """
     利用可能なプロバイダー一覧を取得
-    
+
     Returns:
         利用可能なプロバイダー名リスト
     """
@@ -141,10 +141,10 @@ def get_available_providers(self) -> List[str]:
 def set_provider_priority(self, priority: List[str]):
     """
     プロバイダー優先順位を設定
-    
+
     Args:
         priority: プロバイダー名リスト（優先順）
-        
+
     Example:
         agent.set_provider_priority(["gemini", "ollama", "huggingface"])
     """
@@ -157,17 +157,17 @@ def set_provider_priority(self, priority: List[str]):
 def get_provider_status(self, provider: str) -> ProviderStatus:
     """
     プロバイダー状態を取得
-    
+
     Args:
         provider: プロバイダー名
-        
+
     Returns:
         ProviderStatus オブジェクト
     """
     # キャッシュチェック
     if self._is_cache_valid():
         return self._provider_status_cache.get(provider)
-    
+
     # 状態取得
     provider_obj = self.providers.get(provider)
     if not provider_obj:
@@ -177,14 +177,14 @@ def get_provider_status(self, provider: str) -> ProviderStatus:
             configured=False,
             error_message="Provider not found"
         )
-    
+
     status = ProviderStatus(
         name=provider,
         available=provider_obj.is_available(),
         configured=provider_obj.is_configured(),
         success_rate=self._calculate_success_rate(provider)
     )
-    
+
     # キャッシュ更新
     self._provider_status_cache[provider] = status
     return status
@@ -206,16 +206,16 @@ def generate_response(
 ) -> str:
     """
     プロンプトから応答を生成
-    
+
     Args:
         prompt: プロンプト本文
         system_message: システムメッセージ
         provider: 優先プロバイダー（Noneの場合は自動選択）
         **kwargs: 追加パラメータ
-        
+
     Returns:
         生成された応答テキスト
-        
+
     Raises:
         RuntimeError: 全プロバイダーで失敗した場合
     """
@@ -226,16 +226,16 @@ def generate_response(
         preferred_provider=provider,
         **kwargs
     )
-    
+
     # プロバイダー選択
     selected_provider = self._select_provider(request)
-    
+
     # リクエスト実行
     response = self._execute_request(selected_provider, request)
-    
+
     # 履歴記録
     self._save_to_history(request, response)
-    
+
     return response.content
 ```
 
@@ -249,42 +249,42 @@ def generate_response_with_fallback(
 ) -> str:
     """
     フォールバック機能付き応答生成
-    
+
     優先順位に従って複数プロバイダーを試行し、
     最初に成功したプロバイダーの応答を返す
-    
+
     Args:
         prompt: プロンプト本文
         **kwargs: 追加パラメータ
-        
+
     Returns:
         生成された応答テキスト
-        
+
     Raises:
         RuntimeError: 全プロバイダーで失敗
     """
     errors = {}
-    
+
     for provider_name in self.provider_priority:
         try:
             # プロバイダー状態確認
             status = self.get_provider_status(provider_name)
             if not status.available or not status.configured:
                 continue
-            
+
             # リクエスト実行
             response = self.generate_response(
                 prompt=prompt,
                 provider=provider_name,
                 **kwargs
             )
-            
+
             return response
-            
+
         except Exception as e:
             errors[provider_name] = str(e)
             continue
-    
+
     # 全プロバイダーで失敗
     error_msg = "\n".join([f"{k}: {v}" for k, v in errors.items()])
     raise RuntimeError(f"全プロバイダーで失敗:\n{error_msg}")
@@ -300,10 +300,10 @@ def generate_response_with_fallback(
 def list_models(self, provider: str = None) -> List[str]:
     """
     利用可能なモデル一覧を取得
-    
+
     Args:
         provider: プロバイダー名（Noneの場合は全プロバイダー）
-        
+
     Returns:
         モデル名リスト
     """
@@ -312,7 +312,7 @@ def list_models(self, provider: str = None) -> List[str]:
         if provider_obj:
             return provider_obj.list_models()
         return []
-    
+
     # 全プロバイダーのモデル一覧
     all_models = {}
     for name, provider_obj in self.providers.items():
@@ -321,7 +321,7 @@ def list_models(self, provider: str = None) -> List[str]:
             all_models[name] = models
         except Exception as e:
             all_models[name] = []
-    
+
     return all_models
 ```
 
@@ -331,18 +331,18 @@ def list_models(self, provider: str = None) -> List[str]:
 def switch_model(self, provider: str, model: str):
     """
     使用モデルを切り替え
-    
+
     Args:
         provider: プロバイダー名
         model: モデル名
-        
+
     Raises:
         ValueError: プロバイダーまたはモデルが存在しない
     """
     provider_obj = self.providers.get(provider)
     if not provider_obj:
         raise ValueError(f"プロバイダー '{provider}' が存在しません")
-    
+
     # モデル存在確認
     available_models = provider_obj.list_models()
     if model not in available_models:
@@ -350,7 +350,7 @@ def switch_model(self, provider: str, model: str):
             f"モデル '{model}' は利用できません。"
             f"利用可能: {available_models}"
         )
-    
+
     # モデル切り替え
     provider_obj.set_model(model)
 ```
@@ -365,7 +365,7 @@ def switch_model(self, provider: str, model: str):
 def _select_provider(self, request: LLMRequest) -> str:
     """
     最適なプロバイダーを選択
-    
+
     選択基準:
     1. preferred_providerが指定されている場合はそれを優先
     2. 利用可能性・設定状態をチェック
@@ -377,30 +377,30 @@ def _select_provider(self, request: LLMRequest) -> str:
         status = self.get_provider_status(request.preferred_provider)
         if status.available and status.configured:
             return request.preferred_provider
-    
+
     # 自動選択
     best_provider = None
     best_score = -1
-    
+
     for provider_name in self.provider_priority:
         status = self.get_provider_status(provider_name)
-        
+
         if not status.available or not status.configured:
             continue
-        
+
         # スコア計算（成功率重視）
         score = status.success_rate * 0.7
         if status.last_response_time:
             # レスポンス時間も考慮（速いほど高スコア）
             score += (1.0 / max(status.last_response_time, 0.1)) * 0.3
-        
+
         if score > best_score:
             best_score = score
             best_provider = provider_name
-    
+
     if not best_provider:
         raise RuntimeError("利用可能なプロバイダーがありません")
-    
+
     return best_provider
 ```
 

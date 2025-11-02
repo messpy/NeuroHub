@@ -62,7 +62,7 @@ docker-compose up -d
 docker-compose logs -f neurohub
 ```
 
-**メリット**: 
+**メリット**:
 - ⚡ 超簡単セットアップ
 - 🌍 環境統一（Windows/Linux/ラズパイ）
 - 🔒 安定動作
