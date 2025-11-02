@@ -84,6 +84,7 @@
 | ✅ DONE-019 | 総合テストレポート作成 | 2025-11-02 | 250テスト実行、成功率53.2%、コードカバレッジ9.31%、改善案提示 |
 | ✅ DONE-020 | MCPエージェント開発デモ | 2025-11-02 | ファイル管理CLI自動生成、3ファイル生成、課題検出・改善案提示 |
 | ✅ DONE-021 | ルートフォルダ整理完了 | 2025-11-03 | htmlcov→_archive、generated_projects→services/mcp、venv統一、不要ファイル40+個→old、ルート77%削減 |
+| ✅ DONE-022 | Docker環境構築見直し | 2025-11-03 | Dockerfile/docker-compose修正、統合セットアップスクリプト作成、DEPENDENCIES.md/DOCKER_SETUP.md大幅更新 |
 
 ---
 
