@@ -67,10 +67,6 @@ addopts = [
     "--cov-fail-under=40",
 ]
 
-# 非同期テスト設定
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
-
 # マーカー定義
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
