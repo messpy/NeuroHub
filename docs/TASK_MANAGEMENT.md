@@ -69,6 +69,8 @@
 | ✅ DONE-004 | 文字の折り返し安全対策実装 | 2024-12-19 | llm_common.pyに日本語対応安全テキスト処理追加 |
 | ✅ DONE-005 | 設計書・README更新 | 2024-12-19 | ARCHITECTURE_DESIGN.md作成、README.md新機能反映 |
 | ✅ DONE-006 | 重複ファイル整理 | 2025-11-01 | mcp_*(4個)とtest_llm_*(7個)をold/に移動、utils.py作成 |
+| ✅ DONE-007 | Gemini/HuggingFace単体テスト | 2025-11-02 | test_provider_gemini.py (4/4 PASSED), test_provider_huggingface.py (4/4 PASSED), モデル自動取得機能追加 |
+| ✅ DONE-008 | Ollama Modelfile build | 2025-11-02 | test_provider_ollama.py (9/9 PASSED), build_db_assistant実装完了 |
 
 ---
 
@@ -155,9 +157,16 @@ NatureRemoのAPIを.envの環境変数から実行できるようにする
 基本的に新機能よりもエラーなどの修正を優先すること
 設計書を積極的に更新すること
 不要なファイルは積極的に消したい、しかし念のためrootのoldフォルダを作成しそこに格納すること　その際は.gitignoreから除外されていることを確認する　なけばつける
-このタスクマネージャーは毎回目を通すこと
 ファイル数は極限まで減らすこと
-同じようなファイルが複数あってはならない
+同じフォルダ内で似たような意図した構成であるかぎり IF とresponseの構成を統一すること
+同じような性能のfileが複数あってはならない
 同じ機能で３つ以上ある場合は統一を検討すること
 このタスクマネージャーを実行したらこのファイ随時更新すること
 ファイルを編集してテストが通った場合はgit agentのルールに沿ってgit commitすること
+dockerで構築するようにして
+llm は　gemini huggingface ollama の3つを使用すること
+もし無料で使えるプロバイダーがあればそちらの機能を追加すること
+プロバイダ管理できる機構を追加すること
+
+
+
