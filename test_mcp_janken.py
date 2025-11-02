@@ -15,23 +15,23 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from agents.llm_agent import LLMAgent
+from agents.agent_llm import LLMAgent
 
 
 def load_janken_spec():
     """じゃんけんゲーム仕様を読み込み"""
     spec_path = project_root / "data" / "project_plans" / "janken_game_spec.json"
-    
+
     if not spec_path.exists():
         raise FileNotFoundError(f"仕様ファイルが見つかりません: {spec_path}")
-    
+
     with open(spec_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 
 def create_mcp_prompt(spec: dict) -> str:
     """仕様からMCP用プロンプトを生成"""
-    
+
     prompt = f"""# プロジェクト生成依頼
 
 ## プロジェクト概要
@@ -41,12 +41,12 @@ def create_mcp_prompt(spec: dict) -> str:
 
 ## 機能要件
 """
-    
+
     for req in spec['requirements']['functional']:
         prompt += f"- {req}\n"
-    
+
     prompt += "\n## データベース設計\n\n"
-    
+
     for table in spec['requirements']['database']['tables']:
         prompt += f"### {table['name']}テーブル\n"
         prompt += f"{table['description']}\n\n"
@@ -55,9 +55,9 @@ def create_mcp_prompt(spec: dict) -> str:
         for col in table['columns']:
             prompt += f"| {col['name']} | {col['type']} | {col['constraints']} |\n"
         prompt += "\n"
-    
+
     prompt += "## CLIコマンド\n\n"
-    
+
     for cmd in spec['requirements']['cli_commands']:
         prompt += f"### {cmd['command']} コマンド\n"
         prompt += f"- 説明: {cmd['description']}\n"
@@ -65,17 +65,17 @@ def create_mcp_prompt(spec: dict) -> str:
         if 'choices' in cmd:
             prompt += f"- 選択肢: {', '.join(cmd['choices'])}\n"
         prompt += f"- 例: `{cmd['example']}`\n\n"
-    
+
     prompt += f"\n## 技術スタック\n"
     prompt += f"- 言語: {spec['technical_stack']['language']}\n"
     prompt += f"- データベース: {spec['technical_stack']['database']}\n"
     prompt += "- ライブラリ:\n"
     for lib in spec['technical_stack']['libraries']:
         prompt += f"  - {lib}\n"
-    
+
     prompt += f"\n## アーキテクチャ\n"
     prompt += f"メインファイル: {spec['architecture']['main_file']}\n\n"
-    
+
     for module in spec['architecture']['modules']:
         prompt += f"### {module['name']} クラス\n"
         prompt += f"{module['description']}\n\n"
@@ -83,79 +83,79 @@ def create_mcp_prompt(spec: dict) -> str:
         for method in module['methods']:
             prompt += f"- `{method}`\n"
         prompt += "\n"
-    
+
     prompt += "\n## テスト要件\n\n"
     prompt += "### ユニットテスト\n"
     for test in spec['test_requirements']['unit_tests']:
         prompt += f"- {test}\n"
-    
+
     prompt += "\n### 統合テスト\n"
     for test in spec['test_requirements']['integration_tests']:
         prompt += f"- {test}\n"
-    
+
     prompt += f"\n## エラーハンドリング\n\n"
     for error, msg in spec['error_handling'].items():
         prompt += f"- **{error}**: {msg}\n"
-    
+
     prompt += f"\n## 期待する成果物\n"
     for file in spec['expected_files']:
         prompt += f"- {file}\n"
-    
+
     prompt += "\n## 成功基準\n"
     for criteria in spec['success_criteria']:
         prompt += f"- {criteria}\n"
-    
+
     prompt += f"\n---\n\n{spec['mcp_generation_prompt']}"
-    
+
     return prompt
 
 
 def test_mcp_janken_generation():
     """MCPでじゃんけんゲーム生成テスト"""
-    
+
     print("=" * 80)
     print("MCP じゃんけんゲーム生成テスト")
     print("=" * 80)
-    
+
     # 1. 仕様読み込み
     print("\n[1] 仕様ファイル読み込み中...")
     spec = load_janken_spec()
     print(f"✅ 仕様読み込み完了: {spec['project_name']}")
-    
+
     # 2. プロンプト生成
     print("\n[2] MCP用プロンプト生成中...")
     prompt = create_mcp_prompt(spec)
     print(f"✅ プロンプト生成完了 ({len(prompt)} 文字)")
-    
+
     # プロンプトをファイルに保存
     prompt_path = project_root / "data" / "project_plans" / "janken_game_prompt.txt"
     with open(prompt_path, 'w', encoding='utf-8') as f:
         f.write(prompt)
     print(f"   プロンプトを保存: {prompt_path}")
-    
+
     # 3. LLMエージェント初期化（Ollama優先）
     print("\n[3] LLMエージェント初期化中...")
     try:
         agent = LLMAgent(provider='ollama')
         print("✅ Ollamaエージェント初期化完了")
         print(f"   優先プロバイダー: {', '.join(agent.provider_priority)}")
-        
+
     except Exception as e:
         print(f"❌ エラー: {e}")
         print("   フォールバック: 利用可能なプロバイダーを自動選択")
         agent = LLMAgent()
-    
+
     # 4. プロンプト送信
     print("\n[4] MCPにプロジェクト生成を依頼中...")
     print("-" * 80)
     print("プロンプト:")
     print(prompt[:500] + "..." if len(prompt) > 500 else prompt)
     print("-" * 80)
-    
+
     try:
         # LLMRequestオブジェクトを作成
-        from agents.llm_agent import LLMRequest
-        
+        from agents.agent_llm import LLMRequest
+
         system_prompt = """あなたは優秀なPythonプログラマーです。
 以下の要件に基づいて、完全に動作するPythonプロジェクトを生成してください。
 
@@ -173,7 +173,7 @@ def test_mcp_janken_generation():
 4. requirements.txt
 
 各ファイルの内容を明確に分けて出力してください。"""
-        
+
         request = LLMRequest(
             prompt=prompt,
             system_message=system_prompt,
@@ -182,14 +182,14 @@ def test_mcp_janken_generation():
             temperature=0.3,
             preferred_provider='ollama'
         )
-        
+
         response = agent.generate_text(request)
-        
+
         print("\n✅ レスポンス受信")
         print("=" * 80)
         print(response.content)
         print("=" * 80)
-        
+
         # 5. レスポンスを保存
         response_path = project_root / "data" / "project_plans" / "janken_game_response.txt"
         with open(response_path, 'w', encoding='utf-8') as f:
@@ -204,9 +204,9 @@ def test_mcp_janken_generation():
             f.write(f"Response:\n")
             f.write(f"{'=' * 80}\n\n")
             f.write(response.content)
-        
+
         print(f"\n✅ レスポンスを保存: {response_path}")
-        
+
         # 6. メタデータ表示
         print(f"\n[5] メタデータ:")
         print(f"   プロバイダー: {response.provider}")
@@ -216,9 +216,9 @@ def test_mcp_janken_generation():
             print(f"   レスポンス時間: {response.response_time:.2f}秒")
         if hasattr(response, 'tokens_used') and response.tokens_used:
             print(f"   トークン数: {response.tokens_used}")
-        
+
         return True
-        
+
     except Exception as e:
         print(f"\n❌ エラー発生: {e}")
         import traceback
@@ -230,7 +230,7 @@ def main():
     """メイン実行"""
     try:
         success = test_mcp_janken_generation()
-        
+
         if success:
             print("\n" + "=" * 80)
             print("✅ テスト成功！")
@@ -245,7 +245,7 @@ def main():
             print("❌ テスト失敗")
             print("=" * 80)
             return 1
-            
+
     except Exception as e:
         print(f"\n❌ 予期しないエラー: {e}")
         import traceback

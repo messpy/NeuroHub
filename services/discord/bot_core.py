@@ -274,7 +274,7 @@ class NeuroHubBot(commands.Bot):
         """LLMを呼び出し"""
         try:
             # agents/llm_agent.pyを使用
-            from agents.llm_agent import LLMAgent
+            from agents.agent_llm import LLMAgent
 
             agent = LLMAgent()
             response = await asyncio.to_thread(

@@ -17,7 +17,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 try:
-    from agents.llm_agent import LLMAgent
+    from agents.agent_llm import LLMAgent
 except ImportError:
     # LLMAgentが使用できない場合のダミークラス
     class LLMAgent:

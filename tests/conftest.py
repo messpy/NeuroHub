@@ -129,7 +129,7 @@ def mock_db_manager():
 @pytest.fixture
 def mock_llm_agent():
     """モックLLMエージェント"""
-    # from agents.llm_agent import LLMAgent
+    # from agents.agent_llm import LLMAgent
 
     agent = Mock()
     agent.provider = "test"

@@ -11,17 +11,17 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from agents.db_agent import DatabaseAgent
+from agents.agent_db import DatabaseAgent
 
 
 def load_initial_hints():
     """初期ヒントデータ投入"""
     agent = DatabaseAgent()
-    
+
     print("=" * 60)
     print("MCP用ヒントDB 初期データ投入")
     print("=" * 60)
-    
+
     # データベースカテゴリのヒント
     database_hints = [
         {
@@ -42,7 +42,7 @@ db.update_where("users", {"active": 0}, {"id": 1})""",
         {
             "keyword": "テーブルスキーマ取得",
             "hint_text": "DatabaseAgentを使用してテーブル構造を確認できる。",
-            "example_code": """from agents.db_agent import DatabaseAgent
+            "example_code": """from agents.agent_db import DatabaseAgent
 
 agent = DatabaseAgent()
 schema = agent.get_table_schema("neurohub.db", "users")
@@ -63,7 +63,7 @@ with db.connect() as con:
             "priority": 7
         }
     ]
-    
+
     # CLIカテゴリのヒント
     cli_hints = [
         {
@@ -115,7 +115,7 @@ print(f"{Fore.YELLOW}警告: 設定が不完全です{Style.RESET_ALL}")""",
             "priority": 6
         }
     ]
-    
+
     # Webカテゴリのヒント
     web_hints = [
         {
@@ -172,13 +172,13 @@ def create_user(user: User):
             "priority": 10
         }
     ]
-    
+
     # LLM/MCPカテゴリのヒント
     mcp_hints = [
         {
             "keyword": "LLMAgentで生成",
             "hint_text": "LLMAgentを使用してコード生成。プロンプトはシステムメッセージ+ユーザープロンプトの組み合わせ。",
-            "example_code": """from agents.llm_agent import LLMAgent, LLMRequest
+            "example_code": """from agents.agent_llm import LLMAgent, LLMRequest
 
 agent = LLMAgent(provider='ollama', model='qwen2.5-coder:3b')
 request = LLMRequest(
@@ -218,7 +218,7 @@ prompt = TEMPLATE.format(task_description="Todo管理CLIツール")""",
         {
             "keyword": "MCPヒント活用",
             "hint_text": "DatabaseAgentのMCP機能でヒントを検索・活用。",
-            "example_code": """from agents.db_agent import DatabaseAgent
+            "example_code": """from agents.agent_db import DatabaseAgent
 
 agent = DatabaseAgent()
 
@@ -238,7 +238,7 @@ agent.add_mcp_hint(
             "priority": 8
         }
     ]
-    
+
     # 全ヒントを投入
     all_hints = [
         ("database", database_hints),
@@ -246,7 +246,7 @@ agent.add_mcp_hint(
         ("web", web_hints),
         ("mcp", mcp_hints)
     ]
-    
+
     total = 0
     for category, hints in all_hints:
         print(f"\n[{category.upper()}カテゴリ]")
@@ -260,14 +260,14 @@ agent.add_mcp_hint(
                 total += 1
             else:
                 print(f"  ✗ {hint['keyword']} (失敗)")
-    
+
     print(f"\n合計 {total} 件のヒントを追加しました。")
-    
+
     # コードスニペットも追加
     print("\n" + "=" * 60)
     print("コードスニペット追加")
     print("=" * 60)
-    
+
     snippets = [
         {
             "name": "sqlite_crud_basic",
@@ -296,14 +296,14 @@ def main():
     parser.add_argument("input", help="Input file")
     parser.add_argument("--output", "-o", default="output.txt")
     parser.add_argument("--verbose", "-v", action="store_true")
-    
+
     args = parser.parse_args()
-    
+
     if args.verbose:
         print(f"Processing {args.input} -> {args.output}")
-    
+
     # Your code here
-    
+
 if __name__ == "__main__":
     main()""",
             "description": "CLIツールのargparseテンプレート",
@@ -312,7 +312,7 @@ if __name__ == "__main__":
         },
         {
             "name": "llm_code_generation",
-            "code": """from agents.llm_agent import LLMAgent, LLMRequest
+            "code": """from agents.agent_llm import LLMAgent, LLMRequest
 
 agent = LLMAgent(provider='ollama')
 request = LLMRequest(
@@ -332,7 +332,7 @@ with open("generated.py", "w") as f:
             "tags": "llm,codegen"
         }
     ]
-    
+
     snippet_count = 0
     for snippet in snippets:
         success = agent.add_code_snippet(**snippet)
@@ -341,24 +341,24 @@ with open("generated.py", "w") as f:
             snippet_count += 1
         else:
             print(f"  ✗ {snippet['name']} (失敗)")
-    
+
     print(f"\n合計 {snippet_count} 件のスニペットを追加しました。")
-    
+
     # 統計情報表示
     print("\n" + "=" * 60)
     print("統計情報")
     print("=" * 60)
-    
+
     tables = agent.list_tables(agent.mcp_hints_db)
     print(f"テーブル: {', '.join(tables)}")
-    
+
     all_hints = agent.search_hints(limit=100)
     print(f"ヒント総数: {len(all_hints)}")
-    
+
     for cat in ["database", "cli", "web", "mcp"]:
         cat_hints = agent.search_hints(category=cat, limit=100)
         print(f"  - {cat}: {len(cat_hints)}件")
-    
+
     print(f"\nMCP用ヒントDBパス: {agent.mcp_hints_db}")
     print("初期データ投入完了！")
 

@@ -128,7 +128,7 @@ def test_llm_agent_integration():
     print("=" * 50)
 
     try:
-        from agents.llm_agent import LLMAgent, LLMRequest
+        from agents.agent_llm import LLMAgent, LLMRequest
 
         # LLMAgent初期化
         agent = LLMAgent()

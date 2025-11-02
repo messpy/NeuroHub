@@ -15,7 +15,7 @@ from unittest.mock import Mock, patch, MagicMock
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from agents.llm_agent import LLMAgent, LLMRequest, ProviderStatus
+from agents.agent_llm import LLMAgent, LLMRequest, ProviderStatus
 from agents.git_smart_agent import GitSmartAgent
 from services.llm.llm_common import LLMResponse
 

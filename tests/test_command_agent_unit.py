@@ -15,7 +15,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 try:
-    from agents.command_agent import CommandAgent
+    from agents.agent_command import CommandAgent
     COMMAND_AGENT_AVAILABLE = True
 except ImportError:
     COMMAND_AGENT_AVAILABLE = False

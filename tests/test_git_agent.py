@@ -19,7 +19,7 @@ sys.path.insert(0, str(project_root))
 
 try:
     from agents.git_agent import GitAgent, GitStatus
-    from agents.llm_agent import LLMRequest, LLMResponse
+    from agents.agent_llm import LLMRequest, LLMResponse
 except ImportError as e:
     print(f"Import error: {e}")
     # フォールバック: 最小限のクラス定義

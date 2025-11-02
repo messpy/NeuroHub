@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-from agents.llm_agent import LLMAgent
-from agents.llm_agent import LLMRequest
+from agents.agent_llm import LLMAgent
+from agents.agent_llm import LLMRequest
 
 agent = LLMAgent()
 

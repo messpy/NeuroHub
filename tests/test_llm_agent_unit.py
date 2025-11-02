@@ -69,7 +69,7 @@ class TestLLMAgentCore:
             mock_history_instance.get_provider_stats.return_value = []
             mock_history.return_value = mock_history_instance
 
-            from agents.llm_agent import LLMAgent
+            from agents.agent_llm import LLMAgent
             agent = LLMAgent()
             return agent
 
@@ -179,13 +179,13 @@ class TestLLMAgentTextGeneration:
                  patch('agents.llm_agent.HuggingFaceConfig'), \
                  patch('agents.llm_agent.OllamaConfig'):
 
-                from agents.llm_agent import LLMAgent
+                from agents.agent_llm import LLMAgent
                 agent = LLMAgent()
                 return agent
 
     def test_generate_text_basic(self, llm_agent_with_mocks):
         """基本的なテキスト生成テスト"""
-        from agents.llm_agent import LLMRequest
+        from agents.agent_llm import LLMRequest
 
         request = LLMRequest(
             prompt="こんにちは",
@@ -202,7 +202,7 @@ class TestLLMAgentTextGeneration:
 
     def test_generate_text_with_preferred_provider(self, llm_agent_with_mocks):
         """指定プロバイダーでのテキスト生成テスト"""
-        from agents.llm_agent import LLMRequest
+        from agents.agent_llm import LLMRequest
 
         request = LLMRequest(
             prompt="テストプロンプト",
@@ -215,7 +215,7 @@ class TestLLMAgentTextGeneration:
 
     def test_generate_text_fallback_disabled(self, llm_agent_with_mocks):
         """フォールバック無効時のテスト"""
-        from agents.llm_agent import LLMRequest
+        from agents.agent_llm import LLMRequest
 
         # geminiを無効化
         llm_agent_with_mocks.providers['gemini'].is_configured.return_value = False
@@ -232,7 +232,7 @@ class TestLLMAgentTextGeneration:
 
     def test_generate_text_all_responses(self, llm_agent_with_mocks):
         """全プロバイダーレスポンス取得テスト（モック化）"""
-        from agents.llm_agent import LLMRequest
+        from agents.agent_llm import LLMRequest
 
         # get_all_responses機能がまだ実装されていないため、モックで代替
         with patch.object(llm_agent_with_mocks, 'generate_text') as mock_generate:
@@ -292,7 +292,7 @@ index 0000000..d1c5c2f
         with patch('agents.llm_agent.LLMAgent', return_value=mock_agent_for_commit):
             mock_agent_for_commit.generate_commit_message.return_value = "feat: テスト機能を追加"
 
-            from agents.llm_agent import LLMAgent
+            from agents.agent_llm import LLMAgent
             agent = LLMAgent()
 
             message = agent.generate_commit_message("test.py", sample_diff)
@@ -305,7 +305,7 @@ index 0000000..d1c5c2f
         with patch('agents.llm_agent.LLMAgent') as MockLLMAgent:
             MockLLMAgent.return_value = mock_agent_for_commit
 
-            from agents.llm_agent import LLMAgent
+            from agents.agent_llm import LLMAgent
             agent = LLMAgent()
 
             message = agent.generate_commit_message(
@@ -323,7 +323,7 @@ index 0000000..d1c5c2f
             agent_instance._generate_smart_default.return_value = "feat: test.py を追加"
             MockLLMAgent.return_value = agent_instance
 
-            from agents.llm_agent import LLMAgent
+            from agents.agent_llm import LLMAgent
             agent = LLMAgent()
 
             default_msg = agent._generate_smart_default("test.py", "テストdiff")
@@ -362,7 +362,7 @@ class TestLLMAgentUtilities:
             }
             MockLLMAgent.return_value = basic_agent
 
-            from agents.llm_agent import LLMAgent
+            from agents.agent_llm import LLMAgent
             agent = LLMAgent()
 
             status = agent.get_status_report()
@@ -378,7 +378,7 @@ class TestLLMAgentUtilities:
             basic_agent.cleanup = Mock()
             MockLLMAgent.return_value = basic_agent
 
-            from agents.llm_agent import LLMAgent
+            from agents.agent_llm import LLMAgent
             agent = LLMAgent()
 
             # エラーが発生しないことを確認
@@ -429,7 +429,7 @@ class TestLLMAgentIntegration:
                  patch('agents.llm_agent.HuggingFaceConfig'), \
                  patch('agents.llm_agent.OllamaConfig'):
 
-                from agents.llm_agent import LLMAgent, LLMRequest
+                from agents.agent_llm import LLMAgent, LLMRequest
 
                 # エージェント作成
                 agent = LLMAgent()

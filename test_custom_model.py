@@ -5,7 +5,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agents.llm_agent import LLMAgent, LLMRequest
+from agents.agent_llm import LLMAgent, LLMRequest
 import subprocess
 
 print("=" * 80)

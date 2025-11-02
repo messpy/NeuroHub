@@ -16,7 +16,7 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from agents.llm_agent import LLMAgent, LLMRequest
+from agents.agent_llm import LLMAgent, LLMRequest
 
 
 def test_mcp_model_code_generation():

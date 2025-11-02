@@ -161,7 +161,7 @@ class AgentRouter:
     def _call_command_agent(self, prompt: str, **kwargs) -> Any:
         """Call command agent."""
         try:
-            from agents.command_agent import CommandAgent
+            from agents.agent_command import CommandAgent
             agent = CommandAgent()
             return agent.execute(prompt)
         except Exception as e:
@@ -172,7 +172,7 @@ class AgentRouter:
     def _call_config_agent(self, prompt: str, **kwargs) -> Any:
         """Call config agent."""
         try:
-            from agents.config_agent import ConfigAgent
+            from agents.agent_config import ConfigAgent
             agent = ConfigAgent()
             return agent.execute(prompt)
         except Exception as e:
