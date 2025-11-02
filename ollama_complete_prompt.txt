@@ -1,0 +1,118 @@
+# Ollama専用 完全MCPパスワードマネージャー実装指示
+
+## 必須要件：完全実装
+1. **src/main.py** - メインエントリーポイント（import, docstring, main関数完備）
+2. **src/models.py** - SQLAlchemyデータモデル（完全なクラス定義）
+3. **src/database.py** - データベース操作クラス（CRUD操作完備）
+4. **src/encryption.py** - Fernet暗号化クラス（完全なメソッド）
+5. **api/server.py** - FastAPIアプリケーション（全エンドポイント）
+6. **cli/manager.py** - Clickコマンドライン（全コマンド実装）
+7. **tests/test_complete.py** - 包括的テスト（全機能テスト）
+8. **requirements.txt** - 全依存関係
+9. **README.md** - 使用方法説明
+
+## 技術スタック
+- **データベース**: SQLite3 + SQLAlchemy ORM
+- **暗号化**: cryptography.fernet
+- **API**: FastAPI + uvicorn
+- **CLI**: Click
+- **テスト**: pytest
+
+## 完全実装指示
+
+### src/main.py
+```python
+#!/usr/bin/env python3
+"""
+完全なパスワードマネージャー メインエントリーポイント
+すべてのimport文、docstring、エラーハンドリングを含む
+"""
+
+import sys
+import os
+import logging
+from typing import Optional
+from pathlib import Path
+
+# プロジェクトルートをpathに追加
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from src.database import DatabaseManager
+from src.encryption import EncryptionManager
+from src.models import PasswordEntry
+
+def setup_logging() -> logging.Logger:
+    """ログ設定のセットアップ"""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    return logging.getLogger(__name__)
+
+class PasswordManager:
+    """完全なパスワードマネージャークラス"""
+    
+    def __init__(self, db_path: str = "data/passwords.db", master_password: str = None):
+        """
+        パスワードマネージャーの初期化
+        
+        Args:
+            db_path: データベースファイルのパス
+            master_password: マスターパスワード
+        """
+        try:
+            self.logger = setup_logging()
+            self.db_manager = DatabaseManager(db_path)
+            self.encryption_manager = EncryptionManager(master_password)
+            self.logger.info("パスワードマネージャー初期化完了")
+        except Exception as e:
+            raise RuntimeError(f"初期化エラー: {e}")
+    
+    def add_password(self, site: str, username: str, password: str) -> bool:
+        """パスワードエントリの追加"""
+        try:
+            encrypted_password = self.encryption_manager.encrypt(password)
+            entry = PasswordEntry(
+                site=site,
+                username=username,
+                encrypted_password=encrypted_password
+            )
+            return self.db_manager.add_entry(entry)
+        except Exception as e:
+            self.logger.error(f"パスワード追加エラー: {e}")
+            return False
+
+def main():
+    """メイン関数"""
+    try:
+        manager = PasswordManager()
+        print("パスワードマネージャーが正常に起動しました")
+        return 0
+    except Exception as e:
+        print(f"エラー: {e}")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+### 各ファイルの詳細実装
+
+**src/models.py** - 完全なSQLAlchemyモデル
+**src/database.py** - 完全なCRUD操作
+**src/encryption.py** - 完全なFernet暗号化
+**api/server.py** - 完全なFastAPIアプリ
+**cli/manager.py** - 完全なClickコマンド
+**tests/test_complete.py** - 完全なテストスイート
+
+## 実装ルール
+1. ✅ すべてのファイルにimport文を含める
+2. ✅ すべての関数・クラスにdocstringを追加
+3. ✅ try-except文でエラーハンドリング
+4. ✅ typing モジュールで型ヒント
+5. ✅ if __name__ == "__main__": 実行制御
+6. ✅ ログ出力機能
+7. ✅ 独立したモジュール設計
+
+上記の指示に従って、完全なパスワードマネージャーを複数ファイルで実装してください。

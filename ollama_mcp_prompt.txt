@@ -1,0 +1,90 @@
+
+
+# Ollama MCP パスワードマネージャー実装
+
+## 重要: エラーなし実装要件
+- すべての関数に完全なdocstringを含める
+- try-except文でエラーハンドリングを徹底
+- 型ヒントを必ず使用
+- import文を明確に記述
+- クラス・関数定義を完全に実装
+
+## 技術仕様
+
+
+### 基本クラス構造
+パスワードマネージャーの基本クラス設計パターン
+```python
+
+class PasswordManager:
+    '''完全なパスワードマネージャークラス'''
+    
+    def __init__(self, db_path: str = "passwords.db"):
+        '''初期化メソッド'''
+        try:
+            self.db_path = db_path
+            self._setup_database()
+        except Exception as e:
+            raise RuntimeError(f"初期化エラー: {e}")
+    
+    def _setup_database(self) -> None:
+        '''データベースセットアップ'''
+        try:
+            # DB初期化処理
+            pass
+        except Exception as e:
+            raise DatabaseError(f"DB設定エラー: {e}")
+
+```
+
+### エラーハンドリング
+Ollama実装でエラーを避けるためのパターン
+```python
+
+def safe_operation(self, data: str) -> Optional[str]:
+    '''安全な操作の実装例'''
+    try:
+        if not data:
+            raise ValueError("データが空です")
+        
+        # メイン処理
+        result = self._process_data(data)
+        return result
+        
+    except ValueError as e:
+        self.logger.error(f"値エラー: {e}")
+        return None
+    except Exception as e:
+        self.logger.error(f"予期しないエラー: {e}")
+        return None
+
+```
+
+
+
+## Ollama実装のコツ
+- **docstring必須**: Ollamaでエラーを避けるため、すべての関数・クラスに完全なdocstringを記述する
+- **型ヒント完備**: from typing import List, Dict, Optional, Any を使用し、すべての引数と戻り値に型を指定する
+
+
+## エラー防止チェックリスト
+1. ✅ 全関数にdocstring（"""三重引用符"""）
+2. ✅ try-except文によるエラーハンドリング
+3. ✅ from typing import List, Dict, Optional等の型ヒント
+4. ✅ if __name__ == "__main__": での実行制御
+5. ✅ import文の明確な記述
+6. ✅ クラス初期化メソッド__init__の完全実装
+
+
+## 実装指示
+SQLite、FastAPI、Click、cryptographyを使用して、以下のファイルを生成してください：
+
+1. **src/main.py** - メインエントリーポイント
+2. **src/models.py** - データモデル（完全なdocstring付き）
+3. **src/database.py** - DB操作（エラーハンドリング完備）
+4. **src/encryption.py** - 暗号化機能（try-except完備）
+5. **api/server.py** - FastAPIサーバー
+6. **cli/manager.py** - CLIツール
+7. **tests/test_basic.py** - 基本テスト
+
+各ファイルは独立して動作し、モジュールエラーが発生しないよう実装してください。
