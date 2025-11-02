@@ -44,7 +44,34 @@ NeuroHubは、AI駆動のコミットメッセージ生成、チャンク処理�
 
 ## 🚀 クイックスタート
 
-### 1. 自動セットアップ（推奨）
+### 方法1: Docker（推奨 - Windows/ラズパイ両対応）🐳
+
+```bash
+# プロジェクトクローン
+git clone https://github.com/messpy/NeuroHub.git
+cd NeuroHub
+
+# .envファイル作成
+cp .env.example .env
+# エディタで.envを編集してAPI Keyを入力
+
+# Docker Composeで起動（1コマンド！）
+docker-compose up -d
+
+# ログ確認
+docker-compose logs -f neurohub
+```
+
+**メリット**: 
+- ⚡ 超簡単セットアップ
+- 🌍 環境統一（Windows/Linux/ラズパイ）
+- 🔒 安定動作
+
+詳細: [DOCKER_SETUP.md](./docs/DOCKER_SETUP.md)
+
+---
+
+### 方法2: 自動セットアップ（従来の方法）
 
 ```bash
 # プロジェクトクローン
@@ -59,7 +86,7 @@ chmod +x setup_neurohub_linux.sh
 setup_neurohub_windows.bat
 ```
 
-### 2. 手動セットアップ
+### 方法3: 手動セットアップ
 
 ```bash
 # Python仮想環境作成

@@ -29,6 +29,7 @@
 
 ### セットアップ
 - [LINUX_SETUP.md](./LINUX_SETUP.md): Linux環境構築 🇯🇵
+- [DOCKER_SETUP.md](./DOCKER_SETUP.md): Docker環境構築（推奨） 🇯🇵 🐳
 - [DISCORD_BOT_GUIDE.md](./DISCORD_BOT_GUIDE.md): Discord Bot設定 🇯🇵
 
 ### プロジェクト管理
@@ -37,9 +38,10 @@
 
 ## 🚀 クイックスタート
 
-1. **環境構築**: [LINUX_SETUP.md](./LINUX_SETUP.md)
-2. **プロジェクト概要**: [PROJECT_OVERVIEW.md](./jp/PROJECT_OVERVIEW.md)
-3. **MCP使用方法**: [MCP_GUIDE.md](./jp/MCP_GUIDE.md)
+1. **Docker環境構築（推奨）**: [DOCKER_SETUP.md](./DOCKER_SETUP.md) 🐳
+2. **従来の環境構築**: [LINUX_SETUP.md](./LINUX_SETUP.md)
+3. **プロジェクト概要**: [PROJECT_OVERVIEW.md](./jp/PROJECT_OVERVIEW.md)
+4. **MCP使用方法**: [MCP_GUIDE.md](./jp/MCP_GUIDE.md)
 
 ## 🔄 更新履歴
 
