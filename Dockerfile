@@ -34,7 +34,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # データディレクトリ作成
-RUN mkdir -p /app/data /app/logs /app/generated_projects
+RUN mkdir -p /app/data /app/logs /app/services/mcp/generated_projects
+
+# データベース初期化スクリプト実行権限
+RUN chmod +x scripts/init_database.py
 
 # 非rootユーザー作成（セキュリティ）
 RUN useradd -m -u 1000 neurohub && \
