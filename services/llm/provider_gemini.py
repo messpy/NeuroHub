@@ -1,76 +1,149 @@
-#!/usr/bin/env python3#!/usr/bin/env python3
+#!/usr/bin/env python3#!/usr/bin/env python3#!/usr/bin/env python3
 
-# -*- coding: utf-8 -*-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
+
+"""# -*- coding: utf-8 -*-# -*- coding: utf-8 -*-
+
+provider_gemini.py - Google Gemini LLM Provider
 
 """"""
 
-provider_gemini.py - Google Gemini LLM プロバイダーprovider_gemini.py - Google Generative Language API (Gemini) クライアント最小版
+Usage:
+
+  python provider_gemini.py "Hello World?"provider_gemini.py - Google Gemini LLM プロバイダーprovider_gemini.py - Google Generative Language API (Gemini) クライアント最小版
+
+  python provider_gemini.py --model gemini-1.5-flash --debug "question"
 
 - 依存: requests, (任意) python-dotenv, PyYAML
 
-使い方:- 環境変数: GEMINI_API_KEY（必須）, GEMINI_API_URL(任意)
+Environment: GEMINI_API_KEY (required)
 
-  python provider_gemini.py "Hello Worldを日本語で？"- モデル: config.yaml の llm.gemini.model があれば優先、無ければ gemini-2.5-flash
+"""使い方:- 環境変数: GEMINI_API_KEY（必須）, GEMINI_API_URL(任意)
 
-  python provider_gemini.py --model gemini-1.5-flash --debug "質問""""
+from __future__ import annotations
+
+import argparse  python provider_gemini.py "Hello Worldを日本語で？"- モデル: config.yaml の llm.gemini.model があれば優先、無ければ gemini-2.5-flash
+
+import os
+
+import sys  python provider_gemini.py --model gemini-1.5-flash --debug "質問""""
+
+from pathlib import Path
 
 """
 
-from __future__ import annotationsfrom __future__ import annotations
+HERE = Path(__file__).resolve().parent
 
-import argparseimport os
+sys.path.insert(0, str(HERE))from __future__ import annotationsfrom __future__ import annotations
 
-import osimport sys
+
+
+try:import argparseimport os
+
+    from .llm_common import load_env_from_config, DebugLogger
+
+except ImportError:import osimport sys
+
+    from llm_common import load_env_from_config, DebugLogger
 
 import sysimport json
 
+load_env_from_config()
+
 from pathlib import Pathimport argparse
 
-from typing import Any, Dict, List, Optional
 
-# llm_common をインポートfrom pathlib import Path
 
-HERE = Path(__file__).resolve().parentimport requests
+class GeminiConfig:from typing import Any, Dict, List, Optional
 
-sys.path.insert(0, str(HERE))
+    """Google Gemini Configuration"""
 
-# === .env の読み込みをここで強制 ===
+    # llm_common をインポートfrom pathlib import Path
 
-try:try:
+    def __init__(self, api_key: str = None, debug: bool = False):
 
-    from .llm_common import load_env_from_config, DebugLogger    from dotenv import load_dotenv
+        self.debug_logger = DebugLogger(debug)HERE = Path(__file__).resolve().parentimport requests
 
-except ImportError:    # プロジェクトルートを自動特定（このファイル -> llm -> services -> プロジェクト）
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
 
-    from llm_common import load_env_from_config, DebugLogger    ROOT_DIR = Path(__file__).resolve().parents[2]
+        self.default_model = "gemini-1.5-flash"sys.path.insert(0, str(HERE))
 
-    ENV_PATH = ROOT_DIR / ".env"
+        
+
+        if not self.api_key:# === .env の読み込みをここで強制 ===
+
+            raise ValueError("GEMINI_API_KEY not set. Please set it in .env file")
+
+    try:try:
+
+    def generate(self, prompt: str, model: str = None) -> str:
+
+        """Text generation (to be implemented)"""    from .llm_common import load_env_from_config, DebugLogger    from dotenv import load_dotenv
+
+        self.debug_logger.log(f"[Gemini] Model: {model or self.default_model}")
+
+        self.debug_logger.log(f"[Gemini] Prompt: {prompt}")except ImportError:    # プロジェクトルートを自動特定（このファイル -> llm -> services -> プロジェクト）
+
+        
+
+        raise NotImplementedError(    from llm_common import load_env_from_config, DebugLogger    ROOT_DIR = Path(__file__).resolve().parents[2]
+
+            "Gemini provider is not yet implemented. "
+
+            "Please install google-generativeai and implement the API integration."    ENV_PATH = ROOT_DIR / ".env"
+
+        )
 
 load_env_from_config()    if ENV_PATH.exists():
 
-        load_dotenv(ENV_PATH, override=False)
 
-        print(f"[info] loaded .env from {ENV_PATH}", file=sys.stderr)
 
-class GeminiConfig:    else:
+def main():        load_dotenv(ENV_PATH, override=False)
 
-    """Google Gemini設定クラス"""        print(f"[warn] .env not found at {ENV_PATH}", file=sys.stderr)
+    parser = argparse.ArgumentParser(description="Google Gemini LLM provider")
 
-    except Exception as e:
+    parser.add_argument("prompt", nargs="?", help="Input prompt")        print(f"[info] loaded .env from {ENV_PATH}", file=sys.stderr)
 
-    def __init__(self, api_key: str = None, debug: bool = False):    print(f"[warn] dotenv load skipped ({e})", file=sys.stderr)
+    parser.add_argument("--model", default="gemini-1.5-flash", help="Model name")
 
-        self.debug_logger = DebugLogger(debug)
+    parser.add_argument("--debug", action="store_true", help="Debug mode")class GeminiConfig:    else:
 
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")# === 共通ユーティリティ ===
+    args = parser.parse_args()
 
-        self.default_model = "gemini-1.5-flash"try:
+        """Google Gemini設定クラス"""        print(f"[warn] .env not found at {ENV_PATH}", file=sys.stderr)
 
-            from .llm_common import DebugLogger, load_config, get_llm_model_from_config, parse_opt_kv, LLMProviderConfig, make_api_request, LLMResponse, create_llm_response
+    if not args.prompt:
+
+        print("Error: prompt required", file=sys.stderr)    except Exception as e:
+
+        return 1
+
+        def __init__(self, api_key: str = None, debug: bool = False):    print(f"[warn] dotenv load skipped ({e})", file=sys.stderr)
+
+    try:
+
+        config = GeminiConfig(debug=args.debug)        self.debug_logger = DebugLogger(debug)
+
+        response = config.generate(args.prompt, model=args.model)
+
+        print(response)        self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")# === 共通ユーティリティ ===
+
+        return 0
+
+    except Exception as e:        self.default_model = "gemini-1.5-flash"try:
+
+        print(f"Error: {e}", file=sys.stderr)
+
+        return 1            from .llm_common import DebugLogger, load_config, get_llm_model_from_config, parse_opt_kv, LLMProviderConfig, make_api_request, LLMResponse, create_llm_response
+
+
 
         if not self.api_key:except ImportError:
 
-            raise ValueError("GEMINI_API_KEY not set. Please set it in .env file")    # 直接実行時の対応
+if __name__ == "__main__":
+
+    sys.exit(main())            raise ValueError("GEMINI_API_KEY not set. Please set it in .env file")    # 直接実行時の対応
+
 
         from llm_common import DebugLogger, load_config, get_llm_model_from_config, parse_opt_kv, LLMProviderConfig, make_api_request, LLMResponse, create_llm_response
 

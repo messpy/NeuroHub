@@ -1,76 +1,149 @@
-#!/usr/bin/env python3#!/usr/bin/env python3
+#!/usr/bin/env python3#!/usr/bin/env python3#!/usr/bin/env python3
 
-# -*- coding: utf-8 -*-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
+
+"""# -*- coding: utf-8 -*-# -*- coding: utf-8 -*-
+
+provider_huggingface.py - HuggingFace LLM Provider
 
 """"""
 
-provider_huggingface.py - HuggingFace LLM プロバイダーprovider_huggingface.py - Hugging Face Router(OpenAI互換) 簡易クライアント
+Usage:
+
+  python provider_huggingface.py "Hello World?"provider_huggingface.py - HuggingFace LLM プロバイダーprovider_huggingface.py - Hugging Face Router(OpenAI互換) 簡易クライアント
+
+  python provider_huggingface.py --model microsoft/phi-2 --debug "question"
 
 - Inference API ではなく Router(OpenAI互換) に統一
 
-使い方:- 404 対策: モデルは <model-id>:<provider> 形式で指定
+Environment: HF_TOKEN (required)
 
-  python provider_huggingface.py "Hello Worldを日本語で？"- 依存: requests, (任意) python-dotenv
-
-  python provider_huggingface.py --model microsoft/phi-2 --debug "質問"- 環境変数: HF_TOKEN（必須）, HF_HOST（任意）
-
-""""""
+"""使い方:- 404 対策: モデルは <model-id>:<provider> 形式で指定
 
 from __future__ import annotations
 
-import argparseimport os
+import argparse  python provider_huggingface.py "Hello Worldを日本語で？"- 依存: requests, (任意) python-dotenv
 
-import osimport sys
+import os
+
+import sys  python provider_huggingface.py --model microsoft/phi-2 --debug "質問"- 環境変数: HF_TOKEN（必須）, HF_HOST（任意）
+
+from pathlib import Path
+
+""""""
+
+HERE = Path(__file__).resolve().parent
+
+sys.path.insert(0, str(HERE))from __future__ import annotations
+
+
+
+try:import argparseimport os
+
+    from .llm_common import load_env_from_config, DebugLogger
+
+except ImportError:import osimport sys
+
+    from llm_common import load_env_from_config, DebugLogger
 
 import sysimport json
 
+load_env_from_config()
+
 from pathlib import Pathimport argparse
 
-import requests
 
-# llm_common をインポートfrom typing import Any, Dict, List, Optional
 
-HERE = Path(__file__).resolve().parentfrom pathlib import Path
+class HuggingFaceConfig:import requests
 
-sys.path.insert(0, str(HERE))
+    """HuggingFace Configuration"""
 
-# === .env を自動ロード（プロジェクト直下） ===
-
-try:try:
-
-    from .llm_common import load_env_from_config, DebugLogger    from dotenv import load_dotenv
-
-except ImportError:    ROOT_DIR = Path(__file__).resolve().parents[2]
-
-    from llm_common import load_env_from_config, DebugLogger    ENV_PATH = ROOT_DIR / ".env"
-
-    if ENV_PATH.exists():
-
-load_env_from_config()        load_dotenv(ENV_PATH, override=False)
-
-        print(f"[info] loaded .env from {ENV_PATH}", file=sys.stderr)
-
-    else:
-
-class HuggingFaceConfig:        print(f"[warn] .env not found at {ENV_PATH}", file=sys.stderr)
-
-    """HuggingFace設定クラス"""except Exception as e:
-
-        print(f"[warn] dotenv load skipped ({e})", file=sys.stderr)
+    # llm_common をインポートfrom typing import Any, Dict, List, Optional
 
     def __init__(self, api_key: str = None, debug: bool = False):
 
-        self.debug_logger = DebugLogger(debug)# === 共通ユーティリティ ===
+        self.debug_logger = DebugLogger(debug)HERE = Path(__file__).resolve().parentfrom pathlib import Path
 
-        self.api_key = api_key or os.getenv("HF_TOKEN", "")try:
+        self.api_key = api_key or os.getenv("HF_TOKEN", "")
 
-        self.default_model = "microsoft/phi-2"    from .llm_common import DebugLogger, load_config, get_llm_model_from_config, parse_opt_kv, LLMProviderConfig, make_api_request, LLMResponse, create_llm_response
+        self.default_model = "microsoft/phi-2"sys.path.insert(0, str(HERE))
 
-        except ImportError:
+        
+
+        if not self.api_key:# === .env を自動ロード（プロジェクト直下） ===
+
+            raise ValueError("HF_TOKEN not set. Please set it in .env file")
+
+    try:try:
+
+    def generate(self, prompt: str, model: str = None) -> str:
+
+        """Text generation (to be implemented)"""    from .llm_common import load_env_from_config, DebugLogger    from dotenv import load_dotenv
+
+        self.debug_logger.log(f"[HuggingFace] Model: {model or self.default_model}")
+
+        self.debug_logger.log(f"[HuggingFace] Prompt: {prompt}")except ImportError:    ROOT_DIR = Path(__file__).resolve().parents[2]
+
+        
+
+        raise NotImplementedError(    from llm_common import load_env_from_config, DebugLogger    ENV_PATH = ROOT_DIR / ".env"
+
+            "HuggingFace provider is not yet implemented. "
+
+            "Please install huggingface_hub and implement the API integration."    if ENV_PATH.exists():
+
+        )
+
+load_env_from_config()        load_dotenv(ENV_PATH, override=False)
+
+
+
+def main():        print(f"[info] loaded .env from {ENV_PATH}", file=sys.stderr)
+
+    parser = argparse.ArgumentParser(description="HuggingFace LLM provider")
+
+    parser.add_argument("prompt", nargs="?", help="Input prompt")    else:
+
+    parser.add_argument("--model", default="microsoft/phi-2", help="Model name")
+
+    parser.add_argument("--debug", action="store_true", help="Debug mode")class HuggingFaceConfig:        print(f"[warn] .env not found at {ENV_PATH}", file=sys.stderr)
+
+    args = parser.parse_args()
+
+        """HuggingFace設定クラス"""except Exception as e:
+
+    if not args.prompt:
+
+        print("Error: prompt required", file=sys.stderr)        print(f"[warn] dotenv load skipped ({e})", file=sys.stderr)
+
+        return 1
+
+        def __init__(self, api_key: str = None, debug: bool = False):
+
+    try:
+
+        config = HuggingFaceConfig(debug=args.debug)        self.debug_logger = DebugLogger(debug)# === 共通ユーティリティ ===
+
+        response = config.generate(args.prompt, model=args.model)
+
+        print(response)        self.api_key = api_key or os.getenv("HF_TOKEN", "")try:
+
+        return 0
+
+    except Exception as e:        self.default_model = "microsoft/phi-2"    from .llm_common import DebugLogger, load_config, get_llm_model_from_config, parse_opt_kv, LLMProviderConfig, make_api_request, LLMResponse, create_llm_response
+
+        print(f"Error: {e}", file=sys.stderr)
+
+        return 1        except ImportError:
+
+
 
         if not self.api_key:    # 直接実行時の対応
 
-            raise ValueError("HF_TOKEN not set. Please set it in .env file")    from llm_common import DebugLogger, load_config, get_llm_model_from_config, parse_opt_kv, LLMProviderConfig, make_api_request, LLMResponse, create_llm_response
+if __name__ == "__main__":
+
+    sys.exit(main())            raise ValueError("HF_TOKEN not set. Please set it in .env file")    from llm_common import DebugLogger, load_config, get_llm_model_from_config, parse_opt_kv, LLMProviderConfig, make_api_request, LLMResponse, create_llm_response
+
 
     
 
