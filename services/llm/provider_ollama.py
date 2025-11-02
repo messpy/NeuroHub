@@ -527,7 +527,7 @@ class OllamaConfig(LLMProviderConfig):
     def create_model_from_modelfile(self, model_name: str, modelfile_content: str,
                                   base_model: str = None, debug_logger: DebugLogger = None) -> bool:
         """
-        Modelfileからカスタムモデルを作成
+        Modelfileからカスタムモデルを作成（ollama createコマンドを使用）
 
         Args:
             model_name: 作成するモデル名
@@ -535,6 +535,8 @@ class OllamaConfig(LLMProviderConfig):
             base_model: ベースモデル（Modelfile内で指定されていない場合）
             debug_logger: デバッグロガー
         """
+        import tempfile
+        
         if debug_logger is None:
             debug_logger = DebugLogger(False)
 
@@ -542,25 +544,41 @@ class OllamaConfig(LLMProviderConfig):
         if base_model and "FROM" not in modelfile_content.upper():
             modelfile_content = f"FROM {base_model}\n{modelfile_content}"
 
-        payload = {
-            "name": model_name,
-            "modelfile": modelfile_content,
-            "stream": False
-        }
-
         try:
+            # 一時ファイルにModelfileを保存
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.Modelfile', delete=False, encoding='utf-8') as f:
+                f.write(modelfile_content)
+                temp_modelfile = f.name
+            
             debug_logger.dbg("Creating model:", model_name)
-            debug_logger.dbg("Modelfile content:", modelfile_content)
-            debug_logger.dbg("API payload:", payload)
+            debug_logger.dbg("Temp Modelfile:", temp_modelfile)
+            debug_logger.dbg("Modelfile content length:", len(modelfile_content))
 
-            # /api/create エンドポイントを使用
-            response = self._http_json("POST", "/api/create", payload, timeout=300)
-            debug_logger.dbg("Create response:", response)
-            return True
+            # ollama create コマンドを実行
+            cmd = ["ollama", "create", model_name, "-f", temp_modelfile]
+            debug_logger.dbg("Command:", " ".join(shlex.quote(x) for x in cmd))
+            
+            p = subprocess.run(cmd, check=False, text=True, capture_output=True, timeout=300)
+            
+            # 一時ファイル削除
+            try:
+                os.unlink(temp_modelfile)
+            except:
+                pass
+            
+            debug_logger.dbg("Create result:", f"rc={p.returncode}")
+            debug_logger.dbg("stdout:", p.stdout if p.stdout else "(empty)")
+            debug_logger.dbg("stderr:", p.stderr if p.stderr else "(empty)")
+            
+            if p.returncode == 0:
+                debug_logger.dbg("Model creation successful:", model_name)
+                return True
+            else:
+                debug_logger.dbg("Model creation failed:", p.stderr)
+                return False
 
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode('utf-8') if hasattr(e, 'read') else str(e)
-            debug_logger.dbg("Model creation HTTP error:", f"Status: {e.code}, Body: {error_body}")
+        except subprocess.TimeoutExpired:
+            debug_logger.dbg("Model creation timeout:", model_name)
             return False
         except Exception as e:
             debug_logger.dbg("Model creation failed:", str(e))
