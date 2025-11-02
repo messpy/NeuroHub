@@ -186,7 +186,9 @@ class NeuroHubBot(commands.Bot):
             await self._send_startup_notification()
 
             # データベースにBot起動記録
-            self._log_bot_event('bot_start', {'guilds': len(self.guilds)})        @self.event
+            self._log_bot_event('bot_start', {'guilds': len(self.guilds)})
+
+        @self.event
         async def on_message(message: discord.Message):
             """メッセージ受信時"""
             # Botメッセージは無視
