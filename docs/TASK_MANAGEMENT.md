@@ -71,6 +71,7 @@
 | ✅ DONE-006 | 重複ファイル整理 | 2025-11-01 | mcp_*(4個)とtest_llm_*(7個)をold/に移動、utils.py作成 |
 | ✅ DONE-007 | Gemini/HuggingFace単体テスト | 2025-11-02 | test_provider_gemini.py (4/4 PASSED), test_provider_huggingface.py (4/4 PASSED), モデル自動取得機能追加 |
 | ✅ DONE-008 | Ollama Modelfile build | 2025-11-02 | test_provider_ollama.py (9/9 PASSED), build_db_assistant実装完了 |
+| ✅ DONE-009 | services/llm→ai リネーム | 2025-11-02 | ディレクトリ構造変更、全インポート文更新、16/16テストPASSED |
 
 ---
 
