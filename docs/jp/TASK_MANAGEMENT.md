@@ -72,6 +72,9 @@
 | ✅ DONE-007 | Gemini/HuggingFace単体テスト | 2025-11-02 | test_provider_gemini.py (4/4 PASSED), test_provider_huggingface.py (4/4 PASSED), モデル自動取得機能追加 |
 | ✅ DONE-008 | Ollama Modelfile build | 2025-11-02 | test_provider_ollama.py (9/9 PASSED), build_db_assistant実装完了 |
 | ✅ DONE-009 | services/llm→ai リネーム | 2025-11-02 | ディレクトリ構造変更、全インポート文更新、16/16テストPASSED |
+| ✅ DONE-010 | MCPドキュメント整理 | 2025-11-02 | services/mcp/にREADME/CODING_RULES/CONFIG作成、構造明確化 |
+| ✅ DONE-011 | docs国際化対応 | 2025-11-02 | docs/jp/, docs/en/作成、主要ドキュメント整理 |
+| ✅ DONE-012 | AI単体テスト完了 | 2025-11-02 | 全プロバイダー16/16 PASSED、タイムアウト対策実装 |
 
 ---
 
