@@ -62,7 +62,7 @@ if command -v apt &> /dev/null; then
     # Debian/Ubuntu系
     echo "   Debian/Ubuntu系を検出"
     REQUIRED_PKGS="python3-pip python3-venv git curl sqlite3 build-essential portaudio19-dev"
-    
+
     for pkg in $REQUIRED_PKGS; do
         if ! dpkg -l | grep -q "^ii  $pkg"; then
             echo -e "${YELLOW}   ⚠️ $pkg をインストール中...${NC}"
