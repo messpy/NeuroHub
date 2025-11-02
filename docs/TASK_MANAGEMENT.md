@@ -79,6 +79,7 @@
 | ✅ DONE-014 | DBエージェント実装 | 2025-11-02 | agents/db_agent.py（600行）、MCP用ヒントDB（3テーブル）、15テスト全成功 |
 | ✅ DONE-015 | MCP手動実行ガイド作成 | 2025-11-02 | docs/MCP_MANUAL_GUIDE.md（400行）、実行例10以上、テンプレート3種 |
 | ✅ DONE-016 | MCPエージェント実装 | 2025-11-02 | agents/mcp_agent.py（800行）、5モード（generate/project/debug/optimize/design）、16テストケース |
+| ✅ DONE-017 | エージェント命名規則統一 | 2025-11-02 | agent_*.py形式に統一、git_agent+git_smart_agent統合、Git以外の機能削除 |
 
 ---
 
