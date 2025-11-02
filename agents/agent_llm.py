@@ -769,7 +769,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="LLM Agent - LLM統合管理")
     parser.add_argument("--status", action="store_true", help="プロバイダー状態表示")
-    parser.add_argument("--test", help="テストプロンプト")
+    parser.add_argument("--test", type=str, nargs='?', const="こんにちは", help="テストプロンプト（省略時: こんにちは）")
     parser.add_argument("--provider", help="使用するプロバイダー指定")
 
     # チャンク処理関連オプション
@@ -862,7 +862,7 @@ async def generate_response(prompt: str, system_message: str = "", provider: str
         )
         response = agent.generate_text(request)
         agent.cleanup()
-        
+
         if isinstance(response, LLMResponse):
             return response.text
         else:
