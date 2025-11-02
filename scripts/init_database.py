@@ -20,14 +20,14 @@ def main():
     """データベース初期化メイン処理"""
     print("🔧 NeuroHub データベース初期化開始...")
     print("=" * 60)
-    
+
     try:
         # データベース初期化
         initializer = DatabaseInitializer()
-        
+
         print("\n📋 全テーブル作成中...")
         initializer.initialize_all_tables()
-        
+
         print("\n✅ データベース初期化完了！")
         print("=" * 60)
         print("\n📊 作成されたテーブル:")
@@ -45,9 +45,9 @@ def main():
         print("  - error_patterns: エラーパターン")
         print("  - その他システムテーブル...")
         print("\n🎉 NeuroHubの準備が整いました！")
-        
+
         return 0
-        
+
     except Exception as e:
         print(f"\n❌ エラー: {e}", file=sys.stderr)
         import traceback
