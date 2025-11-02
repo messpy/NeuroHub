@@ -32,8 +32,10 @@ from services.ai.llm_common import (
     get_api_defaults,
     LLMResponse
 )
-# Ollama統一（他のプロバイダーは将来分離予定）
+# 全プロバイダーサポート
 from services.ai.provider_ollama import OllamaConfig
+from services.ai.provider_gemini import GeminiConfig
+from services.ai.provider_huggingface import HuggingFaceConfig
 from services.db.llm_history_manager import LLMHistoryManager
 
 
@@ -80,17 +82,18 @@ class LLMAgent:
         # 環境設定読み込み
         load_env_from_config()
 
-        # プロバイダー初期化（Ollama統一）
+        # 全プロバイダー初期化
         self.providers = {
+            'gemini': GeminiConfig(),
+            'huggingface': HuggingFaceConfig(),
             'ollama': OllamaConfig()
-            # 将来的に他のプロバイダーもサポート予定
         }
 
-        # プロバイダー優先順位（Ollama固定）
-        if provider and provider == 'ollama':
-            self.provider_priority = ['ollama']
+        # プロバイダー優先順位
+        if provider:
+            self.provider_priority = [provider]
         else:
-            self.provider_priority = self.config.get('llm', {}).get('provider_priority', ['ollama'])
+            self.provider_priority = self.config.get('llm', {}).get('provider_priority', ['gemini', 'huggingface', 'ollama'])
 
         # セッション開始
         self.session_id = self.history_manager.start_session("llm_agent")
