@@ -17,7 +17,7 @@ from dataclasses import dataclass, asdict
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from services.llm.llm_common import (
+from services.ollama.llm_common import (
     load_env_from_config,
     load_config,
     get_prompt_template,
@@ -25,9 +25,8 @@ from services.llm.llm_common import (
     get_api_defaults,
     LLMResponse
 )
-from services.llm.provider_gemini import GeminiConfig
-from services.llm.provider_huggingface import HuggingFaceConfig
-from services.llm.provider_ollama import OllamaConfig
+# Ollama統一（他のプロバイダーは将来分離予定）
+from services.ollama.provider_ollama import OllamaConfig
 from services.db.llm_history_manager import LLMHistoryManager
 
 
@@ -74,20 +73,17 @@ class LLMAgent:
         # 環境設定読み込み
         load_env_from_config()
 
-        # プロバイダー初期化
+        # プロバイダー初期化（Ollama統一）
         self.providers = {
-            'gemini': GeminiConfig(),
-            'huggingface': HuggingFaceConfig(),
             'ollama': OllamaConfig()
+            # 将来的に他のプロバイダーもサポート予定
         }
 
-        # プロバイダー優先順位（設定可能）
-        if provider:
-            # 指定されたプロバイダーを最優先にする
-            self.provider_priority = [provider] + [p for p in ['gemini', 'huggingface', 'ollama'] if p != provider]
+        # プロバイダー優先順位（Ollama固定）
+        if provider and provider == 'ollama':
+            self.provider_priority = ['ollama']
         else:
-            self.provider_priority = self.config.get('llm', {}).get('provider_priority',
-                                                                   ['gemini', 'huggingface', 'ollama'])
+            self.provider_priority = self.config.get('llm', {}).get('provider_priority', ['ollama'])
 
         # セッション開始
         self.session_id = self.history_manager.start_session("llm_agent")

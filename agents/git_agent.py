@@ -18,16 +18,15 @@ from dataclasses import dataclass
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from services.llm.llm_common import (
+from services.ollama.llm_common import (
     load_env_from_config,
     load_config,
     get_prompt_template,
     get_system_message,
     auto_log_llm_request
 )
-from services.llm.provider_gemini import GeminiConfig
-from services.llm.provider_huggingface import HuggingFaceConfig
-from services.llm.provider_ollama import OllamaConfig
+# 他のプロバイダーは将来分離予定
+from services.ollama.provider_ollama import OllamaConfig
 from services.db.llm_history_manager import LLMHistoryManager
 from agents.common import BaseAgent
 
@@ -48,7 +47,7 @@ class GitAgent(BaseAgent):
     def __init__(self, config_path: str = None):
         # BaseAgent初期化
         super().__init__("git_agent")
-        
+
         self.project_root = project_root
         self.config = load_config()
         self.history_manager = LLMHistoryManager()
@@ -60,11 +59,10 @@ class GitAgent(BaseAgent):
         from agents.llm_agent import LLMAgent
         self.llm_agent = LLMAgent()
 
-        # LLMプロバイダー初期化
+        # LLMプロバイダー初期化（Ollama統一）
         self.providers = {
-            'gemini': GeminiConfig(),
-            'huggingface': HuggingFaceConfig(),
             'ollama': OllamaConfig()
+            # 将来的に他のプロバイダーもサポート予定
         }
 
         # セッション開始
@@ -72,15 +70,15 @@ class GitAgent(BaseAgent):
 
     def execute(self, prompt: str) -> str:
         """Execute git operation based on prompt.
-        
+
         Args:
             prompt: User prompt (e.g., "git status確認", "コミットして")
-            
+
         Returns:
             Result message
         """
         prompt_lower = prompt.lower()
-        
+
         # Git status
         if 'status' in prompt_lower or '状態' in prompt_lower:
             status = self.get_git_status()
@@ -88,16 +86,16 @@ class GitAgent(BaseAgent):
             result += f"  ✅ Staged: {len(status.staged)}\n"
             result += f"  📝 Modified: {len(status.modified)}\n"
             result += f"  ❓ Untracked: {len(status.untracked)}\n"
-            
+
             if status.staged:
                 result += f"\nStaged files:\n"
                 for f in status.staged[:5]:
                     result += f"  - {f}\n"
                 if len(status.staged) > 5:
                     result += f"  ... and {len(status.staged) - 5} more\n"
-            
+
             return result
-        
+
         # Generate commit message
         elif 'commit' in prompt_lower or 'コミット' in prompt_lower:
             try:
@@ -109,7 +107,7 @@ class GitAgent(BaseAgent):
             except Exception as e:
                 self.handle_error(e, "Commit message generation")
                 return f"❌ Error: {e}"
-        
+
         # Default: show status
         else:
             status = self.get_git_status()

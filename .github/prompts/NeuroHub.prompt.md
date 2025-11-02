@@ -19,7 +19,7 @@ mode: agent
    - ✅ **必ずWSLで実行**: すべてのPythonスクリプト、テスト、ビルドはWSL環境で実行
    - 🐧 使用者は全員LinuxでNeuroHubを動かしている
    - 💻 コマンド例: `wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && python3 script.py"`
-
+   - テストを重視しコードのエラーは必ず修正する
 3. **タスク管理**
    - 📋 **作業開始前**: 必ず `docs/TASK_MANAGEMENT.md` のタスクリストを確認
    - ✅ **作業完了後**: 完了したタスクをチェック、新規タスクを追加
@@ -65,13 +65,15 @@ MCP agentを弱いLLMでもエラーなしで動くようにしてください�
 ### 作業完了時
 1. ✅ WSLでテスト実行: `wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && python3 -m pytest tests/"`
 2. 📋 `docs/TASK_MANAGEMENT.md` のタスクを「✅ 完了」に更新
-3. 📝 変更内容をコミット: `git add . && git commit -m "メッセージ"`
-4. 🚀 aidevブランチにpush: `git push origin aidev`
+3. 更新毎に設計書を更新
+4. 📝 変更内容をコミット またcommitは一ファイルごとに行って`git add . && git commit -m "メッセージ"`
+5. 🚀 aidevブランチにpush: `git push origin aidev`
 
 ### 毎回の最終チェック
 - [ ] aidevブランチで作業しているか？
 - [ ] WSLで実行したか？
 - [ ] タスクリストを更新したか？
 - [ ] テストは通ったか？
+- [ ] ドキュメントは更新したか？
 - [ ] ドキュメントは更新したか？
 -

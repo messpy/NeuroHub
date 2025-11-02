@@ -18,7 +18,7 @@ PY   = sys.executable
 def load_env():
     sys.path.insert(0, str(ROOT))
     try:
-        from services.llm.llm_common import load_env_from_config
+        from services.ollama.llm_common import load_env_from_config
         load_env_from_config(debug=False)
     except Exception as e:
         print(f"[warn] .env load skipped: {e}", file=sys.stderr)
