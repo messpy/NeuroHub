@@ -21,6 +21,10 @@ from datetime import datetime
 
 import discord
 from discord.ext import commands
+from dotenv import load_dotenv
+
+# .envファイルの読み込み
+load_dotenv()
 
 # プロジェクトルートをPYTHONPATHに追加
 ROOT = Path(__file__).resolve().parents[2]
