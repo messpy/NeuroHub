@@ -32,7 +32,7 @@ if str(ROOT) not in sys.path:
 try:
     from services.db.database_manager import DatabaseManager
     from services.db.knowledge_manager import KnowledgeManager
-    from agents.llm_agent import LLMAgent
+    from agents.agent_llm import LLMAgent
     from services.ai.llm_common import load_env_from_config
 except ImportError as e:
     print(f"Import error: {e}")
