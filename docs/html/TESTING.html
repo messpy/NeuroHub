@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroHub - TESTING</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #546e7a;
+            margin-top: 20px;
+        }
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Courier New", monospace;
+        }
+        pre code {
+            background: transparent;
+            padding: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            color: #777;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>NeuroHub Testing Guide</h1>
+<h2>テスト環境セットアップ</h2>
+<h3>前提条件</h3>
+<li>Python 3.8以上</li>
+<li>Git</li>
+<li>仮想環境（推奨）</li>
+<h3>依存関係のインストール</h3>
+<pre><code class="language-bash"># 開発依存関係をインストール
+pip install -r requirements-dev.txt
+<h1>または個別にインストール</h1>
+pip install pytest pytest-cov pytest-mock requests-mock flake8 black isort
+</code></pre>
+<h3>テスト実行方法</h3>
+<p>#### 1. 基本的なテスト実行
+<pre><code class="language-bash"># すべてのテストを実行
+pytest tests/ -v</p>
+<h1>特定のテストファイルを実行</h1>
+pytest tests/agents/test_git_agent.py -v
+<h1>特定のテスト関数を実行</h1>
+pytest tests/agents/test_git_agent.py::test_git_agent_initialization -v
+</code></pre>
+<p>#### 2. カバレッジ付きテスト実行
+<pre><code class="language-bash"># カバレッジレポート生成
+pytest tests/ --cov=agents --cov=services --cov-report=html --cov-report=term</p>
+<h1>HTMLレポートの確認</h1>
+<h1>htmlcov/index.html をブラウザで開く</h1>
+</code></pre>
+<p>#### 3. 統合テストランナーの使用</p>
+<strong>Linux/Mac:</strong>
+<pre><code class="language-bash">python run_tests.py --all
+python run_tests.py --python --coverage
+python run_tests.py --shell
+</code></pre>
+<strong>Windows:</strong>
+<pre><code class="language-cmd">run_tests.bat --all
+run_tests.bat --python --coverage
+run_tests.bat --shell
+</code></pre>
+<p>#### 4. コード品質チェック
+<pre><code class="language-bash"># 構文チェック
+flake8 .</p>
+<h1>コードフォーマットチェック</h1>
+black --check .
+<h1>インポート並び順チェック</h1>
+isort --check-only .
+<h1>すべて自動修正</h1>
+black .
+isort .
+</code></pre>
+<h2>テスト構造</h2>
+<h3>ディレクトリ構成</h3>
+<pre><code class="language-">tests/
+├── agents/
+│   ├── test_git_agent.py      # GitAgent単体テスト
+│   ├── test_llm_agent.py      # LLMAgent単体テスト
+│   ├── test_config_agent.py   # ConfigAgent単体テスト
+│   └── test_command_agent.py  # CommandAgent単体テスト
+├── services/
+│   ├── test_llm_providers.py  # LLMプロバイダーテスト
+│   └── test_db_services.py    # データベースサービステスト
+└── tools/
+    └── test_git_commit_ai.sh   # シェルツールテスト
+</code></pre>
+<h3>テストカバレッジ</h3>
+<p>#### Agents (agents/)
+<li><strong>GitAgent</strong>: Git操作、コミットメッセージ生成、ファイル処理</li>
+<li><strong>LLMAgent</strong>: プロバイダー管理、テキスト生成、フォールバック機能</li>
+<li><strong>ConfigAgent</strong>: 設定読み込み、検証、環境変数処理</li>
+<li><strong>CommandAgent</strong>: コマンド実行、パイプライン処理、エラーハンドリング</li></p>
+<p>#### Services (services/)
+<li><strong>LLMProviders</strong>: Gemini、HuggingFace、Ollama API統合</li>
+<li><strong>DatabaseServices</strong>: SQLite操作、履歴管理、検索機能</li></p>
+<p>#### Tools (tools/)
+<li><strong>git_commit_ai</strong>: シェルスクリプトとしての独立動作テスト</li></p>
+<h2>モッキング戦略</h2>
+<h3>LLMプロバイダーのモック</h3>
+<pre><code class="language-python">@pytest.fixture
+def mock_gemini_provider():
+    with patch('services.llm.provider_gemini.GeminiProvider') as mock:
+        instance = mock.return_value
+        instance.is_configured.return_value = True
+        instance.generate_text.return_value = "Mocked response"
+        yield instance
+</code></pre>
+<h3>Git操作のモック</h3>
+<pre><code class="language-python">@pytest.fixture
+def mock_git_operations():
+    with patch('subprocess.run') as mock_run:
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = "Success"
+        yield mock_run
+</code></pre>
+<h3>データベース操作のモック</h3>
+<pre><code class="language-python">@pytest.fixture
+def temp_database():
+    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp:
+        db_path = tmp.name
+    yield db_path
+    os.unlink(db_path)
+</code></pre>
+<h2>CI/CD統合</h2>
+<h3>GitHub Actions</h3>
+<code>.github/workflows/test.yml</code> でCI/CDパイプラインが設定されています。
+<strong>実行内容:</strong>
+1. Python 3.8-3.11での多バージョンテスト
+2. 依存関係のインストール
+3. Linting (flake8)
+4. フォーマットチェック (black)
+5. インポート並び順チェック (isort)
+6. 単体テスト実行
+7. カバレッジレポート生成
+8. シェルツールテスト
+<h3>ローカル検証</h3>
+<pre><code class="language-bash"># テスト環境の検証
+python validate_tests.py
+<h1>手動でCI相当のチェック実行</h1>
+flake8 .
+black --check .
+isort --check-only .
+pytest tests/ --cov=agents --cov=services -v
+</code></pre>
+<h2>トラブルシューティング</h2>
+<h3>よくある問題</h3>
+<p>1. <strong>ImportError: No module named 'agents'</strong>
+   <pre><code class="language-bash">   # プロジェクトルートディレクトリで実行
+   export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+   pytest tests/
+   </code></pre></p>
+<p>2. <strong>FileNotFoundError in database tests</strong>
+   <pre><code class="language-bash">   # テンポラリデータベースの権限確認
+   chmod 755 /tmp
+   </code></pre></p>
+<p>3. <strong>Mock not working properly</strong>
+   <pre><code class="language-python">   # patch decoratorの順序確認
+   @patch('module.function')
+   def test_function(self, mock_func):
+       pass
+   </code></pre></p>
+<p>4. <strong>Windows PowerShell実行エラー</strong>
+   <pre><code class="language-cmd">   # 実行ポリシー変更
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</p>
+<p># またはバッチファイル使用
+   run_tests.bat --all
+   </code></pre></p>
+<h3>デバッグ方法</h3>
+<p>1. <strong>詳細ログ出力</strong>
+   <pre><code class="language-bash">   pytest tests/ -v -s --tb=long
+   </code></pre></p>
+<p>2. <strong>特定テストのデバッグ</strong>
+   <pre><code class="language-bash">   pytest tests/agents/test_git_agent.py::test_specific_function -v -s
+   </code></pre></p>
+<p>3. <strong>カバレッジ詳細確認</strong>
+   <pre><code class="language-bash">   pytest tests/ --cov=agents --cov-report=term-missing
+   </code></pre></p>
+<h2>ベストプラクティス</h2>
+<h3>テスト作成ガイドライン</h3>
+<p>1. <strong>AAA パターン</strong>
+   - Arrange: テストデータ準備
+   - Act: 実際の処理実行
+   - Assert: 結果検証</p>
+<p>2. <strong>独立性の確保</strong>
+   - 各テストは他に依存しない
+   - fixtureで環境初期化</p>
+<p>3. <strong>エッジケース考慮</strong>
+   - 正常系、異常系両方をテスト
+   - 境界値テストの実装</p>
+<p>4. <strong>意味のあるテスト名</strong>
+   <pre><code class="language-python">   def test_git_agent_commits_staged_files_successfully():
+       pass
+   </code></pre></p>
+<h3>メンテナンス</h3>
+<li>定期的なテスト見直し（月次）</li>
+<li>カバレッジ目標: 80%以上</li>
+<li>新機能追加時は必ずテスト追加</li>
+<li>失敗したテストは優先的に修正</li>
+
+        <div class="footer">
+            <p>Generated from Markdown | NeuroHub Documentation</p>
+        </div>
+    </div>
+</body>
+</html>

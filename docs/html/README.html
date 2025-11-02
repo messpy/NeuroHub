@@ -3,357 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NeuroHub 日本語ドキュメント - NeuroHub Documentation</title>
-    <link rel="stylesheet" href="./style.css">
+    <title>NeuroHub - README</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #546e7a;
+            margin-top: 20px;
+        }
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Courier New", monospace;
+        }
+        pre code {
+            background: transparent;
+            padding: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            color: #777;
+            font-size: 0.9em;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <h2>📚 NeuroHub Docs</h2>
-            </div>
-            <nav class="sidebar-nav">
-                <ul><li><a href="index.html">🏠 トップ</a></li><li><a href="OVERVIEW.html">📖 プロジェクト概要</a></li><li><a href="ARCHITECTURE_DESIGN.html">🏗️ アーキテクチャ</a></li><li><a href="DATABASE_DESIGN.html">🗄️ データベース設計</a></li><li><a href="TASK_MANAGEMENT.html">📋 タスク管理</a></li><li class="nav-category">🤖 エージェント<ul><li><a href="agents/llm/README.html">LLM</a></li><li><a href="agents/git/README.html">Git</a></li><li><a href="agents/mcp/README.html">MCP</a></li><li><a href="agents/discord/README.html">Discord</a></li><li><a href="agents/config/README.html">Config</a></li><li><a href="agents/command/README.html">Command</a></li></ul></li></ul>
-            </nav>
-        </aside>
-        
-        <main class="content">
-            <div class="breadcrumb">
-                <a href="index.html">ホーム</a>
-            </div>
-            <article>
-                <h1 id="neurohub">NeuroHub 日本語ドキュメント</h1>
-<h2 id="_1">📚 ドキュメント構成</h2>
-<p>NeuroHubプロジェクトの全体的な設計書・技術ドキュメントです。</p>
-<h3 id="_2">🌐 言語別ドキュメント</h3>
-<ul>
-<li><strong>日本語版</strong>: <a href="./README.md">docs/jp/</a> (このディレクトリ)</li>
-<li><strong>英語版</strong>: <a href="../en/README.md">docs/en/</a></li>
-</ul>
-<h3 id="_3">📖 総合ドキュメント</h3>
-<table>
-<thead>
-<tr>
-<th>ドキュメント</th>
-<th>説明</th>
-<th>リンク</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>プロジェクト概要</strong></td>
-<td>NeuroHubの目的、アーキテクチャ、主要機能</td>
-<td><a href="./OVERVIEW.md">OVERVIEW.md</a></td>
-</tr>
-<tr>
-<td><strong>アーキテクチャ設計</strong></td>
-<td>システム全体の設計思想、モジュール構成</td>
-<td><a href="./ARCHITECTURE_DESIGN.md">ARCHITECTURE_DESIGN.md</a></td>
-</tr>
-<tr>
-<td><strong>データベース設計</strong></td>
-<td>DB構造、テーブル定義、ER図</td>
-<td><a href="./DATABASE_DESIGN.md">DATABASE_DESIGN.md</a></td>
-</tr>
-<tr>
-<td><strong>タスク管理</strong></td>
-<td>課題一覧、進捗状況、完了済みタスク</td>
-<td><a href="./TASK_MANAGEMENT.md">TASK_MANAGEMENT.md</a></td>
-</tr>
-<tr>
-<td><strong>プロジェクト概要</strong></td>
-<td>機能概要、技術スタック</td>
-<td><a href="./PROJECT_OVERVIEW.md">PROJECT_OVERVIEW.md</a></td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="_4">🤖 エージェント別設計書</h2>
-<h3 id="1-llm">1. LLMエージェント</h3>
-<p><strong>場所</strong>: <a href="./agents/llm/">agents/llm/</a></p>
-<table>
-<thead>
-<tr>
-<th>ドキュメント</th>
-<th>説明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="./agents/llm/README.md">概要</a></td>
-<td>LLMエージェントの役割と全体像</td>
-</tr>
-<tr>
-<td><a href="./agents/llm/DETAILED_DESIGN.md">詳細設計</a></td>
-<td>内部構造、クラス設計、API仕様</td>
-</tr>
-<tr>
-<td><a href="./agents/llm/PROVIDER_DESIGN.md">プロバイダー設計</a></td>
-<td>Ollama/Gemini/HuggingFace統合設計</td>
-</tr>
-<tr>
-<td><a href="./agents/llm/OTHER_DESIGNS.md">その他設計</a></td>
-<td>拡張機能、カスタマイズ設計</td>
-</tr>
-</tbody>
-</table>
-<h3 id="2-git">2. Gitエージェント</h3>
-<p><strong>場所</strong>: <a href="./agents/git/">agents/git/</a></p>
-<table>
-<thead>
-<tr>
-<th>ドキュメント</th>
-<th>説明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="./agents/git/README.md">概要</a></td>
-<td>Gitエージェントの役割と全体像</td>
-</tr>
-<tr>
-<td><a href="./agents/git/DETAILED_DESIGN.md">詳細設計</a></td>
-<td>git_agent, git_smart_agentの内部設計</td>
-</tr>
-<tr>
-<td><a href="./agents/git/COMMIT_STRATEGY.md">コミット戦略</a></td>
-<td>自動コミット、チャンク処理設計</td>
-</tr>
-<tr>
-<td><a href="./agents/git/OTHER_DESIGNS.md">その他設計</a></td>
-<td>ブランチ管理、フックスクリプト設計</td>
-</tr>
-</tbody>
-</table>
-<h3 id="3-config">3. Configエージェント</h3>
-<p><strong>場所</strong>: <a href="./agents/config/">agents/config/</a></p>
-<table>
-<thead>
-<tr>
-<th>ドキュメント</th>
-<th>説明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="./agents/config/README.md">概要</a></td>
-<td>設定管理エージェントの役割</td>
-</tr>
-<tr>
-<td><a href="./agents/config/DETAILED_DESIGN.md">詳細設計</a></td>
-<td>YAML/JSON設定管理、バリデーション</td>
-</tr>
-<tr>
-<td><a href="./agents/config/ENV_DESIGN.md">環境変数設計</a></td>
-<td>.env管理、セキュリティ設計</td>
-</tr>
-<tr>
-<td><a href="./agents/config/OTHER_DESIGNS.md">その他設計</a></td>
-<td>動的設定、プラグイン設定</td>
-</tr>
-</tbody>
-</table>
-<h3 id="4-command">4. Commandエージェント</h3>
-<p><strong>場所</strong>: <a href="./agents/command/">agents/command/</a></p>
-<table>
-<thead>
-<tr>
-<th>ドキュメント</th>
-<th>説明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="./agents/command/README.md">概要</a></td>
-<td>コマンド実行エージェントの役割</td>
-</tr>
-<tr>
-<td><a href="./agents/command/DETAILED_DESIGN.md">詳細設計</a></td>
-<td>コマンド実行、セキュリティ検証</td>
-</tr>
-<tr>
-<td><a href="./agents/command/EXECUTION_STRATEGY.md">実行戦略</a></td>
-<td>並列実行、タイムアウト処理</td>
-</tr>
-<tr>
-<td><a href="./agents/command/OTHER_DESIGNS.md">その他設計</a></td>
-<td>スクリプト生成、ログ管理</td>
-</tr>
-</tbody>
-</table>
-<h3 id="5-discord">5. Discordエージェント</h3>
-<p><strong>場所</strong>: <a href="./agents/discord/">agents/discord/</a></p>
-<table>
-<thead>
-<tr>
-<th>ドキュメント</th>
-<th>説明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="./agents/discord/README.md">概要</a></td>
-<td>Discord Botの役割と機能</td>
-</tr>
-<tr>
-<td><a href="./agents/discord/DETAILED_DESIGN.md">詳細設計</a></td>
-<td>Bot Core、プラグインシステム</td>
-</tr>
-<tr>
-<td><a href="./agents/discord/VOICE_DESIGN.md">音声管理</a></td>
-<td>音声トリガー、音声合成設計</td>
-</tr>
-<tr>
-<td><a href="./agents/discord/OTHER_DESIGNS.md">その他設計</a></td>
-<td>アンチスパム、権限管理</td>
-</tr>
-</tbody>
-</table>
-<h3 id="6-mcp">6. MCPエージェント</h3>
-<p><strong>場所</strong>: <a href="./agents/mcp/">agents/mcp/</a></p>
-<table>
-<thead>
-<tr>
-<th>ドキュメント</th>
-<th>説明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="./agents/mcp/README.md">概要</a></td>
-<td>自動プロジェクト生成システム概要</td>
-</tr>
-<tr>
-<td><a href="./agents/mcp/DETAILED_DESIGN.md">詳細設計</a></td>
-<td>仕様正規化、設計、検証フロー</td>
-</tr>
-<tr>
-<td><a href="./agents/mcp/CODING_RULES.md">コーディングルール</a></td>
-<td>MCP開発規約、禁止コマンド</td>
-</tr>
-<tr>
-<td><a href="./agents/mcp/OTHER_DESIGNS.md">その他設計</a></td>
-<td>テンプレート、Jinja2統合</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="_5">🛠️ サービス別設計書</h2>
-<h3 id="aillm">AI/LLMサービス</h3>
-<p><strong>場所</strong>: <a href="./services/">services/</a></p>
-<table>
-<thead>
-<tr>
-<th>ドキュメント</th>
-<th>説明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="./services/AI_SERVICE_DESIGN.md">AI総合設計</a></td>
-<td>services/ai/の全体設計</td>
-</tr>
-<tr>
-<td><a href="./services/PROVIDER_SPECS.md">プロバイダー仕様</a></td>
-<td>Ollama/Gemini/HuggingFace仕様</td>
-</tr>
-</tbody>
-</table>
-<h3 id="_6">データベースサービス</h3>
-<table>
-<thead>
-<tr>
-<th>ドキュメント</th>
-<th>説明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="./services/DB_SERVICE_DESIGN.md">DB総合設計</a></td>
-<td>services/db/の全体設計</td>
-</tr>
-<tr>
-<td><a href="./services/DB_SCHEMA.md">スキーマ定義</a></td>
-<td>テーブル定義、インデックス設計</td>
-</tr>
-</tbody>
-</table>
-<h3 id="mcp">MCPサービス</h3>
-<table>
-<thead>
-<tr>
-<th>ドキュメント</th>
-<th>説明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="./services/MCP_SERVICE_DESIGN.md">MCP総合設計</a></td>
-<td>services/mcp/の全体設計</td>
-</tr>
-<tr>
-<td><a href="./services/MCP_NEW_FLOW.md">新フロー設計</a></td>
-<td>仕様正規化→設計→検証フロー</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="html">🌐 HTML版ドキュメント</h2>
-<p>インタラクティブなナビゲーション付きHTML版ドキュメントは以下で閲覧できます：</p>
-<p>📄 <strong><a href="../html/index.html">HTML版トップページ</a></strong></p>
-<h3 id="html_1">HTML版の特徴</h3>
-<ul>
-<li>📑 サイドバーナビゲーション</li>
-<li>🔍 全文検索機能</li>
-<li>📱 レスポンシブデザイン</li>
-<li>🎨 シンタックスハイライト</li>
-<li>🔗 相互リンク自動生成</li>
-</ul>
-<hr />
-<h2 id="_7">📝 ドキュメント作成・更新ガイドライン</h2>
-<h3 id="_8">新規ドキュメント作成時</h3>
-<ol>
-<li>適切なディレクトリに配置</li>
-<li>READMEに追加してリンク</li>
-<li>HTML版を再生成（<code>python3 tools/generate_html_docs.py</code>）</li>
-<li>Git commit</li>
-</ol>
-<h3 id="_9">ドキュメント更新時</h3>
-<ol>
-<li>対応するMarkdownファイルを編集</li>
-<li>変更履歴を記録</li>
-<li>HTML版を再生成</li>
-<li>TASK_MANAGEMENT.mdに記録</li>
-</ol>
-<hr />
-<h2 id="_10">🚀 クイックナビゲーション</h2>
-<h3 id="_11">初めての方</h3>
-<ol>
-<li><a href="./OVERVIEW.md">プロジェクト概要</a> - まずはここから</li>
-<li><a href="./ARCHITECTURE_DESIGN.md">アーキテクチャ設計</a> - システム全体像</li>
-<li><a href="./TASK_MANAGEMENT.md">タスク管理</a> - 現在の進捗確認</li>
-</ol>
-<h3 id="_12">開発者向け</h3>
-<ol>
-<li><a href="./agents/">エージェント別設計書</a> - 各モジュールの詳細</li>
-<li><a href="./services/">サービス設計書</a> - サービス層の仕様</li>
-<li><a href="../html/index.html">HTML版ドキュメント</a> - 快適な閲覧</li>
-</ol>
-<h3 id="_13">運用担当者向け</h3>
-<ol>
-<li><a href="./DATABASE_DESIGN.md">データベース設計</a> - DB管理情報</li>
-<li><a href="./agents/discord/README.md">Discord設定</a> - Bot運用</li>
-<li><a href="./agents/config/ENV_DESIGN.md">環境変数設計</a> - 環境設定</li>
-</ol>
-<hr />
-<p><em>最終更新: 2025年11月2日</em></p>
-            </article>
-            <footer class="page-footer">
-                <p>最終更新: 2025年11月02日</p>
-                <p>© 2025 NeuroHub Project</p>
-            </footer>
-        </main>
+        <h1>NeuroHub ドキュメント</h1>
+<h2>📚 ドキュメント構成</h2>
+<h3>🇯🇵 日本語ドキュメント (<a href="./jp/">jp/</a>)</h3>
+<li><strong><a href="./jp/PROJECT_OVERVIEW.md">プロジェクト概要</a></strong>: NeuroHubの全体像</li>
+<li><strong><a href="./jp/ARCHITECTURE_DESIGN.md">アーキテクチャ設計</a></strong>: システム設計詳細</li>
+<li><strong><a href="./jp/TASK_MANAGEMENT.md">タスク管理</a></strong>: 課題管理表</li>
+<li><strong><a href="./jp/MCP_GUIDE.md">MCPガイド</a></strong>: MCP機能ガイド</li>
+<li><strong><a href="./jp/MCP_CODING_RULES.md">MCPコーディングルール</a></strong>: コーディング規約</li>
+<li><strong><a href="./jp/DATABASE_DESIGN.md">データベース設計</a></strong>: DB設計書</li>
+<h3>🇬🇧 English Documents (<a href="./en/">en/</a>)</h3>
+<p>> <strong>Status</strong>: Coming soon (準備中)</p>
+<h2>📖 主要ドキュメント一覧</h2>
+<h3>システム設計</h3>
+<li><a href="./jp/ARCHITECTURE_DESIGN.md">ARCHITECTURE_DESIGN.md</a>: アーキテクチャ設計書 🇯🇵</li>
+<li><a href="./jp/DATABASE_DESIGN.md">DATABASE_DESIGN.md</a>: データベース設計書 🇯🇵</li>
+<li><a href="./INTERFACE_DESIGN.md">INTERFACE_DESIGN.md</a>: インターフェース設計 🇯🇵</li>
+<h3>MCP関連</h3>
+<li><a href="./jp/MCP_GUIDE.md">MCP_GUIDE.md</a>: MCP機能ガイド 🇯🇵</li>
+<li><a href="./jp/MCP_CODING_RULES.md">MCP_CODING_RULES.md</a>: コーディングルール 🇯🇵</li>
+<li><a href="./MCP_ENHANCEMENT.md">MCP_ENHANCEMENT.md</a>: MCP強化機能 🇯🇵</li>
+<h3>セットアップ</h3>
+<li><a href="./LINUX_SETUP.md">LINUX_SETUP.md</a>: Linux環境構築 🇯🇵</li>
+<li><a href="./DOCKER_SETUP.md">DOCKER_SETUP.md</a>: Docker環境構築（推奨） 🇯🇵 🐳</li>
+<li><a href="./DISCORD_BOT_GUIDE.md">DISCORD_BOT_GUIDE.md</a>: Discord Bot設定 🇯🇵</li>
+<h3>プロジェクト管理</h3>
+<li><a href="./jp/PROJECT_OVERVIEW.md">PROJECT_OVERVIEW.md</a>: プロジェクト概要 🇯🇵</li>
+<li><a href="./jp/TASK_MANAGEMENT.md">TASK_MANAGEMENT.md</a>: タスク管理表 🇯🇵</li>
+<h2>🚀 クイックスタート</h2>
+<p>1. <strong>Docker環境構築（推奨）</strong>: <a href="./DOCKER_SETUP.md">DOCKER_SETUP.md</a> 🐳
+2. <strong>従来の環境構築</strong>: <a href="./LINUX_SETUP.md">LINUX_SETUP.md</a>
+3. <strong>プロジェクト概要</strong>: <a href="./jp/PROJECT_OVERVIEW.md">PROJECT_OVERVIEW.md</a>
+4. <strong>MCP使用方法</strong>: <a href="./jp/MCP_GUIDE.md">MCP_GUIDE.md</a></p>
+<h2>🔄 更新履歴</h2>
+<li><strong>2025-11-02</strong>: ドキュメント国際化対応開始</li>
+  - <code>docs/jp/</code>, <code>docs/en/</code> ディレクトリ作成
+  - 主要ドキュメントを日本語版に整理
+
+        <div class="footer">
+            <p>Generated from Markdown | NeuroHub Documentation</p>
+        </div>
     </div>
-    <script src="./script.js"></script>
 </body>
 </html>

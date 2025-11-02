@@ -3,150 +3,164 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NeuroHub プロジェクト概要 - NeuroHub Documentation</title>
-    <link rel="stylesheet" href="./style.css">
+    <title>NeuroHub - PROJECT_OVERVIEW</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #546e7a;
+            margin-top: 20px;
+        }
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Courier New", monospace;
+        }
+        pre code {
+            background: transparent;
+            padding: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            color: #777;
+            font-size: 0.9em;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <h2>📚 NeuroHub Docs</h2>
-            </div>
-            <nav class="sidebar-nav">
-                <ul><li><a href="index.html">🏠 トップ</a></li><li><a href="OVERVIEW.html">📖 プロジェクト概要</a></li><li><a href="ARCHITECTURE_DESIGN.html">🏗️ アーキテクチャ</a></li><li><a href="DATABASE_DESIGN.html">🗄️ データベース設計</a></li><li><a href="TASK_MANAGEMENT.html">📋 タスク管理</a></li><li class="nav-category">🤖 エージェント<ul><li><a href="agents/llm/README.html">LLM</a></li><li><a href="agents/git/README.html">Git</a></li><li><a href="agents/mcp/README.html">MCP</a></li><li><a href="agents/discord/README.html">Discord</a></li><li><a href="agents/config/README.html">Config</a></li><li><a href="agents/command/README.html">Command</a></li></ul></li></ul>
-            </nav>
-        </aside>
-        
-        <main class="content">
-            <div class="breadcrumb">
-                <a href="index.html">ホーム</a>
-            </div>
-            <article>
-                <h1 id="neurohub">NeuroHub プロジェクト概要</h1>
+        <h1>NeuroHub プロジェクト概要</h1>
 <p>最終更新: 2025-11-02</p>
-<hr />
-<h2 id="_1">🎯 プロジェクト概要</h2>
+<p>---</p>
+<h2>🎯 プロジェクト概要</h2>
 <p>NeuroHubは、AI駆動型のスマートアシスタントシステムです。自然言語で指示を受け取り、適切なエージェントにルーティングして実行します。</p>
-<p><strong>目標</strong>: アレクサやGoogle Homeを超える、完全無料のオープンソーススマートアシスタント</p>
-<hr />
-<h2 id="_2">📂 主要ディレクトリ構造</h2>
-<div class="codehilite"><pre><span></span><code><span class="n">NeuroHub</span><span class="o">/</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">main</span><span class="o">.</span><span class="n">py</span><span class="w">                 </span><span class="c1"># 🎯 メインエントリーポイント（意図判定・ルーティング）</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">agents</span><span class="o">/</span><span class="w">                 </span><span class="c1"># 🤖 各種エージェント</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">services</span><span class="o">/</span><span class="w">               </span><span class="c1"># 🛠️ バックエンドサービス</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">tools</span><span class="o">/</span><span class="w">                  </span><span class="c1"># 🔧 ユーティリティツール</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">config</span><span class="o">/</span><span class="w">                 </span><span class="c1"># ⚙️ 設定ファイル</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">docs</span><span class="o">/</span><span class="w">                   </span><span class="c1"># 📚 ドキュメント</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">tests</span><span class="o">/</span><span class="w">                  </span><span class="c1"># 🧪 テストコード</span>
-<span class="err">└──</span><span class="w"> </span><span class="n">modelfiles</span><span class="o">/</span><span class="w">             </span><span class="c1"># 🦙 Ollama Modelfile</span>
-</code></pre></div>
-
-<hr />
-<h2 id="_3">🎯 メインエントリーポイント</h2>
-<h3 id="mainpy"><a href="../main.py">main.py</a></h3>
-<p><strong>機能</strong>: NeuroHubの中央制御システム</p>
-<ul>
+<strong>目標</strong>: アレクサやGoogle Homeを超える、完全無料のオープンソーススマートアシスタント
+<p>---</p>
+<h2>📂 主要ディレクトリ構造</h2>
+<pre><code class="language-">NeuroHub/
+├── main.py                 # 🎯 メインエントリーポイント（意図判定・ルーティング）
+├── agents/                 # 🤖 各種エージェント
+├── services/               # 🛠️ バックエンドサービス
+├── tools/                  # 🔧 ユーティリティツール
+├── config/                 # ⚙️ 設定ファイル
+├── docs/                   # 📚 ドキュメント
+├── tests/                  # 🧪 テストコード
+└── modelfiles/             # 🦙 Ollama Modelfile
+</code></pre>
+<p>---</p>
+<h2>🎯 メインエントリーポイント</h2>
+<h3><a href="../main.py">main.py</a></h3>
+<strong>機能</strong>: NeuroHubの中央制御システム
 <li><strong>IntentDetector</strong>: 自然言語から意図を自動判定</li>
 <li><strong>AgentRouter</strong>: 適切なエージェントへ自動ルーティング</li>
-</ul>
-<p><strong>使用例</strong>:</p>
-<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>main.py<span class="w"> </span><span class="s2">&quot;今日の天気は？&quot;</span><span class="w">          </span><span class="c1"># → weather_agent</span>
-python<span class="w"> </span>main.py<span class="w"> </span><span class="s2">&quot;ファイル一覧ツール作成&quot;</span><span class="w">   </span><span class="c1"># → mcp_agent</span>
-python<span class="w"> </span>main.py<span class="w"> </span><span class="s2">&quot;git statusを確認&quot;</span><span class="w">       </span><span class="c1"># → git_agent</span>
-</code></pre></div>
-
-<p><strong>詳細</strong>: <a href="#mainpy詳細">main.pyの仕様</a></p>
-<hr />
-<h2 id="agents">🤖 エージェント (agents/)</h2>
-<h3 id="_4">📋 エージェント一覧</h3>
-<table>
-<thead>
-<tr>
-<th>エージェント</th>
-<th>機能</th>
-<th>状態</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="#agentscommonpy">common.py</a></td>
-<td>BaseAgentクラス、共通機能</td>
-<td>✅ 完成</td>
-</tr>
-<tr>
-<td><a href="#agentsgit_agentpy">git_agent.py</a></td>
-<td>Git操作支援</td>
-<td>✅ 完成</td>
-</tr>
-<tr>
-<td><a href="#agentsllm_agentpy">llm_agent.py</a></td>
-<td>LLM統合管理</td>
-<td>✅ 完成</td>
-</tr>
-<tr>
-<td><a href="#agentscommand_agentpy">command_agent.py</a></td>
-<td>システムコマンド実行</td>
-<td>✅ 完成</td>
-</tr>
-<tr>
-<td><a href="#agentsconfig_agentpy">config_agent.py</a></td>
-<td>設定管理</td>
-<td>✅ 完成</td>
-</tr>
-<tr>
-<td><a href="#weather_agent">specialized/weather_agent.py</a></td>
-<td>天気情報取得</td>
-<td>✅ 完成</td>
-</tr>
-<tr>
-<td><a href="#web_agent">specialized/web_agent.py</a></td>
-<td>Web検索</td>
-<td>🔄 開発中</td>
-</tr>
-<tr>
-<td><a href="#mcp_agent">specialized/mcp_agent.py</a></td>
-<td>MCP開発自動化</td>
-<td>🔄 開発中</td>
-</tr>
-</tbody>
-</table>
-<h3 id="agentscommonpy">agents/common.py</h3>
-<p><strong>機能</strong>: 全エージェントの基底クラス</p>
-<ul>
+<strong>使用例</strong>:
+<pre><code class="language-bash">python main.py "今日の天気は？"          # → weather_agent
+python main.py "ファイル一覧ツール作成"   # → mcp_agent
+python main.py "git statusを確認"       # → git_agent
+</code></pre>
+<strong>詳細</strong>: <a href="#mainpy詳細">main.pyの仕様</a>
+<p>---</p>
+<h2>🤖 エージェント (agents/)</h2>
+<h3>📋 エージェント一覧</h3>
+<p>| エージェント | 機能 | 状態 |
+|------------|------|------|
+| <a href="#agentscommonpy">common.py</a> | BaseAgentクラス、共通機能 | ✅ 完成 |
+| <a href="#agentsgit_agentpy">git_agent.py</a> | Git操作支援 | ✅ 完成 |
+| <a href="#agentsllm_agentpy">llm_agent.py</a> | LLM統合管理 | ✅ 完成 |
+| <a href="#agentscommand_agentpy">command_agent.py</a> | システムコマンド実行 | ✅ 完成 |
+| <a href="#agentsconfig_agentpy">config_agent.py</a> | 設定管理 | ✅ 完成 |
+| <a href="#weather_agent">specialized/weather_agent.py</a> | 天気情報取得 | ✅ 完成 |
+| <a href="#web_agent">specialized/web_agent.py</a> | Web検索 | 🔄 開発中 |
+| <a href="#mcp_agent">specialized/mcp_agent.py</a> | MCP開発自動化 | 🔄 開発中 |</p>
+<h3>agents/common.py</h3>
+<strong>機能</strong>: 全エージェントの基底クラス
 <li><strong>BaseAgent</strong>: 共通インターフェース</li>
 <li><strong>ロギング</strong>: 統一ログ管理</li>
 <li><strong>設定管理</strong>: YAML設定読み込み</li>
 <li><strong>エラーハンドリング</strong>: 統一エラー処理</li>
-</ul>
-<p><strong>詳細</strong>: <a href="#agentscommonpy詳細">agents/common.pyの仕様</a></p>
-<h3 id="agentsgit_agentpy">agents/git_agent.py</h3>
-<p><strong>機能</strong>: Git操作の自動化</p>
-<ul>
+<strong>詳細</strong>: <a href="#agentscommonpy詳細">agents/common.pyの仕様</a>
+<h3>agents/git_agent.py</h3>
+<strong>機能</strong>: Git操作の自動化
 <li>Git status確認</li>
 <li>コミットメッセージ自動生成（LLM使用）</li>
 <li>自動コミット・プッシュ</li>
 <li>インタラクティブモード</li>
-</ul>
-<p><strong>使用例</strong>:</p>
-<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>agents/git_agent.py<span class="w"> </span>--status
-python<span class="w"> </span>agents/git_agent.py<span class="w"> </span>--auto-commit
-python<span class="w"> </span>agents/git_agent.py<span class="w"> </span>--interactive
-</code></pre></div>
-
-<p><strong>詳細</strong>: <a href="#agentsgit_agentpy詳細">agents/git_agent.pyの仕様</a></p>
-<h3 id="agentsllm_agentpy">agents/llm_agent.py</h3>
-<p><strong>機能</strong>: 複数LLMプロバイダーの統合管理</p>
-<ul>
+<strong>使用例</strong>:
+<pre><code class="language-bash">python agents/git_agent.py --status
+python agents/git_agent.py --auto-commit
+python agents/git_agent.py --interactive
+</code></pre>
+<strong>詳細</strong>: <a href="#agentsgit_agentpy詳細">agents/git_agent.pyの仕様</a>
+<h3>agents/llm_agent.py</h3>
+<strong>機能</strong>: 複数LLMプロバイダーの統合管理
 <li>マルチプロバイダー対応（Gemini, Ollama, HuggingFace）</li>
 <li>自動フォールバック</li>
 <li>レート制限対応</li>
 <li>履歴管理</li>
-</ul>
-<p><strong>詳細</strong>: <a href="#agentsllm_agentpy詳細">agents/llm_agent.pyの仕様</a></p>
-<hr />
-<h2 id="services">🛠️ サービス (services/)</h2>
-<h3 id="_5">📁 ディレクトリ構造</h3>
-<div class="codehilite"><pre><span></span><code>services/
+<strong>詳細</strong>: <a href="#agentsllm_agentpy詳細">agents/llm_agent.pyの仕様</a>
+<p>---</p>
+<h2>🛠️ サービス (services/)</h2>
+<h3>📁 ディレクトリ構造</h3>
+<pre><code class="language-">services/
 ├── common/              # 共通サービス
 │   ├── system_info.py  # PCスペック検出
 │   └── venv_manager.py # 仮想環境自動管理
@@ -157,252 +171,152 @@ python<span class="w"> </span>agents/git_agent.py<span class="w"> </span>--inter
 ├── mcp/                # MCP開発自動化
 ├── db/                 # データベース管理
 └── discord/            # Discord Bot
-</code></pre></div>
-
-<h3 id="servicescommonsystem_infopy">services/common/system_info.py</h3>
-<p><strong>機能</strong>: システム情報の自動検出</p>
-<ul>
+</code></pre>
+<h3>services/common/system_info.py</h3>
+<strong>機能</strong>: システム情報の自動検出
 <li>CPU/RAM/GPU検出</li>
 <li>Ollamaモデル推奨</li>
 <li>DB保存</li>
-</ul>
-<p><strong>使用例</strong>:</p>
-<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>services/common/system_info.py<span class="w"> </span>--show
-python<span class="w"> </span>services/common/system_info.py<span class="w"> </span>--save
-</code></pre></div>
-
-<p><strong>詳細</strong>: <a href="#system_infopy詳細">system_info.pyの仕様</a></p>
-<h3 id="servicescommonvenv_managerpy">services/common/venv_manager.py</h3>
-<p><strong>機能</strong>: 仮想環境の自動管理</p>
-<ul>
+<strong>使用例</strong>:
+<pre><code class="language-bash">python services/common/system_info.py --show
+python services/common/system_info.py --save
+</code></pre>
+<strong>詳細</strong>: <a href="#system_infopy詳細">system_info.pyの仕様</a>
+<h3>services/common/venv_manager.py</h3>
+<strong>機能</strong>: 仮想環境の自動管理
 <li>pip install自動検知</li>
 <li>venv自動作成</li>
 <li>importエラー自動対応</li>
-</ul>
-<p><strong>詳細</strong>: <a href="#venv_managerpy詳細">venv_manager.pyの仕様</a></p>
-<h3 id="servicesllm">services/llm/</h3>
-<p><strong>機能</strong>: LLMプロバイダー管理</p>
-<ul>
+<strong>詳細</strong>: <a href="#venv_managerpy詳細">venv_manager.pyの仕様</a>
+<h3>services/llm/</h3>
+<strong>機能</strong>: LLMプロバイダー管理
 <li><a href="#provider_ollamapy">provider_ollama.py</a>: Ollama統合</li>
 <li><a href="#provider_geminipy">provider_gemini.py</a>: Google Gemini統合</li>
 <li><a href="#provider_huggingfacepy">provider_huggingface.py</a>: HuggingFace統合</li>
 <li><a href="#modelfile_generatorpy">modelfile_generator.py</a>: Modelfile動的生成</li>
-</ul>
-<p><strong>詳細</strong>: <a href="#llmサービス詳細">LLMサービスの仕様</a></p>
-<h3 id="servicesmcp">services/mcp/</h3>
-<p><strong>機能</strong>: Model Context Protocol - AI開発自動化</p>
-<ul>
+<strong>詳細</strong>: <a href="#llmサービス詳細">LLMサービスの仕様</a>
+<h3>services/mcp/</h3>
+<strong>機能</strong>: Model Context Protocol - AI開発自動化
 <li><a href="#mcp_runpy">mcp_run.py</a>: プロジェクト自動生成</li>
 <li><a href="#auto_debuggerpy">auto_debugger.py</a>: 自動デバッグ（5回連続終了）</li>
 <li><a href="#design_generatorpy">design_generator.py</a>: 設計書自動生成</li>
-</ul>
-<p><strong>詳細</strong>: <a href="#mcpサービス詳細">MCPサービスの仕様</a></p>
-<hr />
-<h2 id="tools">🔧 ツール (tools/)</h2>
-<h3 id="toolsollama_setuppy">tools/ollama_setup.py</h3>
-<p><strong>機能</strong>: Ollama完全自動セットアップ</p>
-<ol>
-<li>Ollamaインストール確認・自動インストール</li>
-<li>PCスペック検出→DB保存</li>
-<li>最適モデル選択・pull</li>
-<li>Modelfile生成（MCP rules埋め込み）</li>
-<li>カスタムモデルビルド</li>
-</ol>
-<p><strong>使用例</strong>:</p>
-<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>tools/ollama_setup.py<span class="w">                </span><span class="c1"># 完全自動セットアップ</span>
-python<span class="w"> </span>tools/ollama_setup.py<span class="w"> </span>--check-only<span class="w">   </span><span class="c1"># インストール確認のみ</span>
-python<span class="w"> </span>tools/ollama_setup.py<span class="w"> </span>--specs-only<span class="w">   </span><span class="c1"># スペック検出のみ</span>
-</code></pre></div>
-
-<p><strong>詳細</strong>: <a href="#ollama_setuppy詳細">ollama_setup.pyの仕様</a></p>
-<hr />
-<h2 id="config">⚙️ 設定 (config/)</h2>
-<h3 id="_6">設定ファイル一覧</h3>
-<table>
-<thead>
-<tr>
-<th>ファイル</th>
-<th>用途</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>config.yaml</td>
-<td>全体設定</td>
-</tr>
-<tr>
-<td>llm_config.yaml</td>
-<td>LLMプロバイダー設定</td>
-</tr>
-<tr>
-<td>agent_config.yaml</td>
-<td>エージェント設定</td>
-</tr>
-<tr>
-<td>prompt_templates.yaml</td>
-<td>プロンプトテンプレート</td>
-</tr>
-</tbody>
-</table>
-<p><strong>詳細</strong>: <a href="#設定ファイル詳細">設定ファイルの仕様</a></p>
-<hr />
-<h2 id="docs">📚 ドキュメント (docs/)</h2>
-<h3 id="_7">主要ドキュメント</h3>
-<table>
-<thead>
-<tr>
-<th>ドキュメント</th>
-<th>内容</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="FILE_DESIGN.md">FILE_DESIGN.md</a></td>
-<td>ファイル設計書（60ファイル目標）</td>
-</tr>
-<tr>
-<td><a href="TASK_MANAGEMENT.md">TASK_MANAGEMENT.md</a></td>
-<td>タスク管理・進捗追跡</td>
-</tr>
-<tr>
-<td><a href="MCP_CODING_RULES.md">MCP_CODING_RULES.md</a></td>
-<td>MCP自動コード生成ルール</td>
-</tr>
-<tr>
-<td><a href="ARCHITECTURE_DESIGN.md">ARCHITECTURE_DESIGN.md</a></td>
-<td>アーキテクチャ設計</td>
-</tr>
-<tr>
-<td><a href="TESTING.md">TESTING.md</a></td>
-<td>テストガイド</td>
-</tr>
-</tbody>
-</table>
-<p><strong>詳細</strong>: <a href="#ドキュメント詳細">ドキュメント一覧</a></p>
-<hr />
-<h2 id="_8">🗄️ データベース</h2>
-<h3 id="neurohub_llmdb">neurohub_llm.db</h3>
-<p><strong>テーブル一覧</strong>:</p>
-<table>
-<thead>
-<tr>
-<th>テーブル</th>
-<th>用途</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>knowledge_base</td>
-<td>SQLスニペット、FAQ保存</td>
-</tr>
-<tr>
-<td>llm_interactions</td>
-<td>LLM履歴管理</td>
-</tr>
-<tr>
-<td>system_specs</td>
-<td>PCスペック保存</td>
-</tr>
-<tr>
-<td>ollama_models</td>
-<td>Ollamaモデル情報</td>
-</tr>
-</tbody>
-</table>
-<p><strong>詳細</strong>: <a href="#データベース詳細">データベース設計</a></p>
-<hr />
-<h2 id="_9">🚀 クイックスタート</h2>
-<h3 id="1">1. 初回セットアップ</h3>
-<div class="codehilite"><pre><span></span><code><span class="c1"># Ollama自動セットアップ</span>
-python<span class="w"> </span>tools/ollama_setup.py
-
-<span class="c1"># 依存パッケージインストール</span>
-pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
-</code></pre></div>
-
-<h3 id="2">2. 基本的な使い方</h3>
-<div class="codehilite"><pre><span></span><code><span class="c1"># 天気を聞く</span>
-python<span class="w"> </span>main.py<span class="w"> </span><span class="s2">&quot;今日の天気は？&quot;</span>
-
-<span class="c1"># 開発タスク</span>
-python<span class="w"> </span>main.py<span class="w"> </span><span class="s2">&quot;ToDoリストアプリを作成&quot;</span>
-
-<span class="c1"># Git操作</span>
-python<span class="w"> </span>main.py<span class="w"> </span><span class="s2">&quot;変更内容をコミット&quot;</span>
-</code></pre></div>
-
-<h3 id="3">3. 個別エージェント使用</h3>
-<div class="codehilite"><pre><span></span><code><span class="c1"># Git操作</span>
-python<span class="w"> </span>agents/git_agent.py<span class="w"> </span>--status
-
-<span class="c1"># LLM直接使用</span>
-python<span class="w"> </span>services/llm/llm_cli.py<span class="w"> </span><span class="s2">&quot;質問内容&quot;</span>
-
-<span class="c1"># MCP開発</span>
-python<span class="w"> </span>services/mcp/mcp_run.py<span class="w"> </span><span class="s2">&quot;プロジェクト説明&quot;</span>
-</code></pre></div>
-
-<hr />
-<h2 id="_10">📊 プロジェクト統計</h2>
-<ul>
+<strong>詳細</strong>: <a href="#mcpサービス詳細">MCPサービスの仕様</a>
+<p>---</p>
+<h2>🔧 ツール (tools/)</h2>
+<h3>tools/ollama_setup.py</h3>
+<strong>機能</strong>: Ollama完全自動セットアップ
+<p>1. Ollamaインストール確認・自動インストール
+2. PCスペック検出→DB保存
+3. 最適モデル選択・pull
+4. Modelfile生成（MCP rules埋め込み）
+5. カスタムモデルビルド</p>
+<strong>使用例</strong>:
+<pre><code class="language-bash">python tools/ollama_setup.py                # 完全自動セットアップ
+python tools/ollama_setup.py --check-only   # インストール確認のみ
+python tools/ollama_setup.py --specs-only   # スペック検出のみ
+</code></pre>
+<strong>詳細</strong>: <a href="#ollama_setuppy詳細">ollama_setup.pyの仕様</a>
+<p>---</p>
+<h2>⚙️ 設定 (config/)</h2>
+<h3>設定ファイル一覧</h3>
+<p>| ファイル | 用途 |
+|---------|------|
+| config.yaml | 全体設定 |
+| llm_config.yaml | LLMプロバイダー設定 |
+| agent_config.yaml | エージェント設定 |
+| prompt_templates.yaml | プロンプトテンプレート |</p>
+<strong>詳細</strong>: <a href="#設定ファイル詳細">設定ファイルの仕様</a>
+<p>---</p>
+<h2>📚 ドキュメント (docs/)</h2>
+<h3>主要ドキュメント</h3>
+<p>| ドキュメント | 内容 |
+|------------|------|
+| <a href="FILE_DESIGN.md">FILE_DESIGN.md</a> | ファイル設計書（60ファイル目標） |
+| <a href="TASK_MANAGEMENT.md">TASK_MANAGEMENT.md</a> | タスク管理・進捗追跡 |
+| <a href="MCP_CODING_RULES.md">MCP_CODING_RULES.md</a> | MCP自動コード生成ルール |
+| <a href="ARCHITECTURE_DESIGN.md">ARCHITECTURE_DESIGN.md</a> | アーキテクチャ設計 |
+| <a href="TESTING.md">TESTING.md</a> | テストガイド |</p>
+<strong>詳細</strong>: <a href="#ドキュメント詳細">ドキュメント一覧</a>
+<p>---</p>
+<h2>🗄️ データベース</h2>
+<h3>neurohub_llm.db</h3>
+<strong>テーブル一覧</strong>:
+<p>| テーブル | 用途 |
+|---------|------|
+| knowledge_base | SQLスニペット、FAQ保存 |
+| llm_interactions | LLM履歴管理 |
+| system_specs | PCスペック保存 |
+| ollama_models | Ollamaモデル情報 |</p>
+<strong>詳細</strong>: <a href="#データベース詳細">データベース設計</a>
+<p>---</p>
+<h2>🚀 クイックスタート</h2>
+<h3>1. 初回セットアップ</h3>
+<pre><code class="language-bash"># Ollama自動セットアップ
+python tools/ollama_setup.py
+<h1>依存パッケージインストール</h1>
+pip install -r requirements.txt
+</code></pre>
+<h3>2. 基本的な使い方</h3>
+<pre><code class="language-bash"># 天気を聞く
+python main.py "今日の天気は？"
+<h1>開発タスク</h1>
+python main.py "ToDoリストアプリを作成"
+<h1>Git操作</h1>
+python main.py "変更内容をコミット"
+</code></pre>
+<h3>3. 個別エージェント使用</h3>
+<pre><code class="language-bash"># Git操作
+python agents/git_agent.py --status
+<h1>LLM直接使用</h1>
+python services/llm/llm_cli.py "質問内容"
+<h1>MCP開発</h1>
+python services/mcp/mcp_run.py "プロジェクト説明"
+</code></pre>
+<p>---</p>
+<h2>📊 プロジェクト統計</h2>
 <li><strong>総ファイル数</strong>: ~150+ → 60ファイル目標（リファクタリング中）</li>
 <li><strong>対応エージェント</strong>: 8種類</li>
 <li><strong>LLMプロバイダー</strong>: 3種類（Gemini, Ollama, HuggingFace）</li>
 <li><strong>自動化レベル</strong>: 高（venv自動作成、Ollama自動セットアップ等）</li>
 <li><strong>テストカバレッジ</strong>: 向上中</li>
-</ul>
-<hr />
-<h2 id="_11">🔗 詳細仕様へのリンク</h2>
-<h3 id="_12">メインシステム</h3>
-<ul>
+<p>---</p>
+<h2>🔗 詳細仕様へのリンク</h2>
+<h3>メインシステム</h3>
 <li><a href="#mainpy詳細">main.py詳細</a></li>
 <li><a href="#intentdetector仕様">IntentDetector仕様</a></li>
 <li><a href="#agentrouter仕様">AgentRouter仕様</a></li>
-</ul>
-<h3 id="_13">エージェント詳細</h3>
-<ul>
+<h3>エージェント詳細</h3>
 <li><a href="#agentscommonpy詳細">agents/common.py詳細</a></li>
 <li><a href="#agentsgit_agentpy詳細">agents/git_agent.py詳細</a></li>
 <li><a href="#agentsllm_agentpy詳細">agents/llm_agent.py詳細</a></li>
 <li><a href="#agentscommand_agentpy詳細">agents/command_agent.py詳細</a></li>
 <li><a href="#agentsconfig_agentpy詳細">agents/config_agent.py詳細</a></li>
-</ul>
-<h3 id="_14">サービス詳細</h3>
-<ul>
+<h3>サービス詳細</h3>
 <li><a href="#system_infopy詳細">system_info.py詳細</a></li>
 <li><a href="#venv_managerpy詳細">venv_manager.py詳細</a></li>
 <li><a href="#llmサービス詳細">LLMサービス詳細</a></li>
 <li><a href="#mcpサービス詳細">MCPサービス詳細</a></li>
-</ul>
-<h3 id="_15">ツール詳細</h3>
-<ul>
+<h3>ツール詳細</h3>
 <li><a href="#ollama_setuppy詳細">ollama_setup.py詳細</a></li>
-</ul>
-<h3 id="_16">設定・ドキュメント</h3>
-<ul>
+<h3>設定・ドキュメント</h3>
 <li><a href="#設定ファイル詳細">設定ファイル詳細</a></li>
 <li><a href="#ドキュメント詳細">ドキュメント詳細</a></li>
 <li><a href="#データベース詳細">データベース詳細</a></li>
-</ul>
-<hr />
-<h2 id="_17">🎓 開発ガイド</h2>
-<h3 id="_18">新しいエージェントの追加</h3>
-<ol>
-<li><code>agents/common.py</code>の<code>BaseAgent</code>を継承</li>
-<li><code>execute()</code>メソッドを実装</li>
-<li><code>main.py</code>のIntentDetectorにキーワード追加</li>
-<li><code>main.py</code>のAgentRouterにルーティング追加</li>
-</ol>
+<p>---</p>
+<h2>🎓 開発ガイド</h2>
+<h3>新しいエージェントの追加</h3>
+<p>1. <code>agents/common.py</code>の<code>BaseAgent</code>を継承
+2. <code>execute()</code>メソッドを実装
+3. <code>main.py</code>のIntentDetectorにキーワード追加
+4. <code>main.py</code>のAgentRouterにルーティング追加</p>
 <p>詳細: <a href="DEVELOPMENT_GUIDE.md">開発ガイド</a>（作成予定）</p>
-<h3 id="_19">テスト実行</h3>
-<div class="codehilite"><pre><span></span><code><span class="c1"># WSL環境で実行（必須）</span>
-wsl<span class="w"> </span>bash<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;cd /mnt/c/Users/kenny/sandbox/NeuroHub &amp;&amp; python3 -m pytest tests/&quot;</span>
-</code></pre></div>
-
-<hr />
-<h2 id="_20">📝 最近の更新</h2>
-<h3 id="2025-11-02">2025-11-02</h3>
-<ul>
+<h3>テスト実行</h3>
+<pre><code class="language-bash"># WSL環境で実行（必須）
+wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && python3 -m pytest tests/"
+</code></pre>
+<p>---</p>
+<h2>📝 最近の更新</h2>
+<h3>2025-11-02</h3>
 <li>✅ main.py作成（意図判定・ルーティング）</li>
 <li>✅ BaseAgent実装（agents/common.py）</li>
 <li>✅ git_agent/weather_agentリファクタリング</li>
@@ -410,17 +324,13 @@ wsl<span class="w"> </span>bash<span class="w"> </span>-c<span class="w"> </span
 <li>✅ venv_manager.py作成（仮想環境自動管理）</li>
 <li>✅ ollama_setup.py作成（完全自動セットアップ）</li>
 <li>✅ FILE_DESIGN.md作成（60ファイル目標）</li>
-</ul>
 <p>詳細: <a href="TASK_MANAGEMENT.md">TASK_MANAGEMENT.md</a></p>
-<hr />
-<p><em>このドキュメントは自動生成されています。詳細は各リンク先のファイルを参照してください。</em></p>
-            </article>
-            <footer class="page-footer">
-                <p>最終更新: 2025年11月02日</p>
-                <p>© 2025 NeuroHub Project</p>
-            </footer>
-        </main>
+<p>---</p>
+<em>このドキュメントは自動生成されています。詳細は各リンク先のファイルを参照してください。</em>
+
+        <div class="footer">
+            <p>Generated from Markdown | NeuroHub Documentation</p>
+        </div>
     </div>
-    <script src="./script.js"></script>
 </body>
 </html>

@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroHub - INTERFACE_DESIGN</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #546e7a;
+            margin-top: 20px;
+        }
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Courier New", monospace;
+        }
+        pre code {
+            background: transparent;
+            padding: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            color: #777;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>NeuroHub Interface Design Document (IF設計書)</h1>
+<h2>📖 目次</h2>
+1. <a href="#概要">概要</a>
+2. <a href="#システムアーキテクチャ">システムアーキテクチャ</a>
+3. <a href="#エージェントインターフェース">エージェントインターフェース</a>
+4. <a href="#サービスインターフェース">サービスインターフェース</a>
+5. <a href="#データフォーマット">データフォーマット</a>
+6. <a href="#api仕様">API仕様</a>
+7. <a href="#エラーハンドリング">エラーハンドリング</a>
+8. <a href="#セキュリティ">セキュリティ</a>
+9. <a href="#実装状況">実装状況</a>
+<p>---</p>
+<h2>🎯 概要</h2>
+<h3>システム概要</h3>
+NeuroHubは、AI エージェントとLLMサービスを統合するPythonベースのマルチエージェントシステムです。複数のLLMプロバイダー（Gemini、HuggingFace、Ollama）を統合し、Git操作の自動化とAI生成コミットメッセージの機能を提供します。
+<h3>設計原則</h3>
+<li><strong>モジュラリティ</strong>: 各コンポーネントの独立性</li>
+<li><strong>拡張性</strong>: 新しいエージェント・サービスの追加容易性</li>
+<li><strong>クロスプラットフォーム</strong>: Windows/Linux環境での動作</li>
+<li><strong>標準化</strong>: 統一されたインターフェース</li>
+<li><strong>フォールバック</strong>: プロバイダー障害時の自動切り替え</li>
+<h3>主要機能（2025年11月現在）</h3>
+<li>✅ <strong>Multi-LLM Integration</strong>: 3つのLLMプロバイダーの統合管理</li>
+<li>✅ <strong>AI-Powered Git</strong>: AI生成コミットメッセージとスマートGit操作</li>
+<li>✅ <strong>Provider Fallback</strong>: プロバイダー障害時の自動フォールバック</li>
+<li>✅ <strong>Configuration Management</strong>: YAML/環境変数ベースの設定管理</li>
+<li>✅ <strong>History Tracking</strong>: LLM使用履歴とパフォーマンス統計</li>
+<li>⚠️ <strong>Command Execution</strong>: システムコマンド実行（部分実装）</li>
+<p>---</p>
+<h2>🏗️ システムアーキテクチャ</h2>
+<pre><code class="language-">NeuroHub Architecture (実装済み)
+├── Agents Layer (agents/)
+│   ├── LLMAgent           - ✅ 3プロバイダー統合、フォールバック
+│   ├── GitSmartAgent      - ✅ AI生成コミット、インタラクティブワークフロー
+│   ├── CommandAgent       - ⚠️ 基本実装済み（テスト要調整）
+│   ├── ConfigAgent        - ✅ YAML設定管理
+│   └── GitAgent          - ✅ 基本Git操作
+├── Services Layer (services/)
+│   ├── LLM Services       - ✅ Gemini/HuggingFace/Ollama
+│   │   ├── provider_gemini.py      - ✅ Gemini API統合
+│   │   ├── provider_huggingface.py - ✅ HF Router統合
+│   │   ├── provider_ollama.py      - ✅ Ollama統合＋自動起動
+│   │   └── llm_common.py          - ✅ 共通ユーティリティ
+│   ├── Database Services  - ✅ SQLite + FTS5検索
+│   │   └── llm_history_manager.py - ✅ 履歴・統計管理
+│   ├── Agent Services     - ✅ エージェント支援機能
+│   └── MCP Services       - ⚠️ 計画段階
+└── Tools Layer (tools/)
+    ├── Git Utilities      - ✅ git_commit_ai, git_helper
+    ├── Project Organizer  - ✅ ファイル整理ツール
+    └── Core Utilities     - ✅ bs_core, weather_core
+</code></pre>
+<p>---</p>
+<h2>🤖 エージェントインターフェース</h2>
+<h3>基底エージェントクラス</h3>
+<pre><code class="language-python">class BaseAgent(ABC):
+    """全エージェントの基底クラス"""
+<p>@abstractmethod
+    def execute(self, command: str, <em></em>kwargs) -> AgentResponse:
+        """エージェント実行インターフェース"""
+        pass</p>
+<p>@abstractmethod
+    def validate_input(self, input_data: Any) -> bool:
+        """入力検証インターフェース"""
+        pass</p>
+<p>@abstractmethod
+    def get_status(self) -> AgentStatus:
+        """ステータス取得インターフェース"""
+        pass
+</code></pre></p>
+<h3>CommandAgent インターフェース</h3>
+<pre><code class="language-python">class CommandAgentInterface:
+    """システムコマンド実行エージェント"""
+<p>def execute_command(self,
+                       command: str,
+                       cwd: Optional[str] = None,
+                       timeout: int = 30,
+                       capture_output: bool = True) -> CommandResult:
+        """
+        Linuxコマンド実行</p>
+<p>Args:
+            command: 実行するLinuxコマンド
+            cwd: 作業ディレクトリ (Linux path)
+            timeout: タイムアウト秒数
+            capture_output: 出力キャプチャフラグ</p>
+<p>Returns:
+            CommandResult: 実行結果</p>
+<p>Raises:
+            CommandExecutionError: コマンド実行エラー
+            TimeoutError: タイムアウトエラー
+        """
+        pass</p>
+<p>def validate_command(self, command: str) -> ValidationResult:
+        """Linuxコマンドの安全性検証"""
+        pass</p>
+<p>def get_command_history(self) -> List[CommandHistory]:
+        """コマンド実行履歴取得"""
+        pass
+</code></pre></p>
+<h3>GitAgent インターフェース</h3>
+<pre><code class="language-python">class GitAgentInterface:
+    """Git操作エージェント (Linux環境最適化)"""
+<p>def init_repository(self, path: str) -> GitResult:
+        """Gitリポジトリ初期化 (Linux権限考慮)"""
+        pass</p>
+<p>def commit_changes(self,
+                      message: str,
+                      files: Optional[List[str]] = None,
+                      author: Optional[str] = None) -> GitResult:
+        """変更のコミット"""
+        pass</p>
+<p>def get_status(self) -> GitStatus:
+        """Gitステータス取得"""
+        pass</p>
+<p>def create_branch(self, branch_name: str) -> GitResult:
+        """ブランチ作成"""
+        pass</p>
+<p>def merge_branch(self, branch_name: str) -> GitResult:
+        """ブランチマージ"""
+        pass
+</code></pre></p>
+<h3>LLMAgent インターフェース（実装済み）</h3>
+<pre><code class="language-python">class LLMAgentInterface:
+    """LLM統合エージェント - 2025年11月実装版"""
+<p>def __init__(self, config_path: str = None):
+        """
+        LLMAgent初期化</p>
+<p>Args:
+            config_path: 設定ファイルパス（オプション）
+        """
+        pass</p>
+<p>def check_provider_status(self, force_refresh: bool = False) -> Dict[str, ProviderStatus]:
+        """
+        プロバイダー状態確認</p>
+<p>Args:
+            force_refresh: 強制更新フラグ</p>
+<p>Returns:
+            Dict[str, ProviderStatus]: プロバイダー状態辞書
+            - "gemini": Gemini API状態
+            - "huggingface": HuggingFace Router状態
+            - "ollama": Ollama状態
+        """
+        pass</p>
+<p>def get_best_provider(self, request_type: str = "general") -> Optional[str]:
+        """
+        最適プロバイダー選択</p>
+<p>Args:
+            request_type: リクエストタイプ（将来拡張用）</p>
+<p>Returns:
+            Optional[str]: 最適プロバイダー名またはNone
+        """
+        pass</p>
+<p>def generate_text(self, request: LLMRequest) -> LLMResponse:
+        """
+        テキスト生成（フォールバック対応）</p>
+<p>Args:
+            request: LLMRequest オブジェクト</p>
+<p>Returns:
+            LLMResponse: 統一レスポンス形式
+        """
+        pass</p>
+<p>def generate_commit_message(self,
+                               file_path: str,
+                               diff_content: str,
+                               commit_type: str = "auto") -> str:
+        """
+        Git コミットメッセージ生成</p>
+<p>Args:
+            file_path: ファイルパス
+            diff_content: 差分内容
+            commit_type: コミットタイプ</p>
+<p>Returns:
+            str: 生成されたコミットメッセージ
+        """
+        pass</p>
+<p>def get_status_report(self) -> Dict[str, Any]:
+        """
+        システム状態レポート取得</p>
+<p>Returns:
+            Dict[str, Any]: プロバイダー状態、統計情報等
+        """
+        pass
+</code></pre></p>
+<h3>LLMRequest データクラス（実装済み）</h3>
+<pre><code class="language-python">@dataclass
+class LLMRequest:
+    """LLMリクエスト情報"""
+    prompt: str
+    system_message: str = ""
+    request_type: str = "general"
+    max_tokens: int = 200
+    temperature: float = 0.3
+    preferred_provider: Optional[str] = None
+    fallback_enabled: bool = True
+</code></pre>
+<h3>ProviderStatus データクラス（実装済み）</h3>
+<pre><code class="language-python">@dataclass
+class ProviderStatus:
+    """プロバイダー状態"""
+    name: str                           # プロバイダー名
+    available: bool                     # 利用可能フラグ
+    configured: bool                    # 設定済みフラグ
+    last_response_time: Optional[float] # 最終レスポンス時間
+    success_rate: float = 0.0          # 成功率
+    error_message: Optional[str] = None # エラーメッセージ
+</code></pre>
+<p>---</p>
+<h2>🔧 サービスインターフェース</h2>
+<h3>LLMプロバイダーインターフェース（実装済み）</h3>
+<pre><code class="language-python">class LLMProviderInterface:
+    """LLMプロバイダー統一インターフェース - 実装版"""
+<p>def test_connection(self) -> bool:
+        """
+        接続テスト</p>
+<p>Returns:
+            bool: 接続成功可否
+        """
+        pass</p>
+<p>def infer(self, prompt: str, opts: Dict[str, Any] = None) -> LLMResponse:
+        """
+        推論実行（プロバイダー固有実装）</p>
+<p>Args:
+            prompt: 入力プロンプト
+            opts: プロバイダー固有オプション</p>
+<p>Returns:
+            LLMResponse: 統一レスポンス形式
+        """
+        pass
+</code></pre></p>
+<h3>Gemini Provider（実装済み）</h3>
+<pre><code class="language-python">class GeminiConfig:
+    """Google Gemini API プロバイダー"""
+<p>def test_connection(self) -> bool:
+        """Gemini API接続テスト"""
+        pass</p>
+<p>def infer(self, prompt: str, opts: Dict[str, Any] = None) -> LLMResponse:
+        """
+        Gemini推論実行</p>
+<p>対応オプション:
+        - temperature: 0.0-1.0
+        - max_tokens: 最大トークン数
+        - system_message: システムメッセージ
+        """
+        pass
+</code></pre></p>
+<h3>HuggingFace Provider（実装済み）</h3>
+<pre><code class="language-python">class HuggingFaceConfig:
+    """HuggingFace Router プロバイダー"""
+<p>def test_connection(self) -> bool:
+        """HF Router接続テスト"""
+        pass</p>
+<p>def infer(self, prompt: str, opts: Dict[str, Any] = None, system_text: str = None) -> LLMResponse:
+        """
+        HuggingFace推論実行</p>
+<p>対応オプション:
+        - model: モデル指定
+        - max_tokens: 最大トークン数
+        - temperature: 温度設定
+        """
+        pass
+</code></pre></p>
+<h3>Ollama Provider（実装済み）</h3>
+<pre><code class="language-python">class OllamaConfig:
+    """Ollama ローカルLLM プロバイダー"""
+<p>def test_connection(self) -> bool:
+        """Ollama接続テスト＋自動起動"""
+        pass</p>
+<p>def infer(self, prompt: str) -> LLMResponse:
+        """
+        Ollama推論実行</p>
+<p>特徴:
+        - 自動サーバー起動
+        - 複数モデル対応
+        - ローカル実行
+        """
+        pass</p>
+<p>def start_ollama_server(self) -> bool:
+        """Ollamaサーバー自動起動"""
+        pass
+</code></pre></p>
+<p>@abstractmethod
+    def validate_connection(self) -> bool:
+        """接続検証"""
+        pass</p>
+<p>class OllamaProvider(LLMProviderInterface):
+    """Ollama プロバイダー (Linux最適化)"""</p>
+<p>def __init__(self, base_url: str = "http://localhost:11434"):
+        self.base_url = base_url
+        self.session = requests.Session()</p>
+<p>def generate(self, prompt: str, <em></em>kwargs) -> LLMResponse:
+        """Ollama経由でのテキスト生成"""
+        pass</p>
+<p>class GeminiProvider(LLMProviderInterface):
+    """Google Gemini プロバイダー"""</p>
+<p>def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.client = genai.Client(api_key=api_key)</p>
+<p>def generate(self, prompt: str, <em></em>kwargs) -> LLMResponse:
+        """Gemini経由でのテキスト生成"""
+        pass
+<pre><code class="language-">
+<h3>データベースサービスインターフェース</h3></p>
+</code></pre>python
+class DatabaseServiceInterface(ABC):
+    """データベースサービス基底インターフェース"""
+<p>@abstractmethod
+    def connect(self) -> bool:
+        """データベース接続"""
+        pass</p>
+<p>@abstractmethod
+    def execute_query(self, query: str, params: List[Any]) -> QueryResult:
+        """クエリ実行"""
+        pass</p>
+<p>@abstractmethod
+    def close(self) -> None:
+        """接続クローズ"""
+        pass</p>
+<p>class SQLiteService(DatabaseServiceInterface):
+    """SQLite データベースサービス (Linux ファイル権限対応)"""</p>
+<p>def __init__(self, db_path: str = "/var/lib/neurohub/data.db"):
+        self.db_path = db_path
+        self.connection = None</p>
+<p>def connect(self) -> bool:
+        """SQLite接続 (Linux権限チェック付き)"""
+        if not os.access(os.path.dirname(self.db_path), os.W_OK):
+            raise PermissionError(f"No write permission: {self.db_path}")
+        pass
+<pre><code class="language-">
+---</p>
+<h2>📊 データフォーマット</h2>
+<h3>共通レスポンス形式</h3>
+</code></pre>python
+@dataclass
+class BaseResponse:
+    """基底レスポンスクラス"""
+    success: bool
+    message: str
+    timestamp: datetime
+    execution_time: float
+    metadata: Dict[str, Any] = field(default_factory=dict)
+<p>@dataclass
+class AgentResponse(BaseResponse):
+    """エージェントレスポンス"""
+    agent_type: str
+    result: Any
+    error_code: Optional[str] = None</p>
+<p>@dataclass
+class CommandResult(BaseResponse):
+    """コマンド実行結果"""
+    command: str
+    return_code: int
+    stdout: str
+    stderr: str
+    cwd: str
+    environment: Dict[str, str]</p>
+<p>@dataclass
+class GitResult(BaseResponse):
+    """Git操作結果"""
+    operation: str
+    repository_path: str
+    branch: str
+    commit_hash: Optional[str] = None
+    files_changed: List[str] = field(default_factory=list)</p>
+<p>@dataclass
+class LLMResponse(BaseResponse):
+    """LLM応答結果"""
+    model: str
+    provider: str
+    prompt: str
+    response_text: str
+    tokens_used: int
+    cost: Optional[float] = None
+<pre><code class="language-">
+<h3>設定データ形式</h3></p>
+</code></pre>yaml
+<h1>config.yaml - Linux環境設定</h1>
+system:
+  platform: "linux"
+  shell: "/bin/bash"
+  encoding: "utf-8"
+<p>agents:
+  command_agent:
+    enabled: true
+    timeout: 30
+    safe_commands_only: true
+    allowed_directories: ["/home/user", "/tmp"]</p>
+<p>git_agent:
+    enabled: true
+    default_branch: "main"
+    auto_commit: false
+    user_name: "NeuroHub Agent"
+    user_email: "agent@neurohub.local"</p>
+<p>llm_agent:
+    enabled: true
+    default_provider: "ollama"
+    max_tokens: 1000
+    temperature: 0.7</p>
+<p>services:
+  ollama:
+    base_url: "http://localhost:11434"
+    timeout: 60
+    models_path: "/home/user/.ollama/models"</p>
+<p>gemini:
+    api_key_env: "GEMINI_API_KEY"
+    model: "gemini-1.5-flash"</p>
+<p>database:
+    type: "sqlite"
+    path: "/var/lib/neurohub/neurohub.db"
+    backup_path: "/var/lib/neurohub/backups/"
+<pre><code class="language-">
+---</p>
+<h2>� 実装状況（2025年11月1日現在）</h2>
+<h3>✅ 完全実装済み</h3>
+<p>#### LLM統合システム
+<li><strong>LLMAgent</strong>: 3プロバイダー統合管理</li>
+<li><strong>Provider Fallback</strong>: 自動フォールバック機能</li>
+<li><strong>Response Parsing</strong>: 統一レスポンス形式</li>
+<li><strong>Connection Testing</strong>: プロバイダー接続確認</li></p>
+<p>#### プロバイダー実装
+<li><strong>Gemini API</strong>: Google Gemini 2.5 Flash対応</li>
+<li><strong>HuggingFace Router</strong>: OpenAI互換API経由</li>
+<li><strong>Ollama</strong>: ローカルLLM + 自動サーバー管理</li></p>
+<p>#### Git統合
+<li><strong>GitSmartAgent</strong>: AIコミットメッセージ生成</li>
+<li><strong>Interactive Workflow</strong>: ファイル分類・選択UI</li>
+<li><strong>git_commit_ai</strong>: コマンドラインツール</li></p>
+<p>#### データ管理
+<li><strong>LLMHistoryManager</strong>: SQLite + FTS5検索</li>
+<li><strong>Provider Statistics</strong>: パフォーマンス統計</li>
+<li><strong>Configuration</strong>: YAML + 環境変数</li></p>
+<h3>⚠️ 部分実装</h3>
+<p>#### コマンド実行
+<li><strong>CommandAgent</strong>: 基本実装済み（テスト要調整）</li>
+<li><strong>Safety Validation</strong>: 計画段階</li></p>
+<p>#### その他エージェント
+<li><strong>ConfigAgent</strong>: 基本機能実装済み</li>
+<li><strong>GitAgent</strong>: 基本Git操作対応</li></p>
+<h3>🚧 計画段階</h3>
+<p>#### MCP統合
+<li><strong>Model Context Protocol</strong>: 設計段階</li>
+<li><strong>外部サービス連携</strong>: 検討中</li></p>
+<p>#### REST API
+<li><strong>FastAPI</strong>: 計画段階</li>
+<li><strong>WebUI</strong>: 将来機能</li></p>
+<h3>🧪 テスト状況</h3>
+<p>#### 統合テスト: ✅ PASS
+<li>LLMAgent統合: 5/5 プロバイダーテスト成功</li>
+<li>プロバイダー個別: 3/3 すべて動作確認済み</li>
+<li>Git機能: 基本動作確認済み</li></p>
+<p>#### 単体テスト: ⚠️ 部分実装
+<li>LLMAgent: 完全テスト作成済み</li>
+<li>プロバイダー: 動作テスト完了</li>
+<li>CommandAgent: インターフェース調整要</li></p>
+<h3>📈 パフォーマンス（実測値）</h3>
+<p>#### レスポンス時間
+<li><strong>Gemini</strong>: ~1.0秒（安定）</li>
+<li><strong>HuggingFace</strong>: ~0.3秒（高速）</li>
+<li><strong>Ollama</strong>: ~1.6秒（ローカル・モデル依存）</li></p>
+<p>#### 成功率
+<li><strong>全プロバイダー</strong>: 接続テスト100%成功</li>
+<li><strong>フォールバック</strong>: 正常動作確認済み</li>
+<li><strong>AI生成コミット</strong>: 実用レベル</li></p>
+<h3>🔧 設定状況</h3>
+<p>#### 環境変数（必須）
+</code></pre>bash
+<h1>.env ファイル設定済み</h1>
+GEMINI_API_KEY=<em></em>*
+HUGGINGFACE_API_KEY=<em></em>*
+OLLAMA_BASE_URL=http://localhost:11434
+<pre><code class="language-">
+#### 設定ファイル
+<li><code>config/config.yaml</code>: ✅ 構成済み</li>
+<li><code>config/llm_config.yaml</code>: ✅ プロバイダー設定済み</li>
+<li><code>config/prompt_templates.yaml</code>: ✅ テンプレート準備済み</li></p>
+<p>---</p>
+<h2>�🔌 API仕様（計画）</h2>
+<h3>RESTful API エンドポイント</h3>
+</code></pre>python
+<h1>FastAPI ベースのAPI設計（将来実装）</h1>
+<p>@app.post("/api/v1/agents/command/execute")
+async def execute_command(request: CommandRequest) -> CommandResult:
+    """コマンド実行API"""
+    pass</p>
+<p>@app.get("/api/v1/agents/git/status")
+async def get_git_status(repo_path: str) -> GitStatus:
+    """Gitステータス取得API"""
+    pass</p>
+<p>@app.post("/api/v1/services/llm/generate")
+async def generate_text(request: LLMRequest) -> LLMResponse:
+    """LLMテキスト生成API"""
+    pass</p>
+<p>@app.get("/api/v1/system/health")
+async def health_check() -> HealthStatus:
+    """ヘルスチェックAPI"""
+    pass
+<pre><code class="language-">
+<h3>WebSocket API</h3></p>
+</code></pre>python
+@app.websocket("/ws/agents/realtime")
+async def websocket_agent_updates(websocket: WebSocket):
+    """リアルタイムエージェント状態更新"""
+    await websocket.accept()
+    while True:
+        # エージェント状態をリアルタイム配信
+        pass
+<pre><code class="language-">
+---
+<h2>⚠️ エラーハンドリング</h2>
+<h3>エラー階層</h3>
+</code></pre>python
+class NeuroHubError(Exception):
+    """NeuroHub基底例外"""
+    pass
+<p>class AgentError(NeuroHubError):
+    """エージェント関連エラー"""
+    pass</p>
+<p>class CommandExecutionError(AgentError):
+    """コマンド実行エラー"""
+    def __init__(self, command: str, return_code: int, stderr: str):
+        self.command = command
+        self.return_code = return_code
+        self.stderr = stderr
+        super().__init__(f"Command failed: {command} (code: {return_code})")</p>
+<p>class GitOperationError(AgentError):
+    """Git操作エラー"""
+    def __init__(self, operation: str, details: str):
+        self.operation = operation
+        self.details = details
+        super().__init__(f"Git {operation} failed: {details}")</p>
+<p>class LLMProviderError(NeuroHubError):
+    """LLMプロバイダーエラー"""
+    pass</p>
+<p>class ConfigurationError(NeuroHubError):
+    """設定エラー"""
+    pass
+<pre><code class="language-">
+<h3>Linux固有エラー処理</h3></p>
+</code></pre>python
+def handle_linux_permissions(func):
+    """Linux権限エラーデコレータ"""
+    def wrapper(<em>args, </em>*kwargs):
+        try:
+            return func(<em>args, </em>*kwargs)
+        except PermissionError as e:
+            if e.errno == 13:  # Permission denied
+                raise ConfigurationError(
+                    f"Insufficient permissions. Try: sudo chmod +x {e.filename}"
+                )
+            raise
+        except FileNotFoundError as e:
+            if "command not found" in str(e):
+                raise ConfigurationError(
+                    f"Command not installed. Try: sudo apt-get install {e.filename}"
+                )
+            raise
+    return wrapper
+<pre><code class="language-">
+---
+<h2>🔒 セキュリティ</h2>
+<h3>認証・認可</h3>
+</code></pre>python
+class SecurityManager:
+    """セキュリティ管理"""
+<p>def validate_command(self, command: str, user: str) -> bool:
+        """コマンド実行権限検証"""
+        # 危険なコマンドのブラックリスト
+        dangerous_commands = ['rm -rf', 'sudo', 'chmod 777', '> /dev/']
+        return not any(cmd in command for cmd in dangerous_commands)</p>
+<p>def validate_file_access(self, path: str, mode: str = 'r') -> bool:
+        """ファイルアクセス権限検証 (Linux)"""
+        abs_path = os.path.abspath(path)
+        if mode == 'w' and not os.access(os.path.dirname(abs_path), os.W_OK):
+            return False
+        return os.access(abs_path, os.R_OK if 'r' in mode else os.W_OK)
+<pre><code class="language-">
+<h3>データ暗号化</h3></p>
+</code></pre>python
+class EncryptionService:
+    """データ暗号化サービス"""
+<p>def encrypt_api_key(self, api_key: str) -> str:
+        """APIキー暗号化 (Linux keyring使用)"""
+        pass</p>
+<p>def decrypt_api_key(self, encrypted_key: str) -> str:
+        """APIキー復号化"""
+        pass
+<code></code>`</p>
+<p>---</p>
+<h2>📋 実装チェックリスト</h2>
+<h3>🤖 エージェント実装</h3>
+<li>[ ] BaseAgent抽象クラス実装</li>
+<li>[ ] CommandAgent Linux最適化</li>
+<li>[ ] GitAgent Linux権限対応</li>
+<li>[ ] LLMAgent プロバイダー統合</li>
+<li>[ ] ConfigAgent YAML/JSON対応</li>
+<h3>🔧 サービス実装</h3>
+<li>[ ] OllamaProvider Linux対応</li>
+<li>[ ] GeminiProvider API統合</li>
+<li>[ ] HuggingFaceProvider 実装</li>
+<li>[ ] SQLiteService Linux権限管理</li>
+<li>[ ] MCP Service 実装</li>
+<h3>📊 データ層実装</h3>
+<li>[ ] BaseResponse 標準化</li>
+<li>[ ] エラーレスポンス統一</li>
+<li>[ ] ログフォーマット統一</li>
+<li>[ ] 設定スキーマ検証</li>
+<h3>🔌 API実装</h3>
+<li>[ ] FastAPI セットアップ</li>
+<li>[ ] RESTful エンドポイント</li>
+<li>[ ] WebSocket リアルタイム通信</li>
+<li>[ ] OpenAPI ドキュメント生成</li>
+<h3>⚠️ エラーハンドリング</h3>
+<li>[ ] 例外階層定義</li>
+<li>[ ] Linux固有エラー処理</li>
+<li>[ ] ログ統合</li>
+<li>[ ] 復旧メカニズム</li>
+<h3>🔒 セキュリティ</h3>
+<li>[ ] コマンド検証機能</li>
+<li>[ ] ファイルアクセス制限</li>
+<li>[ ] API認証実装</li>
+<li>[ ] 暗号化サービス</li>
+<h3>🧪 テスト</h3>
+<li>[ ] 単体テスト完全カバレッジ</li>
+<li>[ ] 統合テスト実装</li>
+<li>[ ] Linux環境テスト</li>
+<li>[ ] セキュリティテスト</li>
+<p>---</p>
+<h2>📚 関連ドキュメント</h2>
+<li><a href="./README.md">README.md</a> - プロジェクト概要</li>
+<li><a href="./docs/TESTING.md">TESTING.md</a> - テスト戦略</li>
+<li><a href="./LINUX_TEST_REPORT.md">LINUX_TEST_REPORT.md</a> - Linux テスト結果</li>
+<li><a href="./docs/API_REFERENCE.md">API_REFERENCE.md</a> - API リファレンス</li>
+<p>---</p>
+<em>最終更新: 2025年11月1日</em>
+<em>Linux環境での運用を前提とした設計仕様</em>
+
+        <div class="footer">
+            <p>Generated from Markdown | NeuroHub Documentation</p>
+        </div>
+    </div>
+</body>
+</html>
