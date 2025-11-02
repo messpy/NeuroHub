@@ -536,7 +536,7 @@ class OllamaConfig(LLMProviderConfig):
             debug_logger: デバッグロガー
         """
         import tempfile
-        
+
         if debug_logger is None:
             debug_logger = DebugLogger(False)
 
@@ -549,7 +549,7 @@ class OllamaConfig(LLMProviderConfig):
             with tempfile.NamedTemporaryFile(mode='w', suffix='.Modelfile', delete=False, encoding='utf-8') as f:
                 f.write(modelfile_content)
                 temp_modelfile = f.name
-            
+
             debug_logger.dbg("Creating model:", model_name)
             debug_logger.dbg("Temp Modelfile:", temp_modelfile)
             debug_logger.dbg("Modelfile content length:", len(modelfile_content))
@@ -557,19 +557,19 @@ class OllamaConfig(LLMProviderConfig):
             # ollama create コマンドを実行
             cmd = ["ollama", "create", model_name, "-f", temp_modelfile]
             debug_logger.dbg("Command:", " ".join(shlex.quote(x) for x in cmd))
-            
+
             p = subprocess.run(cmd, check=False, text=True, capture_output=True, timeout=300)
-            
+
             # 一時ファイル削除
             try:
                 os.unlink(temp_modelfile)
             except:
                 pass
-            
+
             debug_logger.dbg("Create result:", f"rc={p.returncode}")
             debug_logger.dbg("stdout:", p.stdout if p.stdout else "(empty)")
             debug_logger.dbg("stderr:", p.stderr if p.stderr else "(empty)")
-            
+
             if p.returncode == 0:
                 debug_logger.dbg("Model creation successful:", model_name)
                 return True
