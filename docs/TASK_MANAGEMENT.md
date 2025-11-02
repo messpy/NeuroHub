@@ -14,9 +14,13 @@
 
 | ID | 課題 | 詳細 | 担当 | 状態 | 期限 |
 |----|------|------|------|------|------|
-| C001 | LLMエージェントのgit機能重複 | `generate_commit_message`がllm_agentとgit_agentに重複存在 | - | 🔄 進行中 | 即座 |
-| C002 | git_smart_agentのチャンク処理失敗 | HuggingFace/Ollamaが英語応答、日本語指示無視 | - | 🔄 進行中 | 即座 |
-| C003 | Geminiクォータ制限 | 1日250回制限で実用性低下 | - | 🔍 調査中 | 即座 |
+| C004 | 大規模リファクタリング | ファイル設計書作成、フォルダ再構築、共通機能統合 | AI | 🔄 進行中 | 即座 |
+| C005 | 仮想環境自動作成 | pip install検知時の自動venv作成 | AI | 🔄 進行中 | 即座 |
+| C006 | Ollama自動セットアップ | PCスペック検出、最適モデル選択、Modelfile生成 | AI | 🔄 進行中 | 即座 |
+| C007 | メインエージェント実装 | main.py: 意図判定→適切なagent呼び出し | AI | 🔄 進行中 | 即座 |
+| C001 | LLMエージェントのgit機能重複 | `generate_commit_message`がllm_agentとgit_agentに重複存在 | - | � 計画中 | 即座 |
+| C002 | git_smart_agentのチャンク処理失敗 | HuggingFace/Ollamaが英語応答、日本語指示無視 | - | � 計画中 | 即座 |
+| C003 | Geminiクォータ制限 | 1日250回制限で実用性低下 | - | � 計画中 | 即座 |
 
 ### 🟡 High Priority
 
