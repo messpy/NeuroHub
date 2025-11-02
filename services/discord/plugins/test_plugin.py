@@ -20,8 +20,17 @@ from discord.ext import commands
 
 logger = logging.getLogger(__name__)
 
+# プロジェクトルートをPYTHONPATHに追加
+import sys
+from pathlib import Path
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-class TestPlugin(commands.Cog):
+from services.discord.plugin_manager import PluginBase
+
+
+class TestPlugin(PluginBase, commands.Cog):
     """テストコマンドプラグイン"""
 
     def __init__(self, bot: commands.Bot):

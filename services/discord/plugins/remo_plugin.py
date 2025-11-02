@@ -30,6 +30,8 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from services.discord.plugin_manager import PluginBase
+
 logger = logging.getLogger(__name__)
 
 
@@ -189,7 +191,7 @@ class NatureRemoController:
         return success, message
 
 
-class RemoPlugin(commands.Cog):
+class RemoPlugin(PluginBase, commands.Cog):
     """Nature Remo制御プラグイン"""
 
     def __init__(self, bot: commands.Bot):
