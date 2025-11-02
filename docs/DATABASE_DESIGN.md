@@ -40,6 +40,12 @@ CREATE TABLE users (
 ```
 
 ### 2. llm_history（LLM実行履歴）
+
+**使用状況**: ✅ 本番使用中
+- **書き込み**: `agents/agent_llm.py` → `LLMHistoryManager.log_llm_request()`
+- **読み取り**: `services/mcp/mcp_microservices/analysis_service.py` (統計分析)
+- **読み取り**: `services/mcp/mcp_enhanced.py` (履歴参照)
+
 ```sql
 CREATE TABLE llm_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
