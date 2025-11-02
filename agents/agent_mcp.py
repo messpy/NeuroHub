@@ -24,8 +24,8 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from agents.common import BaseAgent
-from agents.llm_agent import LLMAgent, LLMRequest
-from agents.db_agent import DatabaseAgent
+from agents.agent_llm import LLMAgent, LLMRequest
+from agents.agent_db import DatabaseAgent
 
 
 @dataclass

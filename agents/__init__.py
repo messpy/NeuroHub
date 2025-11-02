@@ -3,16 +3,20 @@ NeuroHub Agents Package
 各種エージェントモジュールを提供
 """
 
-from .command_agent import CommandAgent
-from .config_agent import ConfigAgent
-from .git_agent import GitAgent
-from .llm_agent import LLMAgent
+from .agent_command import CommandAgent
+from .agent_config import ConfigAgent
+from .agent_git import GitAgent
+from .agent_llm import LLMAgent
+from .agent_mcp import MCPAgent
+from .agent_db import DatabaseAgent
 
 __all__ = [
     'CommandAgent',
     'ConfigAgent',
     'GitAgent',
-    'LLMAgent'
+    'LLMAgent',
+    'MCPAgent',
+    'DatabaseAgent'
 ]
 
 __version__ = '1.0.0'

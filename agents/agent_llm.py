@@ -22,7 +22,7 @@ import traceback
 from typing import Optional, Dict
 from pathlib import Path
 from agents.common import BaseAgent
-from agents.config_agent import AgentConfig
+from agents.agent_config import AgentConfig
 
 from services.ai.llm_common import (
     load_env_from_config,
