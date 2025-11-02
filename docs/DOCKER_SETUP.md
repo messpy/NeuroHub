@@ -239,7 +239,7 @@ graph TB
     A -->|データ保存| C[Docker Volumes]
     A -->|API呼び出し| D[Gemini API<br/>クラウド]
     A -->|API呼び出し| E[HuggingFace API<br/>クラウド]
-    
+
     C --> C1[neurohub_data<br/>アプリデータ]
     C --> C2[neurohub_logs<br/>ログファイル]
     C --> C3[neurohub_projects<br/>MCPプロジェクト]
