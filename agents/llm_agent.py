@@ -17,7 +17,13 @@ from dataclasses import dataclass, asdict
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from services.ollama.llm_common import (
+import time
+import traceback
+from typing import Optional, Dict
+from pathlib import Path
+from agents.common import BaseAgent, AgentConfig
+
+from services.llm.llm_common import (
     load_env_from_config,
     load_config,
     get_prompt_template,
@@ -26,7 +32,7 @@ from services.ollama.llm_common import (
     LLMResponse
 )
 # Ollama統一（他のプロバイダーは将来分離予定）
-from services.ollama.provider_ollama import OllamaConfig
+from services.llm.provider_ollama import OllamaConfig
 from services.db.llm_history_manager import LLMHistoryManager
 
 

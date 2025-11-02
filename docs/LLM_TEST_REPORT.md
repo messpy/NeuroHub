@@ -1,7 +1,7 @@
 # LLM単体テストレポート
 
-**実行日時**: 2025年11月2日  
-**実行環境**: WSL (Ubuntu on Windows), Python 3.12.3, venv_linux  
+**実行日時**: 2025年11月2日
+**実行環境**: WSL (Ubuntu on Windows), Python 3.12.3, venv_linux
 **テストツール**: pytest 8.4.2
 
 ---
@@ -115,7 +115,7 @@ AttributeError: <module 'services.llm.provider_gemini'> does not have the attrib
 
 **原因**: テストコードが存在しない属性をモックしようとしている
 
-**修正方針**: 
+**修正方針**:
 - `load_env_from_config` は `services.llm.llm_common` からインポートされる
 - モックパスを修正: `services.llm.llm_common.load_env_from_config`
 
@@ -146,7 +146,7 @@ AttributeError: 'OllamaConfig' object has no attribute 'generate_text'
 
 **原因**: OllamaConfigクラスに`generate_text`メソッドが実装されていない
 
-**修正方針**: 
+**修正方針**:
 - メソッド名を確認（実際は`generate()`かもしれない）
 - テストコードを実装に合わせる
 
@@ -250,6 +250,6 @@ AssertionError: assert ['Test prompt'] == ['Test', 'prompt']
 
 ---
 
-**レポート作成者**: GitHub Copilot  
-**テスト環境**: WSL Ubuntu, Python 3.12.3, pytest 8.4.2  
+**レポート作成者**: GitHub Copilot
+**テスト環境**: WSL Ubuntu, Python 3.12.3, pytest 8.4.2
 **テスト実行時刻**: 2025-11-02 (JST)

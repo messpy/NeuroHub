@@ -1,6 +1,6 @@
 # プロジェクト構造整理計画
 
-**作成日**: 2025年11月2日  
+**作成日**: 2025年11月2日
 **目的**: プロジェクト構造を機能別に明確化し、保守性を向上
 
 ---
@@ -138,7 +138,9 @@ agents/
 from services.llm.provider_ollama import OllamaConfig
 
 # 新
-from services.ollama.provider_ollama import OllamaConfig
+```python
+from services.llm.llm_common import load_config, LLMResponse
+from services.llm.provider_ollama import OllamaConfig
 ```
 
 ### Phase 4: 設定ファイル更新 ⏳ 未実施
@@ -205,5 +207,5 @@ COPY services/ollama/ /app/ollama/
 
 ---
 
-**担当**: GitHub Copilot  
+**担当**: GitHub Copilot
 **最終更新**: 2025-11-02 18:10 JST
