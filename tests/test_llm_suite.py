@@ -12,7 +12,11 @@ test_llm_suite.py
     PYTHONPATH=. ./venv/bin/python test/test_llm_suite.py --ollama-model qwen2.5:1.5b-instruct
 """
 import os, sys, time, subprocess, pathlib, argparse, urllib.request
-import yaml
+
+try:
+    import yaml
+except ImportError:
+    yaml = None  # type: ignore
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PY   = sys.executable
@@ -31,6 +35,9 @@ def load_env():
 
 def load_llm_config():
     """LLM設定をYAMLから読み込み"""
+    if yaml is None:
+        return {}
+    
     config_path = ROOT / "config" / "llm_config.yaml"
     if not config_path.exists():
         return {}
