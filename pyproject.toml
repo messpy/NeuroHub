@@ -80,6 +80,7 @@ markers = [
     "git: marks tests for Git agent functionality",
     "llm: marks tests for LLM functionality",
     "db: marks tests for database functionality",
+    "asyncio: marks tests as asynchronous tests",
 ]
 
 # テスト検出除外パターン
