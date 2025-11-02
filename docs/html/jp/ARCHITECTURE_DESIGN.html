@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroHub - ARCHITECTURE_DESIGN (日本語)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #546e7a;
+            margin-top: 20px;
+        }
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Courier New", monospace;
+        }
+        pre code {
+            background: transparent;
+            padding: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            color: #777;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>NeuroHub アーキテクチャ設計書</h1>
+<h2>概要</h2>
+<p>NeuroHubは、複数のAIプロバイダーと統合されたインテリジェントなGitワークフローシステムです。分散した長いテキストの処理、マルチプロバイダーLLMサポート、安全なテキスト処理機能を提供します。</p>
+<h2>アーキテクチャ概要</h2>
+<pre><code class="language-">NeuroHub/
+├── agents/          # AIエージェント層
+├── services/        # サービス層
+├── tools/           # CLI・ツール層
+├── config/          # 設定管理
+├── data/            # データ層
+└── docs/            # ドキュメント
+</code></pre>
+<h2>主要コンポーネント</h2>
+<h3>1. エージェント層 (agents/)</h3>
+<p>#### LLMエージェント (agent_llm.py)
+<li><strong>責務</strong>: 汎用LLM処理とテキスト生成</li>
+<li><strong>主要機能</strong>:</li>
+  - マルチプロバイダー対応 (Gemini, HuggingFace, Ollama)
+  - チャンク処理による長文対応
+  - 統一レスポンス形式 (LLMResponse)
+  - 自動フォールバック機能
+  - <strong>履歴管理</strong>: <code>LLMHistoryManager</code>を使用してllm_historyテーブルに全リクエスト・レスポンスを自動保存
+  - <strong>統計分析</strong>: セッション管理、プロバイダー別統計、成功率・応答時間分析</p>
+<p>#### Git Smart エージェント (git_smart_agent.py)
+<li><strong>責務</strong>: インテリジェントなGitワークフロー管理</li>
+<li><strong>主要機能</strong>:</li>
+  - ファイル変更の自動カテゴライズ
+  - AI支援コミットメッセージ生成
+  - 大規模変更の分析と要約
+  - 日本語コミットメッセージ対応</p>
+<p>#### MCPエージェント (agent_mcp.py)
+<li><strong>責務</strong>: Model Context Protocolによる高度なコード生成・プロジェクト作成</li>
+<li><strong>主要機能</strong>:</li>
+  - プロンプトからコード生成
+  - プロジェクトテンプレート生成
+  - デバッグサポート
+  - プロンプト最適化
+<li><strong>現状</strong>: ⚠️ 履歴保存機能未実装（将来改善予定）</li></p>
+<p>#### その他エージェント
+<li><strong>Command Agent</strong>: システムコマンド実行</li>
+<li><strong>Config Agent</strong>: 設定管理（⚠️ DB保存未実装）</li>
+<li><strong>Git Agent</strong>: 基本Git操作</li>
+<li><strong>Database Agent</strong>: データベース操作統合管理</li></p>
+<h3>2. サービス層 (services/)</h3>
+<p>#### LLMサービス (services/llm/)
+<li><strong>llm_common.py</strong>: 共通機能・ユーティリティ</li>
+<li><strong>各プロバイダー実装</strong>: 個別のLLMプロバイダー統合</li></p>
+<p>#### データベースサービス (services/db/)
+<li><strong>LLM履歴管理</strong> (<code>llm_history_manager.py</code>):</li>
+  - llm_historyテーブルへの自動記録
+  - セッション管理（start_session, end_session）
+  - プロバイダー別統計分析
+  - 成功率・応答時間・トークン数集計
+<li><strong>データベース初期化</strong> (<code>db_initializer.py</code>): 47テーブル自動作成</li>
+<li><strong>設定データ管理</strong>: 永続化された設定（⚠️ users.settingsテーブルは定義済みだが、エージェントからの使用は未実装）</li></p>
+<p>#### その他サービス
+<li><strong>TTS</strong>: テキスト音声変換</li>
+<li><strong>MCP</strong>: Model Context Protocol対応</li></p>
+<h3>3. ツール層 (tools/)</h3>
+<p>#### Agent CLI (agent_cli.py)
+<li><strong>責務</strong>: 統一されたコマンドラインインターフェース</li>
+<li><strong>主要機能</strong>:</li>
+  - 全エージェントへの統一アクセス
+  - チャンク処理コマンド
+  - バッチ処理機能</p>
+<p>#### 専用ツール
+<li><strong>Git Commit AI</strong>: AIコミットメッセージ生成</li>
+<li><strong>Project Organizer</strong>: プロジェクト構造管理</li>
+<li><strong>Ollama Manager</strong>: Ollamaサーバー管理</li></p>
+<h2>重要な技術的特徴</h2>
+<h3>1. チャンク処理アーキテクチャ</h3>
+<p>長いテキストを安全に処理するための分散処理システム：</p>
+<pre><code class="language-python"># チャンク処理フロー
+テキスト入力 → 文字境界考慮分割 → 並列処理 → 結果統合
+</code></pre>
+<p>#### 特徴
+<li><strong>日本語対応</strong>: 文字境界、句読点、文字種を考慮した分割</li>
+<li><strong>設定可能サイズ</strong>: 300-500文字（デフォルト）</li>
+<li><strong>プロバイダー適応</strong>: 各LLMの制限に対応</li>
+<li><strong>エラー処理</strong>: 部分失敗時の継続処理</li></p>
+<h3>2. マルチプロバイダー戦略</h3>
+<p>複数のLLMプロバイダーによる可用性確保：</p>
+<pre><code class="language-">Primary: Gemini (高品質、制限あり)
+   ↓ フォールバック
+Secondary: HuggingFace (中品質、安定)
+   ↓ フォールバック
+Tertiary: Ollama (ローカル、無制限)
+</code></pre>
+<p>#### 自動フォールバック条件
+<li>API クォータ制限</li>
+<li>レスポンス品質不良</li>
+<li>サーバーエラー</li>
+<li>タイムアウト</li></p>
+<h3>3. 安全なテキスト処理</h3>
+<p>#### 文字の折り返し機能
+<li><strong>日本語対応</strong>: ひらがな・カタカナ・漢字の境界考慮</li>
+<li><strong>単語境界保持</strong>: 英語単語の分割回避</li>
+<li><strong>句読点優先</strong>: 自然な区切り位置での改行</li></p>
+<p>#### 入力検証
+<li><strong>長さ制限</strong>: プロバイダー別の制限値適用</li>
+<li><strong>文字コード検証</strong>: UTF-8 エンコーディング確保</li>
+<li><strong>危険文字除去</strong>: 制御文字やマルウェア対策</li></p>
+<h3>4. 統一レスポンス形式</h3>
+<p>全LLMプロバイダーからの応答を統一形式で管理：</p>
+<pre><code class="language-python">@dataclass
+class LLMResponse:
+    status_code: int
+    provider: str
+    model: str
+    content: str
+    error: Optional[str]
+    metadata: Dict[str, Any]
+    # パフォーマンス・デバッグ情報
+</code></pre>
+<h2>データフロー</h2>
+<h3>1. 標準的なLLMリクエスト</h3>
+<pre><code class="language-">CLI入力 → Agent → LLM Service → Provider API → Response → 統一形式 → 出力
+</code></pre>
+<h3>2. チャンク処理フロー</h3>
+<pre><code class="language-">長文入力 → チャンク分割 → 並列処理 → 結果統合 → 最終出力
+    ↓
+各チャンク: Agent → LLM Service → Provider → Response
+</code></pre>
+<h3>3. Git Smart ワークフロー</h3>
+<pre><code class="language-">Git変更検出 → ファイル分析 → カテゴライズ → AI要約 → コミットメッセージ生成
+</code></pre>
+<h2>設定管理</h2>
+<h3>階層構造</h3>
+1. <strong>環境変数</strong> (.env): APIキー、機密情報
+2. <strong>YAML設定</strong> (config/): 動作設定、プロバイダー設定
+3. <strong>プロンプトテンプレート</strong> (prompt_templates.yaml): AI用テンプレート
+<h3>主要設定項目</h3>
+<li><strong>LLMプロバイダー設定</strong>: API エンドポイント、モデル名、制限値</li>
+<li><strong>チャンク処理設定</strong>: サイズ、オーバーラップ、境界条件</li>
+<li><strong>Git設定</strong>: 除外パターン、コミット形式</li>
+<li><strong>安全設定</strong>: 文字制限、タイムアウト値</li>
+<h2>エラーハンドリング</h2>
+<h3>レベル別エラー処理</h3>
+1. <strong>プロバイダーレベル</strong>: API エラー、制限エラー
+2. <strong>エージェントレベル</strong>: ロジックエラー、データエラー
+3. <strong>システムレベル</strong>: ネットワークエラー、設定エラー
+<h3>復旧戦略</h3>
+<li><strong>自動リトライ</strong>: 一時的エラーの再試行</li>
+<li><strong>プロバイダー切り替え</strong>: API障害時の代替手段</li>
+<li><strong>グレースフル劣化</strong>: 機能制限での継続実行</li>
+<h2>パフォーマンス最適化</h2>
+<h3>1. キャッシュ戦略</h3>
+<li><strong>プロンプトテンプレート</strong>: メモリキャッシュ</li>
+<li><strong>設定データ</strong>: ファイル監視による自動リロード</li>
+<li><strong>LLM履歴</strong>: データベースインデックス最適化</li>
+<h3>2. 並列処理</h3>
+<li><strong>チャンク処理</strong>: 非同期並列実行</li>
+<li><strong>ファイル分析</strong>: 同時並列処理</li>
+<li><strong>プロバイダーアクセス</strong>: 負荷分散</li>
+<h3>3. リソース管理</h3>
+<li><strong>メモリ使用量</strong>: チャンクサイズによる制御</li>
+<li><strong>API クォータ</strong>: 制限値監視と調整</li>
+<li><strong>ディスク使用量</strong>: ログローテーション</li>
+<h2>セキュリティ考慮事項</h2>
+<h3>1. 機密情報保護</h3>
+<li><strong>APIキー管理</strong>: 環境変数による分離</li>
+<li><strong>ログセキュリティ</strong>: 機密情報のマスキング</li>
+<li><strong>設定ファイル</strong>: 権限制御</li>
+<h3>2. 入力検証</h3>
+<li><strong>文字コード</strong>: UTF-8強制</li>
+<li><strong>長さ制限</strong>: DoS攻撃対策</li>
+<li><strong>危険文字</strong>: 制御文字除去</li>
+<h3>3. 出力サニタイズ</h3>
+<li><strong>HTMLエスケープ</strong>: Web出力時</li>
+<li><strong>パス正規化</strong>: ファイルシステムアクセス</li>
+<li><strong>コマンドインジェクション</strong>: シェル実行防御</li>
+<h2>拡張性</h2>
+<h3>1. 新しいLLMプロバイダーの追加</h3>
+1. <code>services/llm/</code> に実装クラス作成
+2. <code>LLMProviderConfig</code> を継承
+3. 設定ファイルにプロバイダー追加
+4. エージェントに統合
+<h3>2. 新しいエージェントの追加</h3>
+1. <code>agents/</code> にエージェントクラス作成
+2. CLI インターフェース実装
+3. 設定・テンプレート追加
+4. テスト・ドキュメント作成
+<h3>3. 新機能の統合</h3>
+<li><strong>プラグインアーキテクチャ</strong>: 動的モジュールロード対応</li>
+<li><strong>API拡張</strong>: RESTful インターフェース</li>
+<li><strong>UI統合</strong>: Webインターフェース対応</li>
+<h2>モニタリング・デバッグ</h2>
+<h3>1. ログ機能</h3>
+<li><strong>階層ログ</strong>: DEBUG/INFO/WARN/ERROR</li>
+<li><strong>構造化ログ</strong>: JSON形式対応</li>
+<li><strong>プロバイダー別</strong>: 個別ログファイル</li>
+<h3>2. メトリクス</h3>
+<li><strong>API使用量</strong>: プロバイダー別統計</li>
+<li><strong>応答時間</strong>: パフォーマンス監視</li>
+<li><strong>エラー率</strong>: 品質指標</li>
+<h3>3. デバッグツール</h3>
+<li><strong>レスポンス詳細</strong>: デバッグレベル別出力</li>
+<li><strong>トレース機能</strong>: リクエスト追跡</li>
+<li><strong>設定検証</strong>: 環境確認ツール</li>
+<h2>今後の改善計画</h2>
+<h3>短期 (1-2週間)</h3>
+<li>[ ] 全スクリプトへのテキスト折り返し適用</li>
+<li>[ ] 設計書・README更新完了</li>
+<li>[ ] 包括的テストスイート作成</li>
+<h3>中期 (1ヶ月)</h3>
+<li>[ ] Web インターフェース開発</li>
+<li>[ ] API サーバー機能追加</li>
+<li>[ ] プラグインシステム実装</li>
+<h3>長期 (3ヶ月以上)</h3>
+<li>[ ] 機械学習モデル統合</li>
+<li>[ ] 分散処理対応</li>
+<li>[ ] Enterprise機能追加</li>
+<h2>まとめ</h2>
+<p>NeuroHubは、安全で拡張可能なAI統合システムとして設計されています。チャンク処理による長文対応、マルチプロバイダー戦略による可用性確保、安全なテキスト処理による信頼性を核とした、実用的なAIワークフローシステムです。</p>
+<p>---</p>
+<em>最終更新: 2024年12月19日</em>
+<em>バージョン: 1.0.0</em>
+
+        <div class="footer">
+            <p>Generated from Markdown | NeuroHub Documentation</p>
+        </div>
+    </div>
+</body>
+</html>

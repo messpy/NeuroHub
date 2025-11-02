@@ -33,7 +33,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from services.llm.llm_common import DebugLogger
+from services.ai.llm_common import DebugLogger
 from services.mcp.core import (
     ask_llm, extract_command, is_dangerous, non_destructive_only, log_event
 )

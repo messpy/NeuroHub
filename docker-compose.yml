@@ -1,0 +1,95 @@
+# Docker Compose for NeuroHub
+# Multi-container setup: NeuroHub + Ollama
+# Supports Windows, Linux, Raspberry Pi (ARM64/ARM32)
+
+version: '3.8'
+
+services:
+  # Ollama LLM Server
+  ollama:
+    image: ollama/ollama:latest
+    container_name: neurohub-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # GPUサポート（オプション、ラズパイでは不要）
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # NeuroHub Main Application
+  neurohub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: neurohub-app
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    volumes:
+      # 設定ファイル（ホストから読み込み）
+      - ./config:/app/config:ro
+      - ./.env:/app/.env:ro
+      # データ永続化
+      - neurohub_data:/app/data
+      - neurohub_logs:/app/logs
+      - neurohub_projects:/app/services/mcp/generated_projects
+      # データベース
+      - neurohub_db:/app/neurohub_llm.db
+    environment:
+      # Ollama接続設定
+      - OLLAMA_HOST=http://ollama:11434
+      # Gemini API（.envから読み込み）
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      # HuggingFace API
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
+      # Discord Bot（オプション）
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
+      # ログレベル
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    ports:
+      - "8000:8000"
+    # リソース制限（ラズパイ対応）
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  ollama_data:
+    driver: local
+  neurohub_data:
+    driver: local
+  neurohub_logs:
+    driver: local
+  neurohub_projects:
+    driver: local
+  neurohub_db:
+    driver: local
+
+networks:
+  default:
+    name: neurohub-network

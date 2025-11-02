@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from services.llm.llm_common import load_env_from_config
+from services.ai.llm_common import load_env_from_config
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)

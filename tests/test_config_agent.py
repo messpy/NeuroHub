@@ -18,7 +18,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 try:
-    from agents.config_agent import ConfigAgent, LLMProviderConfig, AgentConfig
+    from agents.agent_config import ConfigAgent, LLMProviderConfig, AgentConfig
 except ImportError as e:
     print(f"Import error: {e}")
     # フォールバック定義

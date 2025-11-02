@@ -22,6 +22,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from agents.common import BaseAgent
+
 # デフォルト設定
 DEFAULT_LAT = 35.68  # 東京
 DEFAULT_LON = 139.76
@@ -60,13 +62,66 @@ WEATHER_CODES = {
     99: ("激しい雷雨（雹）", "⛈️"),
 }
 
-class WeatherAgent:
+class WeatherAgent(BaseAgent):
     """天気予報エージェント"""
 
     def __init__(self, timeout: float = TIMEOUT):
+        # BaseAgent初期化
+        super().__init__("weather_agent")
+
         self.timeout = timeout
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": UA})
+
+    def execute(self, prompt: str) -> str:
+        """Execute weather query based on prompt.
+
+        Args:
+            prompt: User prompt (e.g., "今日の天気", "明日の予報")
+
+        Returns:
+            Weather information
+        """
+        try:
+            # Get location
+            lat, lon, location_name = self.get_location_from_ip()
+
+            # Get forecast
+            forecast = self.get_forecast(lat, lon)
+
+            if not forecast:
+                return "⚠️ Failed to get weather data"
+
+            # Format result
+            result = f"📍 {location_name}\n\n"
+
+            # Current weather
+            if 'current' in forecast:
+                current = forecast['current']
+                weather_desc, emoji = self.get_weather_description(current.get('weather_code', 0))
+                result += f"🌡️ 現在: {current.get('temperature', 'N/A')}°C {emoji} {weather_desc}\n"
+                result += f"💨 風速: {current.get('wind_speed', 'N/A')} km/h\n\n"
+
+            # Today's forecast
+            if 'daily' in forecast:
+                daily = forecast['daily']
+                if daily['time']:
+                    today = daily['time'][0]
+                    result += f"📅 今日 ({today}):\n"
+                    result += f"  🌡️ 最高: {daily['temperature_2m_max'][0]}°C\n"
+                    result += f"  🌡️ 最低: {daily['temperature_2m_min'][0]}°C\n"
+
+                    if len(daily['time']) > 1:
+                        tomorrow = daily['time'][1]
+                        result += f"\n📅 明日 ({tomorrow}):\n"
+                        result += f"  🌡️ 最高: {daily['temperature_2m_max'][1]}°C\n"
+                        result += f"  🌡️ 最低: {daily['temperature_2m_min'][1]}°C\n"
+
+            return result
+
+        except Exception as e:
+            self.handle_error(e, "Weather query")
+            return f"❌ Error: {e}"
 
     def get_location_from_ip(self) -> Tuple[float, float, str]:
         """IPアドレスから位置を取得"""
@@ -88,6 +143,17 @@ class WeatherAgent:
 
         except Exception:
             return DEFAULT_LAT, DEFAULT_LON, "Tokyo, Japan"
+
+    def get_weather_description(self, weather_code: int) -> Tuple[str, str]:
+        """Get weather description and emoji from code.
+
+        Args:
+            weather_code: Weather code from API
+
+        Returns:
+            Tuple of (description, emoji)
+        """
+        return WEATHER_CODES.get(weather_code, ("不明", "❓"))
 
     def reverse_geocode(self, lat: float, lon: float) -> str:
         """緯度経度から地名を取得"""

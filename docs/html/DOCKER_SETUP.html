@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroHub - DOCKER_SETUP</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #546e7a;
+            margin-top: 20px;
+        }
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Courier New", monospace;
+        }
+        pre code {
+            background: transparent;
+            padding: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            color: #777;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>NeuroHub Docker セットアップガイド</h1>
+<h2>🐳 Dockerとは</h2>
+<p>Dockerは、アプリケーションとその依存関係を<strong>コンテナ</strong>という単位でパッケージ化する技術です。</p>
+<h3>NeuroHubでDockerを使うメリット</h3>
+<p>1. <strong>環境構築が超簡単</strong> 🚀
+   - 複雑な手順が <code>docker-compose up -d</code> 1コマンドに
+   - Python venv、Ollama、データベース、依存関係が全て自動セットアップ</p>
+<p>2. <strong>どこでも同じ環境</strong> 🌍
+   - Windows、Linux、Raspberry Piで完全に同じ動作
+   - 「私の環境では動くのに...」問題の解消</p>
+<p>3. <strong>ラズパイ対応</strong> 🥧
+   - ARM64/ARM32アーキテクチャ自動対応
+   - リソース制限設定で安定動作（メモリ512MB〜2GB）</p>
+<p>4. <strong>依存関係の分離</strong> 🔒
+   - ホストシステムを汚さない
+   - 複数バージョンの共存可能
+   - アンインストールも簡単</p>
+<p>---</p>
+<h2>📋 前提条件</h2>
+<h3>共通</h3>
+<li><strong>Docker Engine</strong>: 20.10以上</li>
+<li><strong>Docker Compose</strong>: v2.0以上</li>
+<li><strong>ディスク空き容量</strong>: 最低2GB（推奨5GB以上）</li>
+<li><strong>メモリ</strong>: 最低2GB（推奨4GB以上）</li>
+<h3>Windows環境</h3>
+<li><strong>OS</strong>: Windows 10/11 Pro/Enterprise/Education</li>
+<li><strong>WSL2</strong>: 有効化必須</li>
+<li><strong>Docker Desktop</strong>: 最新版</li>
+<h3>Linux環境</h3>
+<li><strong>OS</strong>: Ubuntu 20.04+, Debian 11+, Raspberry Pi OS</li>
+<li><strong>Docker Engine</strong>: 公式リポジトリからインストール</li>
+<li><strong>Docker Compose</strong>: v2推奨</li>
+<h3>Raspberry Pi環境</h3>
+<li><strong>モデル</strong>: Raspberry Pi 4（推奨4GB以上）</li>
+<li><strong>OS</strong>: Raspberry Pi OS (64-bit推奨)</li>
+<li><strong>Docker</strong>: 公式スクリプトでインストール</li>
+<p>---</p>
+<h2>🚀 インストール手順</h2>
+<h3>Windows: Docker Desktop</h3>
+<p>#### ステップ1: WSL2有効化</p>
+<pre><code class="language-powershell"># PowerShellを管理者として実行
+<h1>WSL有効化</h1>
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+<h1>仮想マシン機能有効化</h1>
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+<h1>再起動</h1>
+Restart-Computer
+<h1>WSL2をデフォルトに設定</h1>
+wsl --set-default-version 2
+<h1>確認</h1>
+wsl --list --verbose
+</code></pre>
+<p>#### ステップ2: Docker Desktop インストール</p>
+<p>1. <strong>公式サイトからダウンロード</strong>:
+   - https://www.docker.com/products/docker-desktop</p>
+<p>2. <strong>インストーラー実行</strong>:
+   - <code>Docker Desktop Installer.exe</code> をダブルクリック
+   - 「Use WSL 2 instead of Hyper-V」を選択</p>
+<p>3. <strong>インストール確認</strong>:
+<pre><code class="language-powershell">docker --version
+<h1>Docker version 24.0.0 以上</h1></p>
+<p>docker-compose --version
+<h1>Docker Compose version v2.20.0 以上</h1>
+</code></pre></p>
+<p>---</p>
+<h3>Linux: Docker Engine</h3>
+<p>#### Ubuntu/Debian</p>
+<pre><code class="language-bash"># 古いDockerパッケージ削除
+sudo apt remove docker docker-engine docker.io containerd runc
+<h1>必要パッケージインストール</h1>
+sudo apt update
+sudo apt install -y \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release
+<h1>Docker GPG鍵追加</h1>
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+<h1>Dockerリポジトリ追加</h1>
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+<h1>Dockerインストール</h1>
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+<h1>Docker起動・自動起動設定</h1>
+sudo systemctl start docker
+sudo systemctl enable docker
+<h1>ユーザーをdockerグループに追加（sudoなしで実行可能に）</h1>
+sudo usermod -aG docker $USER
+<h1>ログアウト・ログインして反映</h1>
+<h1>または</h1>
+newgrp docker
+<h1>インストール確認</h1>
+docker --version
+docker compose version
+</code></pre>
+<p>---</p>
+<h3>Raspberry Pi: Docker Engine</h3>
+<p>---</p>
+<h2>🔧 NeuroHub セットアップ</h2>
+<h3>ステップ1: リポジトリクローン</h3>
+<pre><code class="language-bash"># Gitクローン
+git clone https://github.com/messpy/NeuroHub.git
+cd NeuroHub
+</code></pre>
+<h3>ステップ2: 環境変数設定</h3>
+<pre><code class="language-bash"># .envファイル作成
+cp .env.example .env
+<h1>エディタで編集</h1>
+nano .env  # または vi, vim, code など
+</code></pre>
+<strong>.env 最小構成</strong>:
+<pre><code class="language-bash"># Gemini API Key（必須 - 無料: 1日250リクエスト）
+<h1>取得: https://aistudio.google.com/app/apikey</h1>
+GEMINI_API_KEY=your_gemini_api_key_here
+<h1>HuggingFace API Key（推奨 - 無料: 月間制限）</h1>
+<h1>取得: https://huggingface.co/settings/tokens</h1>
+HUGGINGFACE_API_KEY=your_huggingface_token_here
+<h1>Ollama設定（自動）</h1>
+OLLAMA_HOST=http://ollama:11434
+<h1>ログレベル</h1>
+LOG_LEVEL=INFO
+</code></pre>
+<h3>ステップ3: Docker起動</h3>
+<pre><code class="language-bash"># Docker Compose起動（バックグラウンド）
+docker-compose up -d
+<h1>起動確認</h1>
+docker-compose ps
+<h1>期待される出力:</h1>
+<h1>NAME                  STATUS              PORTS</h1>
+<h1>neurohub-app         running (healthy)   0.0.0.0:8000->8000/tcp</h1>
+<h1>neurohub-ollama      running (healthy)   0.0.0.0:11434->11434/tcp</h1>
+</code></pre>
+<h3>ステップ4: 初回セットアップ確認</h3>
+<pre><code class="language-bash"># ログ確認（初回起動時）
+docker-compose logs -f neurohub
+<h1>データベース初期化確認</h1>
+docker-compose exec neurohub ls -la neurohub_llm.db
+<h1>テーブル確認</h1>
+docker-compose exec neurohub sqlite3 neurohub_llm.db ".tables"
+</code></pre>
+<h3>ステップ5: 動作確認</h3>
+<pre><code class="language-bash"># LLMテスト
+docker-compose exec neurohub python3 -c "from agents.agent_llm import LLMAgent; agent = LLMAgent(); print('✅ LLM OK')"
+<h1>プロバイダー確認</h1>
+docker-compose exec neurohub python3 -c "import yaml; config = yaml.safe_load(open('config/llm_config.yaml', 'r', encoding='utf-8')); print('\n'.join([f'{k}: {v.get(\"model\")} (enabled={v.get(\"enabled\")})' for k,v in config.get('llm', {}).get('providers', {}).items()]))"
+<h1>Ollama確認</h1>
+curl http://localhost:11434/api/tags
+<h1>テスト実行</h1>
+docker-compose exec neurohub python3 -m pytest tests/ -v
+</code></pre>
+<p>---</p>
+<h2>📊 Docker構成詳細</h2>
+<h3>コンテナ構成</h3>
+<pre><code class="language-mermaid">graph TB
+    A[neurohub-app<br/>Pythonアプリケーション] -->|API呼び出し| B[neurohub-ollama<br/>Ollamaサーバー]
+    A -->|データ保存| C[Docker Volumes]
+    A -->|API呼び出し| D[Gemini API<br/>クラウド]
+    A -->|API呼び出し| E[HuggingFace API<br/>クラウド]
+    
+    C --> C1[neurohub_data<br/>アプリデータ]
+    C --> C2[neurohub_logs<br/>ログファイル]
+    C --> C3[neurohub_projects<br/>MCPプロジェクト]
+    C --> C4[neurohub_db<br/>SQLiteデータベース]
+    C --> C5[ollama_data<br/>Ollamaモデル]
+</code></pre>
+<h3>ボリューム構成</h3>
+<p>| ボリューム名 | マウント先 | 用途 | サイズ |
+|-------------|-----------|------|--------|
+| <code>neurohub_data</code> | <code>/app/data</code> | アプリケーションデータ | ~100MB |
+| <code>neurohub_logs</code> | <code>/app/logs</code> | ログファイル | ~50MB |
+| <code>neurohub_projects</code> | <code>/app/services/mcp/generated_projects</code> | MCP生成プロジェクト | ~500MB |
+| <code>neurohub_db</code> | <code>/app/neurohub_llm.db</code> | SQLiteデータベース | ~50MB |
+| <code>ollama_data</code> | <code>/root/.ollama</code> | Ollamaモデル | ~1GB〜5GB |</p>
+<h3>ポート公開</h3>
+<p>| ポート | サービス | 説明 |
+|--------|---------|------|
+| <code>8000</code> | neurohub-app | Web UI（将来実装） |
+| <code>11434</code> | neurohub-ollama | Ollama API |</p>
+<h3>リソース制限（docker-compose.yml）</h3>
+<pre><code class="language-yaml">deploy:
+  resources:
+    limits:
+      cpus: '2.0'      # 最大CPU 2コア
+      memory: 2G        # 最大メモリ 2GB
+    reservations:
+      cpus: '0.5'      # 最小CPU 0.5コア
+      memory: 512M      # 最小メモリ 512MB
+</code></pre>
+<strong>Raspberry Pi向け調整</strong>:
+<pre><code class="language-yaml"># Raspberry Pi 4 (4GB) の場合
+limits:
+  cpus: '3.0'        # 全コア使用
+  memory: 3G         # メモリ上限3GB
+reservations:
+  cpus: '1.0'
+  memory: 1G
+</code></pre>
+<p>---</p>
+<h2>🎛️ Docker管理コマンド</h2>
+<h3>基本操作</h3>
+<pre><code class="language-bash"># 起動（フォアグラウンド - ログ表示）
+docker-compose up
+<h1>起動（バックグラウンド）</h1>
+docker-compose up -d
+<h1>停止</h1>
+docker-compose stop
+<h1>再起動</h1>
+docker-compose restart
+<h1>完全停止・削除（データは保持）</h1>
+docker-compose down
+<h1>完全停止・削除（データも削除）</h1>
+docker-compose down -v
+</code></pre>
+<h3>ログ確認</h3>
+<pre><code class="language-bash"># 全コンテナのログ
+docker-compose logs
+<h1>リアルタイムログ（-f: follow）</h1>
+docker-compose logs -f
+<h1>特定コンテナのログ</h1>
+docker-compose logs neurohub
+docker-compose logs ollama
+<h1>最新100行のみ</h1>
+docker-compose logs --tail=100 neurohub
+</code></pre>
+<h3>コンテナ内操作</h3>
+<pre><code class="language-bash"># シェル起動
+docker-compose exec neurohub bash
+<h1>コマンド実行</h1>
+docker-compose exec neurohub python3 agents/agent_llm.py
+docker-compose exec neurohub python3 -m pytest tests/
+<h1>ファイルコピー（ホスト → コンテナ）</h1>
+docker cp local_file.txt neurohub-app:/app/
+<h1>ファイルコピー（コンテナ → ホスト）</h1>
+docker cp neurohub-app:/app/logs/app.log ./
+</code></pre>
+<h3>リソース監視</h3>
+<pre><code class="language-bash"># CPU/メモリ使用量
+docker stats
+<h1>ディスク使用量</h1>
+docker system df
+<h1>コンテナ詳細</h1>
+docker-compose ps
+docker inspect neurohub-app
+</code></pre>
+<h3>ボリューム管理</h3>
+<pre><code class="language-bash"># ボリューム一覧
+docker volume ls
+<h1>ボリューム詳細</h1>
+docker volume inspect neurohub_neurohub_data
+<h1>ボリュームバックアップ</h1>
+docker run --rm -v neurohub_neurohub_data:/data -v $(pwd):/backup ubuntu tar czf /backup/neurohub_backup.tar.gz /data
+<h1>ボリューム復元</h1>
+docker run --rm -v neurohub_neurohub_data:/data -v $(pwd):/backup ubuntu tar xzf /backup/neurohub_backup.tar.gz -C /
+<h1>未使用ボリューム削除</h1>
+docker volume prune
+</code></pre>
+<p>---</p>
+<h2>🔧 トラブルシューティング</h2>
+<h3>1. コンテナ起動失敗</h3>
+<strong>症状</strong>:
+<pre><code class="language-bash">docker-compose up -d
+ERROR: ... port is already allocated
+</code></pre>
+<strong>解決策</strong>:
+<pre><code class="language-bash"># ポート使用中のプロセス確認
+sudo lsof -i :11434  # Ollama
+sudo lsof -i :8000   # NeuroHub
+<h1>プロセス終了</h1>
+sudo kill -9 <PID>
+<h1>または別ポートに変更（docker-compose.yml）</h1>
+ports:
+  - "11435:11434"  # 11434 → 11435
+</code></pre>
+<h3>2. データベース初期化失敗</h3>
+<strong>症状</strong>:
+<pre><code class="language-bash">ERROR: database is locked
+</code></pre>
+<strong>解決策</strong>:
+<pre><code class="language-bash"># コンテナ再起動
+docker-compose restart neurohub
+<h1>データベース再初期化</h1>
+docker-compose exec neurohub python3 scripts/init_database.py
+<h1>最終手段: ボリューム削除・再作成</h1>
+docker-compose down -v
+docker-compose up -d
+</code></pre>
+<h3>3. Ollamaモデルダウンロード失敗</h3>
+<strong>症状</strong>:
+<pre><code class="language-bash">Error: model not found
+</code></pre>
+<strong>解決策</strong>:
+<pre><code class="language-bash"># Ollamaコンテナ内でモデルダウンロード
+docker-compose exec ollama ollama pull qwen2.5:1.5b-instruct
+<h1>モデル一覧確認</h1>
+docker-compose exec ollama ollama list
+<h1>またはAPI経由</h1>
+curl http://localhost:11434/api/tags
+</code></pre>
+<h3>4. メモリ不足（Raspberry Pi）</h3>
+<strong>症状</strong>:
+<pre><code class="language-bash">OOMKilled (Out Of Memory)
+</code></pre>
+<strong>解決策</strong>:
+<pre><code class="language-bash"># docker-compose.yml 修正
+deploy:
+  resources:
+    limits:
+      memory: 1.5G     # 2G → 1.5Gに削減
+    reservations:
+      memory: 512M
+<h1>軽量モデルに変更</h1>
+<h1>.env</h1>
+OLLAMA_MODEL=qwen2.5:0.5b  # 1.5b → 0.5b
+</code></pre>
+<h3>5. ディスク容量不足</h3>
+<strong>症状</strong>:
+<pre><code class="language-bash">no space left on device
+</code></pre>
+<strong>解決策</strong>:
+<pre><code class="language-bash"># 未使用イメージ削除
+docker image prune -a
+<h1>未使用コンテナ削除</h1>
+docker container prune
+<h1>未使用ボリューム削除（注意: データ消失）</h1>
+docker volume prune
+<h1>全クリーンアップ</h1>
+docker system prune -a --volumes
+</code></pre>
+<h3>6. ネットワークエラー</h3>
+<strong>症状</strong>:
+<pre><code class="language-bash">ERROR: Network neurohub-network declared as external, but could not be found
+</code></pre>
+<strong>解決策</strong>:
+<pre><code class="language-bash"># ネットワーク作成
+docker network create neurohub-network
+<h1>または docker-compose.yml修正</h1>
+networks:
+  default:
+    name: neurohub-network
+    # driver: bridge  # external削除
+</code></pre>
+<p>---</p>
+<h2>📈 パフォーマンスチューニング</h2>
+<h3>Raspberry Pi向け最適化</h3>
+<strong>docker-compose.yml</strong>:
+<pre><code class="language-yaml">services:
+  neurohub:
+    deploy:
+      resources:
+        limits:
+          cpus: '3.0'       # Raspberry Pi 4の全コア
+          memory: 3G        # 4GBモデルで3GB割り当て
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    environment:
+      # 軽量モデル使用
+      - OLLAMA_MODEL=qwen2.5:0.5b
+      # ログレベル下げる
+      - LOG_LEVEL=WARNING
+</code></pre>
+<strong>.env 最適化</strong>:
+<pre><code class="language-bash"># Gemini優先（軽量）
+GEMINI_API_KEY=your_key_here
+<h1>Ollama無効化（メモリ節約）</h1>
+OLLAMA_HOST=""
+</code></pre>
+<h3>Windows向け最適化</h3>
+<strong>Docker Desktop設定</strong>:
+1. Settings → Resources
+2. <strong>CPUs</strong>: 4コア（推奨）
+3. <strong>Memory</strong>: 4GB以上（推奨）
+4. <strong>Swap</strong>: 2GB
+5. <strong>Disk image size</strong>: 60GB
+<strong>WSL2メモリ制限</strong> (<code>.wslconfig</code>):
+<pre><code class="language-ini">[wsl2]
+memory=8GB
+processors=4
+swap=4GB
+</code></pre>
+<p>---</p>
+<h2>🎯 推奨構成</h2>
+<h3>最小構成（Raspberry Pi 2GB）</h3>
+<pre><code class="language-yaml"># docker-compose.minimal.yml
+services:
+  neurohub:
+    image: neurohub:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1.5G
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - LOG_LEVEL=WARNING
+<h1>Ollama無効化</h1>
+</code></pre>
+<h3>標準構成（PC/ラズパイ4GB）</h3>
+<pre><code class="language-bash"># デフォルトのdocker-compose.yml使用
+docker-compose up -d
+</code></pre>
+<h3>フル構成（高性能PC）</h3>
+<pre><code class="language-yaml"># docker-compose.full.yml
+services:
+  neurohub:
+    deploy:
+      resources:
+        limits:
+          cpus: '8.0'
+          memory: 8G
+  ollama:
+    # GPU有効化
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+</code></pre>
+<p>---</p>
+<h2>📚 参考資料</h2>
+<li><a href="https://docs.docker.com/">Docker公式ドキュメント</a></li>
+<li><a href="https://docs.docker.com/compose/compose-file/">Docker Compose リファレンス</a></li>
+<li><a href="https://hub.docker.com/r/ollama/ollama">Ollama Docker</a></li>
+<li><a href="DEPENDENCIES.md">DEPENDENCIES.md</a> - 依存関係詳細</li>
+<li><a href="../README.md">README.md</a> - メインドキュメント</li>
+<p>curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh</p>
+<h1>現在のユーザーをdockerグループに追加</h1>
+sudo usermod -aG docker $USER
+<h1>Docker Compose インストール</h1>
+sudo apt-get update
+sudo apt-get install docker-compose-plugin
+<h1>確認</h1>
+docker --version
+docker compose version
+<pre><code class="language-">
+<h3>3. NeuroHub起動</h3>
+</code></pre>bash
+<h1>リポジトリクローン（まだの場合）</h1>
+git clone https://github.com/messpy/NeuroHub.git
+cd NeuroHub
+<h1>.envファイル作成（API Keyを設定）</h1>
+cp .env.example .env
+<h1>エディタで.envを編集してAPI Keyを入力</h1>
+<h1>Docker Composeで起動</h1>
+docker-compose up -d
+<h1>ログ確認</h1>
+docker-compose logs -f neurohub
+<pre><code class="language-">
+<strong>これだけで完了！</strong> 🎉
+<p>---</p>
+<h2>⚙️ 設定ファイル</h2>
+<h3>.env（API Key設定）</h3>
+</code></pre>env
+<h1>Gemini API</h1>
+GEMINI_API_KEY=your_gemini_api_key_here
+<h1>HuggingFace API</h1>
+HUGGINGFACE_API_KEY=your_huggingface_api_key_here
+<h1>Discord Bot（オプション）</h1>
+DISCORD_BOT_TOKEN=your_discord_bot_token_here
+DISCORD_CHANNEL_ID=your_channel_id_here
+<h1>ログレベル</h1>
+LOG_LEVEL=INFO
+<pre><code class="language-">
+<h3>docker-compose.yml（既に作成済み）</h3>
+<p>2つのサービスを起動：
+<li><strong>ollama</strong>: Ollamaサーバー（ポート11434）</li>
+<li><strong>neurohub</strong>: NeuroHubメインアプリ（ポート8000）</li></p>
+<p>---</p>
+<h2>🔧 よく使うコマンド</h2>
+<h3>起動・停止</h3>
+</code></pre>bash
+<h1>起動（バックグラウンド）</h1>
+docker-compose up -d
+<h1>停止</h1>
+docker-compose down
+<h1>再起動</h1>
+docker-compose restart
+<h1>完全削除（データも削除）</h1>
+docker-compose down -v
+<pre><code class="language-">
+<h3>ログ確認</h3>
+</code></pre>bash
+<h1>全サービスのログ</h1>
+docker-compose logs -f
+<h1>NeuroHubのログのみ</h1>
+docker-compose logs -f neurohub
+<h1>Ollamaのログのみ</h1>
+docker-compose logs -f ollama
+<pre><code class="language-">
+<h3>コンテナ内でコマンド実行</h3>
+</code></pre>bash
+<h1>NeuroHubコンテナに入る</h1>
+docker-compose exec neurohub bash
+<h1>Pythonスクリプト実行</h1>
+docker-compose exec neurohub python3 test_hello_llm.py
+<h1>テスト実行</h1>
+docker-compose exec neurohub pytest tests/ -v
+<pre><code class="language-">
+<h3>Ollamaモデル管理</h3>
+</code></pre>bash
+<h1>モデル一覧</h1>
+docker-compose exec ollama ollama list
+<h1>モデルダウンロード</h1>
+docker-compose exec ollama ollama pull qwen2.5:0.5b-instruct
+<h1>モデル削除</h1>
+docker-compose exec ollama ollama rm <model_name>
+<pre><code class="language-">
+---
+<h2>🥧 Raspberry Pi固有の設定</h2>
+<h3>メモリ・CPU制限</h3>
+<code>docker-compose.yml</code>で既に設定済み：
+</code></pre>yaml
+deploy:
+  resources:
+    limits:
+      cpus: '2.0'      # 最大2コア使用
+      memory: 2G       # 最大2GB RAM
+    reservations:
+      cpus: '0.5'      # 最低0.5コア確保
+      memory: 512M     # 最低512MB RAM
+<pre><code class="language-">
+<h3>推奨スペック</h3>
+<p>| モデル | 推奨 | 最小 |
+|--------|------|------|
+| Raspberry Pi 4 (4GB) | ✅ 推奨 | - |
+| Raspberry Pi 4 (2GB) | ⚠️ 可能 | - |
+| Raspberry Pi 3B+ | ❌ 非推奨 | 軽量モデルのみ |</p>
+<h3>ラズパイでの起動例</h3>
+</code></pre>bash
+<h1>Raspberry Pi OS (Debian Bookworm)</h1>
+cd ~/NeuroHub
+<h1>メモリ節約モードで起動</h1>
+docker-compose up -d
+<h1>軽量モデル使用</h1>
+docker-compose exec ollama ollama pull qwen2.5:0.5b-instruct
+<pre><code class="language-">
+---
+<h2>🔍 トラブルシューティング</h2>
+<h3>1. "Cannot connect to Docker daemon"</h3>
+</code></pre>bash
+<h1>Dockerサービス起動</h1>
+sudo systemctl start docker
+<h1>自動起動設定</h1>
+sudo systemctl enable docker
+<pre><code class="language-">
+<h3>2. "Permission denied" エラー</h3>
+</code></pre>bash
+<h1>dockerグループに追加</h1>
+sudo usermod -aG docker $USER
+<h1>再ログイン必要</h1>
+exit
+<h1>再度SSHまたはターミナル起動</h1>
+<pre><code class="language-">
+<h3>3. メモリ不足（ラズパイ）</h3>
+</code></pre>bash
+<h1>スワップ領域追加</h1>
+sudo dphys-swapfile swapoff
+sudo nano /etc/dphys-swapfile
+<h1>CONF_SWAPSIZE=2048 に変更</h1>
+sudo dphys-swapfile setup
+sudo dphys-swapfile swapon
+<pre><code class="language-">
+<h3>4. Ollama接続エラー</h3>
+</code></pre>bash
+<h1>Ollamaコンテナ状態確認</h1>
+docker-compose ps ollama
+<h1>Ollamaヘルスチェック</h1>
+docker-compose exec ollama curl -f http://localhost:11434/api/tags
+<pre><code class="language-">
+---
+<h2>📊 Docker vs venv 比較</h2>
+<p>| 項目 | Docker | Python venv |
+|------|--------|-------------|
+| <strong>セットアップ</strong> | ⭐⭐⭐⭐⭐ 超簡単 | ⭐⭐⭐ 中程度 |
+| <strong>環境統一</strong> | ⭐⭐⭐⭐⭐ 完璧 | ⭐⭐ OS依存 |
+| <strong>ラズパイ対応</strong> | ⭐⭐⭐⭐⭐ 自動 | ⭐⭐⭐ 手動設定 |
+| <strong>メモリ使用</strong> | ⭐⭐⭐ やや多い | ⭐⭐⭐⭐⭐ 最小 |
+| <strong>デバッグ</strong> | ⭐⭐⭐ コンテナ内 | ⭐⭐⭐⭐⭐ 直接 |
+| <strong>本番運用</strong> | ⭐⭐⭐⭐⭐ 最適 | ⭐⭐⭐ 手動管理 |</p>
+<h3>推奨使い分け</h3>
+<li><strong>開発中</strong>: venv（デバッグしやすい）</li>
+<li><strong>本番運用</strong>: Docker（安定・簡単）</li>
+<li><strong>ラズパイ</strong>: Docker（環境統一）</li>
+<li><strong>チーム共有</strong>: Docker（環境差異なし）</li>
+<p>---</p>
+<h2>🔄 アップデート手順</h2>
+</code></pre>bash
+<h1>最新コード取得</h1>
+git pull origin aidev
+<h1>イメージ再ビルド</h1>
+docker-compose build
+<h1>再起動</h1>
+docker-compose up -d
+<h1>古いイメージ削除（オプション）</h1>
+docker image prune -f
+<pre><code class="language-">
+---
+<h2>🛠️ 開発者向け</h2>
+<h3>カスタムDockerfile</h3>
+</code></pre>dockerfile
+<h1>開発用追加パッケージ</h1>
+FROM python:3.12-slim-bookworm
+<h1>... 既存の設定 ...</h1>
+<h1>開発ツール追加</h1>
+RUN pip install ipython jupyter black ruff mypy
+<pre><code class="language-">
+<h3>ボリュームマウント</h3>
+</code></pre>yaml
+<h1>docker-compose.override.yml（Git除外推奨）</h1>
+version: '3.8'
+services:
+  neurohub:
+    volumes:
+      # ホストのコードを直接マウント（開発用）
+      - ./agents:/app/agents
+      - ./services:/app/services
+<code></code>`
+<p>---</p>
+<h2>📖 参考リンク</h2>
+<li><a href="https://docs.docker.com/">Docker公式ドキュメント</a></li>
+<li><a href="https://docs.docker.com/compose/">Docker Compose</a></li>
+<li><a href="https://hub.docker.com/r/ollama/ollama">Ollama Docker</a></li>
+<li><a href="https://docs.docker.com/engine/install/debian/">Raspberry Pi + Docker</a></li>
+<p>---</p>
+<em>最終更新: 2025年11月2日</em>
+
+        <div class="footer">
+            <p>Generated from Markdown | NeuroHub Documentation</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,201 @@
+/* NeuroHub Documentation CSS */
+
+:root {
+    --primary-color: #2c3e50;
+    --secondary-color: #3498db;
+    --bg-color: #ecf0f1;
+    --sidebar-bg: #34495e;
+    --text-color: #2c3e50;
+    --border-color: #bdc3c7;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: var(--text-color);
+    background-color: var(--bg-color);
+}
+
+.container {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 280px;
+    background-color: var(--sidebar-bg);
+    color: white;
+    padding: 20px;
+    position: fixed;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+.sidebar-header h2 {
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+}
+
+.sidebar-nav ul {
+    list-style: none;
+}
+
+.sidebar-nav li {
+    margin: 10px 0;
+}
+
+.sidebar-nav a {
+    color: #ecf0f1;
+    text-decoration: none;
+    transition: color 0.3s;
+}
+
+.sidebar-nav a:hover {
+    color: var(--secondary-color);
+}
+
+.nav-category {
+    font-weight: bold;
+    margin-top: 15px;
+}
+
+.nav-category ul {
+    margin-left: 15px;
+    font-weight: normal;
+}
+
+/* Main Content */
+.content {
+    margin-left: 280px;
+    padding: 40px;
+    max-width: 1200px;
+    background-color: white;
+    min-height: 100vh;
+}
+
+.breadcrumb {
+    font-size: 0.9rem;
+    color: #7f8c8d;
+    margin-bottom: 20px;
+}
+
+.breadcrumb a {
+    color: var(--secondary-color);
+    text-decoration: none;
+}
+
+article {
+    margin-bottom: 40px;
+}
+
+article h1 {
+    color: var(--primary-color);
+    border-bottom: 3px solid var(--secondary-color);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+article h2 {
+    color: var(--primary-color);
+    margin-top: 30px;
+    margin-bottom: 15px;
+    border-left: 4px solid var(--secondary-color);
+    padding-left: 10px;
+}
+
+article h3 {
+    color: var(--primary-color);
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+article p {
+    margin-bottom: 15px;
+}
+
+article code {
+    background-color: #f4f4f4;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+}
+
+article pre {
+    background-color: #2c3e50;
+    color: #ecf0f1;
+    padding: 15px;
+    border-radius: 5px;
+    overflow-x: auto;
+    margin-bottom: 20px;
+}
+
+article pre code {
+    background-color: transparent;
+    color: inherit;
+    padding: 0;
+}
+
+article table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+article th, article td {
+    border: 1px solid var(--border-color);
+    padding: 10px;
+    text-align: left;
+}
+
+article th {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+article tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+article ul, article ol {
+    margin-left: 30px;
+    margin-bottom: 15px;
+}
+
+article a {
+    color: var(--secondary-color);
+    text-decoration: none;
+}
+
+article a:hover {
+    text-decoration: underline;
+}
+
+.page-footer {
+    margin-top: 50px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+    text-align: center;
+    color: #7f8c8d;
+    font-size: 0.9rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 100%;
+        position: relative;
+        height: auto;
+    }
+    
+    .content {
+        margin-left: 0;
+        padding: 20px;
+    }
+}

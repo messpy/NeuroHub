@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLMエージェント 概要 - NeuroHub Documentation</title>
+    <link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>📚 NeuroHub Docs</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <ul><li><a href="index.html">🏠 トップ</a></li><li><a href="OVERVIEW.html">📖 プロジェクト概要</a></li><li><a href="ARCHITECTURE_DESIGN.html">🏗️ アーキテクチャ</a></li><li><a href="DATABASE_DESIGN.html">🗄️ データベース設計</a></li><li><a href="TASK_MANAGEMENT.html">📋 タスク管理</a></li><li class="nav-category">🤖 エージェント<ul><li><a href="agents/llm/README.html">LLM</a></li><li><a href="agents/git/README.html">Git</a></li><li><a href="agents/mcp/README.html">MCP</a></li><li><a href="agents/discord/README.html">Discord</a></li><li><a href="agents/config/README.html">Config</a></li><li><a href="agents/command/README.html">Command</a></li></ul></li></ul>
+            </nav>
+        </aside>
+        
+        <main class="content">
+            <div class="breadcrumb">
+                <a href="index.html">ホーム</a> &gt; <a href="agents/README.html">agents</a> &gt; <a href="agents/llm/README.html">llm</a>
+            </div>
+            <article>
+                <h1 id="llm">LLMエージェント 概要</h1>
+<h2 id="_1">🎯 役割と責任</h2>
+<p>LLMエージェント（<code>agents/llm_agent.py</code>）は、複数のLLM（Large Language Model）プロバイダーを統合管理し、NeuroHub全体にAI機能を提供する中核的なエージェントです。</p>
+<hr />
+<h2 id="_2">📋 主要機能</h2>
+<h3 id="1">1. プロバイダー統合管理</h3>
+<ul>
+<li><strong>Ollama</strong>: ローカルLLM実行環境</li>
+<li><strong>Gemini</strong>: Google AI API</li>
+<li><strong>HuggingFace</strong>: Groq経由のInference API</li>
+</ul>
+<h3 id="2">2. 自動フォールバック</h3>
+<p>プロバイダーのエラー・制限時に自動的に別プロバイダーに切り替え</p>
+<h3 id="3">3. モデル管理</h3>
+<ul>
+<li>モデル一覧取得</li>
+<li>自動モデル選択</li>
+<li>カスタムモデル（Modelfile）のビルド</li>
+</ul>
+<h3 id="4">4. テキスト処理</h3>
+<ul>
+<li>日本語対応の安全な文字数制限</li>
+<li>チャンク処理（長文分割）</li>
+<li>システムプロンプト管理</li>
+</ul>
+<hr />
+<h2 id="_3">🏗️ アーキテクチャ</h2>
+<div class="codehilite"><pre><span></span><code>┌────────────────────────────────────────┐
+│        LLM Agent (llm_agent.py)        │
+│                                        │
+│  - プロバイダー選択                     │
+│  - リクエスト管理                       │
+│  - エラーハンドリング                   │
+│  - フォールバック制御                   │
+└────────────┬───────────────────────────┘
+             │
+    ┌────────┼────────┐
+    │        │        │
+┌───▼───┐ ┌─▼───┐ ┌─▼────────┐
+│Ollama │ │Gemini│ │HuggingFace│
+│Provider│ │Provider│ │Provider  │
+└────────┘ └──────┘ └──────────┘
+    │        │        │
+┌───▼────────▼────────▼───┐
+│   LLM Common Module      │
+│  (services/ai/           │
+│   llm_common.py)         │
+└──────────────────────────┘
+</code></pre></div>
+
+<hr />
+<h2 id="_4">🔧 使用方法</h2>
+<h3 id="_5">基本的な使用例</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">agents.llm_agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMAgent</span>
+
+<span class="c1"># エージェント初期化</span>
+<span class="n">agent</span> <span class="o">=</span> <span class="n">LLMAgent</span><span class="p">()</span>
+
+<span class="c1"># プロンプト送信（自動プロバイダー選択）</span>
+<span class="n">response</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">generate_response</span><span class="p">(</span><span class="s2">&quot;こんにちは&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
+<span class="c1"># 出力例: &quot;こんにちは！お元気ですか？...&quot;</span>
+
+<span class="c1"># 特定プロバイダー指定</span>
+<span class="n">response</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">generate_response</span><span class="p">(</span>
+    <span class="s2">&quot;Pythonのコードを書いて&quot;</span><span class="p">,</span>
+    <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;ollama&quot;</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<h3 id="_6">プロバイダー切り替え例</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># プロバイダー優先順位指定</span>
+<span class="n">agent</span><span class="o">.</span><span class="n">set_provider_priority</span><span class="p">([</span><span class="s2">&quot;gemini&quot;</span><span class="p">,</span> <span class="s2">&quot;huggingface&quot;</span><span class="p">,</span> <span class="s2">&quot;ollama&quot;</span><span class="p">])</span>
+
+<span class="c1"># 自動フォールバック（Geminiエラー時→HuggingFace→Ollama）</span>
+<span class="n">response</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">generate_response_with_fallback</span><span class="p">(</span><span class="s2">&quot;質問内容&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="_7">モデル管理</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 利用可能モデル一覧取得</span>
+<span class="n">models</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">list_models</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;ollama&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">models</span><span class="p">)</span>
+<span class="c1"># 出力: [&quot;qwen2.5:0.5b-instruct&quot;, &quot;llama2&quot;, ...]</span>
+
+<span class="c1"># モデル変更</span>
+<span class="n">agent</span><span class="o">.</span><span class="n">switch_model</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;ollama&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;llama2&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_8">📊 対応プロバイダー詳細</h2>
+<h3 id="1-ollama">1. Ollama</h3>
+<ul>
+<li><strong>特徴</strong>: ローカル実行、無制限、オフライン可</li>
+<li><strong>推奨モデル</strong>: <code>qwen2.5:0.5b-instruct</code>（軽量・高速）</li>
+<li><strong>設定場所</strong>: <code>config/llm_config.yaml</code></li>
+<li><strong>セットアップ</strong>: <code>ollama pull qwen2.5:0.5b-instruct</code></li>
+</ul>
+<h3 id="2-gemini">2. Gemini</h3>
+<ul>
+<li><strong>特徴</strong>: 高品質、高速、日本語対応優秀</li>
+<li><strong>制限</strong>: 1日250リクエスト（無料プラン）</li>
+<li><strong>推奨モデル</strong>: <code>gemini-2.5-flash</code></li>
+<li><strong>API Key</strong>: <code>.env</code>の<code>GEMINI_API_KEY</code></li>
+</ul>
+<h3 id="3-huggingfacegroq">3. HuggingFace（Groq経由）</h3>
+<ul>
+<li><strong>特徴</strong>: 高速推論、多様なモデル</li>
+<li><strong>推奨モデル</strong>: <code>openai/gpt-oss-20b:groq</code></li>
+<li><strong>API Key</strong>: <code>.env</code>の<code>HUGGINGFACE_API_KEY</code></li>
+<li><strong>エンドポイント</strong>: Groq Inference API</li>
+</ul>
+<hr />
+<h2 id="_9">🧪 テスト</h2>
+<h3 id="_10">テストファイル</h3>
+<ul>
+<li><code>test_hello_llm.py</code>: 基本動作確認（3プロバイダー）</li>
+<li><code>tests/test_provider_ollama.py</code>: Ollama詳細テスト</li>
+<li><code>tests/test_provider_gemini.py</code>: Gemini詳細テスト</li>
+<li><code>tests/test_provider_huggingface.py</code>: HuggingFace詳細テスト</li>
+</ul>
+<h3 id="_11">実行コマンド</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 全プロバイダー動作確認</span>
+python3<span class="w"> </span>test_hello_llm.py
+
+<span class="c1"># Ollamaテスト（9テスト）</span>
+pytest<span class="w"> </span>tests/test_provider_ollama.py<span class="w"> </span>-v
+
+<span class="c1"># 統合テスト</span>
+pytest<span class="w"> </span>tests/<span class="w"> </span>-k<span class="w"> </span>llm<span class="w"> </span>-v
+</code></pre></div>
+
+<hr />
+<h2 id="_12">📖 関連ドキュメント</h2>
+<ul>
+<li><a href="./DETAILED_DESIGN.md">詳細設計</a> - 内部構造、クラス設計</li>
+<li><a href="./PROVIDER_DESIGN.md">プロバイダー設計</a> - 各プロバイダー仕様</li>
+<li><a href="./OTHER_DESIGNS.md">その他設計</a> - 拡張機能、カスタマイズ</li>
+</ul>
+<hr />
+<h2 id="_13">🔗 依存関係</h2>
+<h3 id="_14">直接依存</h3>
+<ul>
+<li><code>services/ai/provider_ollama.py</code></li>
+<li><code>services/ai/provider_gemini.py</code></li>
+<li><code>services/ai/provider_huggingface.py</code></li>
+<li><code>services/ai/llm_common.py</code></li>
+</ul>
+<h3 id="_15">設定ファイル</h3>
+<ul>
+<li><code>config/llm_config.yaml</code></li>
+<li><code>.env</code></li>
+</ul>
+<hr />
+<h2 id="_16">🚀 今後の拡張予定</h2>
+<ul>
+<li>[ ] Claude API統合</li>
+<li>[ ] GPT-4o API統合</li>
+<li>[ ] ストリーミング応答対応</li>
+<li>[ ] 会話履歴管理強化</li>
+<li>[ ] カスタムプロンプトテンプレート</li>
+</ul>
+<hr />
+<p><em>最終更新: 2025年11月2日</em></p>
+            </article>
+            <footer class="page-footer">
+                <p>最終更新: 2025年11月02日</p>
+                <p>© 2025 NeuroHub Project</p>
+            </footer>
+        </main>
+    </div>
+    <script src="../../script.js"></script>
+</body>
+</html>

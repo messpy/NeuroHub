@@ -19,7 +19,7 @@ from datetime import datetime
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from agents.llm_agent import LLMAgent, LLMRequest
+from agents.agent_llm import LLMAgent, LLMRequest
 from services.db.database_manager import DatabaseManager
 from services.web.practical_web_searcher import PracticalWebSearcher
 
@@ -124,7 +124,7 @@ class AutoDebugger:
             if error_msg == last_error:
                 consecutive_failures += 1
                 print(f"⚠️ 同じエラーが{consecutive_failures}回連続発生")
-                
+
                 # 5回連続で同じエラーなら終了
                 if consecutive_failures >= 5:
                     print(f"\n{'='*60}")
@@ -587,7 +587,7 @@ class AutoDebugger:
         """LLMでエラー修正コードを生成"""
 
         hints_text = "\n".join(f"- {hint}" for hint in hints)
-        
+
         # input()タイムアウトの場合は具体的な修正例を追加
         extra_instructions = ""
         if "input()" in error_message or "タイムアウト" in error_message:
@@ -611,7 +611,7 @@ def main():
     parser.add_argument("--expression", type=str, help="計算式")
     parser.add_argument("--test", action="store_true", help="テストモード")
     args = parser.parse_args()
-    
+
     if args.test:
         # テストケース実行
         test_expressions = ["2+2", "10*5", "100/4"]
@@ -695,7 +695,7 @@ def main():
                     if len(fixed_code) > 300:
                         print(f"... (残り {len(fixed_code) - 300}文字)")
                     print(f"{'-'*60}")
-                    
+
                     # input()が残っているか確認
                     if 'input(' in fixed_code:
                         print(f"⚠️ 警告: 抽出されたコードにinput()が残っています")

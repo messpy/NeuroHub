@@ -1,20 +1,71 @@
 llm:
+  # 各プロバイダーはyamlの順序でテスト実行され、成功したものを採用（失敗はスキップ）
   default_settings:
     auto_fallback: true
     max_tokens: 200
     temperature: 0.3
     timeout: 30
+
   logging:
     enabled: true
     log_level: 2
     store_debug_info: true
-  provider_priority: []
+
+  # 用途別プロバイダー優先度設定
+  priority_profiles:
+    default:
+      - ollama
+      - gemini
+      - huggingface
+
+    coding:
+      # コーディング用：精度重視
+      - ollama
+      - gemini
+      - huggingface
+
+    explanation:
+      # 説明生成用：自然な文章重視
+      - ollama
+      - gemini
+
+    image_analysis:
+      # 画像分析用：マルチモーダル対応モデル優先
+      - gemini  # Gemini Vision対応
+      - ollama  # llava等のビジョンモデル
+
+    safe_mode:
+      # 安全第一：ローカルのみ
+      - ollama
+
   providers:
     ollama:
-      api_url: http://localhost:11434
       enabled: true
-      max_tokens: 500
-      model: qwen2.5:1.5b-instruct
       priority: 1
+      api_url: http://localhost:11434
+      model: neurohub-mcp-assistant  # コード生成に最適化
+      max_tokens: 8000  # コード生成用に増量
+      temperature: 0.3
+      timeout: 180  # コード生成は時間がかかるため延長
+      # ビジョンモデル設定（画像分析用）
+      vision_model: llava:7b
+
+    gemini:
+      enabled: false  # API KEY設定後に有効化
+      priority: 2
+      api_key: ${GEMINI_API_KEY}
+      model: gemini-1.5-flash
+      max_tokens: 500
+      temperature: 0.3
+      timeout: 30
+      # ビジョンモデル設定
+      vision_model: gemini-1.5-flash
+
+    huggingface:
+      enabled: false  # API KEY設定後に有効化
+      priority: 3
+      api_key: ${HUGGINGFACE_API_KEY}
+      model: microsoft/phi-2
+      max_tokens: 500
       temperature: 0.3
       timeout: 30

@@ -1,0 +1,5 @@
+# 開発用依存関係
+
+pytest>=8.0.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0

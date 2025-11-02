@@ -213,8 +213,14 @@ __pycache__/
 config/.env
 logs/
 data/cache/
-data/neurohub.db
-projects/
+*.db
+venv/
 venv_linux/
+htmlcov/
+.coverage
+coverage.xml
 
-# Note: old/ folder is tracked for archived files
+# MCP generated projects (tracked for examples)
+# services/mcp/generated_projects/
+
+# Note: old/ and _archive/ folders are tracked for archived files

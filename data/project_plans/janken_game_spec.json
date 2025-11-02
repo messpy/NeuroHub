@@ -1,0 +1,195 @@
+{
+  "project_name": "janken_game_cli",
+  "description": "SQLiteデータベースを使用したじゃんけんゲーム",
+  "version": "1.0.0",
+  "requirements": {
+    "functional": [
+      "ユーザー名登録機能",
+      "じゃんけん対戦機能（グー・チョキ・パー）",
+      "勝敗判定機能",
+      "ユーザー統計情報表示（勝率、戦績）",
+      "対戦履歴表示機能",
+      "ランキング表示機能（勝率順）"
+    ],
+    "database": {
+      "tables": [
+        {
+          "name": "users",
+          "description": "ユーザー情報テーブル",
+          "columns": [
+            {"name": "id", "type": "INTEGER", "constraints": "PRIMARY KEY AUTOINCREMENT"},
+            {"name": "username", "type": "TEXT", "constraints": "NOT NULL UNIQUE"},
+            {"name": "created_at", "type": "TIMESTAMP", "constraints": "DEFAULT CURRENT_TIMESTAMP"}
+          ]
+        },
+        {
+          "name": "user_stats",
+          "description": "ユーザー統計情報テーブル",
+          "columns": [
+            {"name": "user_id", "type": "INTEGER", "constraints": "PRIMARY KEY REFERENCES users(id)"},
+            {"name": "total_games", "type": "INTEGER", "constraints": "DEFAULT 0"},
+            {"name": "wins", "type": "INTEGER", "constraints": "DEFAULT 0"},
+            {"name": "losses", "type": "INTEGER", "constraints": "DEFAULT 0"},
+            {"name": "draws", "type": "INTEGER", "constraints": "DEFAULT 0"},
+            {"name": "win_rate", "type": "REAL", "constraints": "DEFAULT 0.0"}
+          ]
+        },
+        {
+          "name": "game_history",
+          "description": "対戦履歴テーブル",
+          "columns": [
+            {"name": "id", "type": "INTEGER", "constraints": "PRIMARY KEY AUTOINCREMENT"},
+            {"name": "user_id", "type": "INTEGER", "constraints": "REFERENCES users(id)"},
+            {"name": "user_choice", "type": "TEXT", "constraints": "NOT NULL"},
+            {"name": "computer_choice", "type": "TEXT", "constraints": "NOT NULL"},
+            {"name": "result", "type": "TEXT", "constraints": "NOT NULL"},
+            {"name": "played_at", "type": "TIMESTAMP", "constraints": "DEFAULT CURRENT_TIMESTAMP"}
+          ]
+        }
+      ]
+    },
+    "cli_commands": [
+      {
+        "command": "register",
+        "description": "新規ユーザー登録",
+        "args": ["--username"],
+        "example": "python janken_game_cli.py register --username player1"
+      },
+      {
+        "command": "play",
+        "description": "じゃんけん対戦",
+        "args": ["--username", "--choice"],
+        "choices": ["rock", "paper", "scissors"],
+        "example": "python janken_game_cli.py play --username player1 --choice rock"
+      },
+      {
+        "command": "stats",
+        "description": "ユーザー統計表示",
+        "args": ["--username"],
+        "example": "python janken_game_cli.py stats --username player1"
+      },
+      {
+        "command": "history",
+        "description": "対戦履歴表示",
+        "args": ["--username", "--limit"],
+        "example": "python janken_game_cli.py history --username player1 --limit 10"
+      },
+      {
+        "command": "ranking",
+        "description": "ランキング表示",
+        "args": ["--limit"],
+        "example": "python janken_game_cli.py ranking --limit 10"
+      }
+    ]
+  },
+  "technical_stack": {
+    "language": "Python 3.12",
+    "database": "SQLite3",
+    "libraries": [
+      "argparse: CLI引数解析",
+      "sqlite3: データベース操作",
+      "random: コンピューターの手生成",
+      "datetime: タイムスタンプ管理",
+      "tabulate: 統計表示整形"
+    ]
+  },
+  "architecture": {
+    "main_file": "janken_game_cli.py",
+    "database_file": "janken_game.db",
+    "modules": [
+      {
+        "name": "DatabaseManager",
+        "description": "データベース操作クラス",
+        "methods": [
+          "init_database(): データベース初期化",
+          "register_user(username): ユーザー登録",
+          "get_user(username): ユーザー取得",
+          "save_game(user_id, user_choice, computer_choice, result): ゲーム保存",
+          "update_stats(user_id, result): 統計更新",
+          "get_stats(user_id): 統計取得",
+          "get_history(user_id, limit): 履歴取得",
+          "get_ranking(limit): ランキング取得"
+        ]
+      },
+      {
+        "name": "JankenGame",
+        "description": "じゃんけんゲームロジッククラス",
+        "methods": [
+          "get_computer_choice(): コンピューターの手取得",
+          "judge(user_choice, computer_choice): 勝敗判定",
+          "play(username, user_choice): ゲーム実行"
+        ]
+      },
+      {
+        "name": "CLI",
+        "description": "CLIインターフェースクラス",
+        "methods": [
+          "register_command(args): 登録コマンド",
+          "play_command(args): プレイコマンド",
+          "stats_command(args): 統計コマンド",
+          "history_command(args): 履歴コマンド",
+          "ranking_command(args): ランキングコマンド"
+        ]
+      }
+    ]
+  },
+  "test_requirements": {
+    "unit_tests": [
+      "test_database_init: データベース初期化テスト",
+      "test_user_registration: ユーザー登録テスト",
+      "test_game_logic: じゃんけんロジックテスト",
+      "test_judge_win: 勝利判定テスト",
+      "test_judge_lose: 敗北判定テスト",
+      "test_judge_draw: 引き分け判定テスト",
+      "test_stats_calculation: 統計計算テスト",
+      "test_history_retrieval: 履歴取得テスト",
+      "test_ranking: ランキングテスト"
+    ],
+    "integration_tests": [
+      "test_full_game_flow: 全体フロー（登録→プレイ→統計確認）",
+      "test_multiple_games: 複数ゲームプレイ",
+      "test_multiple_users: 複数ユーザー対応"
+    ]
+  },
+  "error_handling": {
+    "user_not_found": "ユーザーが見つかりません。register コマンドで登録してください。",
+    "duplicate_user": "このユーザー名は既に使用されています。",
+    "invalid_choice": "無効な選択です。rock, paper, scissors から選んでください。",
+    "database_error": "データベースエラーが発生しました。"
+  },
+  "output_format": {
+    "game_result": {
+      "template": "あなた: {user_choice} | コンピューター: {computer_choice} | 結果: {result}",
+      "result_messages": {
+        "win": "🎉 勝ち！",
+        "lose": "😢 負け...",
+        "draw": "🤝 引き分け"
+      }
+    },
+    "stats": {
+      "fields": ["総試合数", "勝利", "敗北", "引き分け", "勝率"],
+      "format": "table"
+    },
+    "ranking": {
+      "fields": ["順位", "ユーザー名", "勝率", "勝利数", "総試合数"],
+      "format": "table",
+      "sort_by": "win_rate DESC, wins DESC"
+    }
+  },
+  "mcp_generation_prompt": "SQLiteデータベースを使ったじゃんけんゲームCLIアプリを作成してください。ユーザー登録、対戦、統計表示、履歴、ランキング機能を実装し、argparseでコマンドライン引数を処理してください。データベーステーブルはusers, user_stats, game_historyの3つです。テストも含めて完全な実装をお願いします。",
+  "expected_files": [
+    "janken_game_cli.py",
+    "test_janken_game.py",
+    "README.md",
+    "requirements.txt",
+    ".gitignore"
+  ],
+  "success_criteria": [
+    "全てのCLIコマンドが正常に動作する",
+    "データベースが正しく初期化される",
+    "じゃんけんの勝敗判定が正確",
+    "統計情報が正しく計算・更新される",
+    "全てのユニットテストが成功する",
+    "複数ユーザーでの並行利用が可能"
+  ]
+}

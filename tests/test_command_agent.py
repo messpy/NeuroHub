@@ -18,7 +18,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 try:
-    from agents.command_agent import CommandAgent, CommandResult, CommandConfig
+    from agents.agent_command import CommandAgent, CommandResult, CommandConfig
 except ImportError as e:
     print(f"Import error: {e}")
     # フォールバック定義

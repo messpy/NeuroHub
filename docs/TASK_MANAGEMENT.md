@@ -14,9 +14,13 @@
 
 | ID | 課題 | 詳細 | 担当 | 状態 | 期限 |
 |----|------|------|------|------|------|
-| C001 | LLMエージェントのgit機能重複 | `generate_commit_message`がllm_agentとgit_agentに重複存在 | - | 🔄 進行中 | 即座 |
-| C002 | git_smart_agentのチャンク処理失敗 | HuggingFace/Ollamaが英語応答、日本語指示無視 | - | 🔄 進行中 | 即座 |
-| C003 | Geminiクォータ制限 | 1日250回制限で実用性低下 | - | 🔍 調査中 | 即座 |
+| C004 | 大規模リファクタリング | ファイル設計書作成、フォルダ再構築、共通機能統合 | AI | 🔄 進行中 | 即座 |
+| C005 | 仮想環境自動作成 | pip install検知時の自動venv作成 | AI | 🔄 進行中 | 即座 |
+| C006 | Ollama自動セットアップ | PCスペック検出、最適モデル選択、Modelfile生成 | AI | 🔄 進行中 | 即座 |
+| C007 | メインエージェント実装 | main.py: 意図判定→適切なagent呼び出し | AI | ✅ 完了 | 即座 |
+| C001 | LLMエージェントのgit機能重複 | `generate_commit_message`がllm_agentとgit_agentに重複存在 | - | 📋 計画中 | 即座 |
+| C002 | git_smart_agentのチャンク処理失敗 | HuggingFace/Ollamaが英語応答、日本語指示無視 | - | � 計画中 | 即座 |
+| C003 | Geminiクォータ制限 | 1日250回制限で実用性低下 | - | � 計画中 | 即座 |
 
 ### 🟡 High Priority
 
@@ -65,6 +69,22 @@
 | ✅ DONE-004 | 文字の折り返し安全対策実装 | 2024-12-19 | llm_common.pyに日本語対応安全テキスト処理追加 |
 | ✅ DONE-005 | 設計書・README更新 | 2024-12-19 | ARCHITECTURE_DESIGN.md作成、README.md新機能反映 |
 | ✅ DONE-006 | 重複ファイル整理 | 2025-11-01 | mcp_*(4個)とtest_llm_*(7個)をold/に移動、utils.py作成 |
+| ✅ DONE-007 | Gemini/HuggingFace単体テスト | 2025-11-02 | test_provider_gemini.py (4/4 PASSED), test_provider_huggingface.py (4/4 PASSED), モデル自動取得機能追加 |
+| ✅ DONE-008 | Ollama Modelfile build | 2025-11-02 | test_provider_ollama.py (9/9 PASSED), build_db_assistant実装完了 |
+| ✅ DONE-009 | services/llm→ai リネーム | 2025-11-02 | ディレクトリ構造変更、全インポート文更新、16/16テストPASSED |
+| ✅ DONE-010 | 3つのLLM「こんにちは」テスト | 2025-11-02 | test_hello_llm.py作成、Ollama/Gemini/HuggingFace全成功 (3/3 PASSED) |
+| ✅ DONE-011 | MCP新フロー実装 | 2025-11-02 | spec_normalizer.py, command_validator.py, project_designer.py作成、test_mcp_workflow.py (6/6 PASSED) |
+| ✅ DONE-012 | 日本語ドキュメント体系整備 | 2025-11-02 | docs/jp/構造化、エージェント別設計書、HTML版生成（24ファイル、6677行追加） |
+| ✅ DONE-013 | Docker対応実装 | 2025-11-02 | Dockerfile, docker-compose.yml, .dockerignore, DOCKER_SETUP.md作成、Windows/ラズパイ統一環境（7ファイル、648行追加） |
+| ✅ DONE-014 | DBエージェント実装 | 2025-11-02 | agents/db_agent.py（600行）、MCP用ヒントDB（3テーブル）、15テスト全成功 |
+| ✅ DONE-015 | MCP手動実行ガイド作成 | 2025-11-02 | docs/MCP_MANUAL_GUIDE.md（400行）、実行例10以上、テンプレート3種 |
+| ✅ DONE-016 | MCPエージェント実装 | 2025-11-02 | agents/mcp_agent.py（800行）、5モード（generate/project/debug/optimize/design）、16テストケース |
+| ✅ DONE-017 | エージェント命名規則統一 | 2025-11-02 | agent_*.py形式に統一、git_agent+git_smart_agent統合、Git以外の機能削除 |
+| ✅ DONE-018 | AIテスト全実行 | 2025-11-02 | プロバイダー単体テスト19/20成功、LLMスイート3/3成功、MCPテスト31/31成功 |
+| ✅ DONE-019 | 総合テストレポート作成 | 2025-11-02 | 250テスト実行、成功率53.2%、コードカバレッジ9.31%、改善案提示 |
+| ✅ DONE-020 | MCPエージェント開発デモ | 2025-11-02 | ファイル管理CLI自動生成、3ファイル生成、課題検出・改善案提示 |
+| ✅ DONE-021 | ルートフォルダ整理完了 | 2025-11-03 | htmlcov→_archive、generated_projects→services/mcp、venv統一、不要ファイル40+個→old、ルート77%削減 |
+| ✅ DONE-022 | Docker環境構築見直し | 2025-11-03 | Dockerfile/docker-compose修正、統合セットアップスクリプト作成、DEPENDENCIES.md/DOCKER_SETUP.md大幅更新 |
 
 ---
 
@@ -151,9 +171,13 @@ NatureRemoのAPIを.envの環境変数から実行できるようにする
 基本的に新機能よりもエラーなどの修正を優先すること
 設計書を積極的に更新すること
 不要なファイルは積極的に消したい、しかし念のためrootのoldフォルダを作成しそこに格納すること　その際は.gitignoreから除外されていることを確認する　なけばつける
-このタスクマネージャーは毎回目を通すこと
 ファイル数は極限まで減らすこと
-同じようなファイルが複数あってはならない
+同じフォルダ内で似たような意図した構成であるかぎり IF とresponseの構成を統一すること
+同じような性能のfileが複数あってはならない
 同じ機能で３つ以上ある場合は統一を検討すること
 このタスクマネージャーを実行したらこのファイ随時更新すること
 ファイルを編集してテストが通った場合はgit agentのルールに沿ってgit commitすること
+dockerで構築するようにして
+llm は　gemini huggingface ollama の3つを使用すること
+もし無料で使えるプロバイダーがあればそちらの機能を追加すること
+プロバイダ管理できる機構を追加すること

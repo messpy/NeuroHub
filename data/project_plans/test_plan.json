@@ -1,0 +1,93 @@
+{
+  "metadata": {
+    "created_at": "2025-11-02T20:20:52.433102",
+    "project_type": "cli",
+    "description": "シンプルな計算機CLIアプリを作りたい。加算、減算、乗算、除算機能が必要。結果をデータベースに保存したい。",
+    "version": "1.0.0"
+  },
+  "structure": [
+    "main.py",
+    "cli/",
+    "cli/__init__.py",
+    "cli/commands.py",
+    "utils/",
+    "utils/__init__.py",
+    "utils/helpers.py",
+    "tests/",
+    "tests/test_cli.py",
+    "README.md",
+    "requirements.txt",
+    "migrations/",
+    "models/database.py"
+  ],
+  "dependencies": [
+    "click",
+    "pytest",
+    "sqlalchemy",
+    "alembic"
+  ],
+  "features": [
+    "calculator",
+    "storage"
+  ],
+  "tasks": [
+    {
+      "id": "1",
+      "title": "プロジェクト構造作成",
+      "description": "ディレクトリとファイルの初期セットアップ",
+      "status": "pending"
+    },
+    {
+      "id": "2",
+      "title": "依存関係インストール",
+      "description": "requirements.txtから必要パッケージをインストール",
+      "status": "pending"
+    },
+    {
+      "id": "3",
+      "title": "calculator機能実装",
+      "description": "calculatorの実装とテスト作成",
+      "status": "pending"
+    },
+    {
+      "id": "4",
+      "title": "storage機能実装",
+      "description": "storageの実装とテスト作成",
+      "status": "pending"
+    },
+    {
+      "id": "5",
+      "title": "静的解析実行",
+      "description": "ruff, mypy, banditによるコード検証",
+      "status": "pending"
+    },
+    {
+      "id": "6",
+      "title": "ユニットテスト実行",
+      "description": "pytest実行と結果確認",
+      "status": "pending"
+    },
+    {
+      "id": "7",
+      "title": "README作成",
+      "description": "使用方法とドキュメント作成",
+      "status": "pending"
+    }
+  ],
+  "testing_strategy": {
+    "level": "basic",
+    "unit_tests": true,
+    "integration_tests": false,
+    "coverage_target": 60,
+    "test_files": [
+      "tests/test_calculator.py",
+      "tests/test_storage.py"
+    ]
+  },
+  "validation_steps": [
+    "ruff check .",
+    "mypy .",
+    "bandit -r .",
+    "pytest tests/"
+  ]
+}

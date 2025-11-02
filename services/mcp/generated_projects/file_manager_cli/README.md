@@ -1,0 +1,1 @@
+python -m file_manager_cli

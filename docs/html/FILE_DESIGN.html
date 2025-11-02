@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroHub - FILE_DESIGN</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #546e7a;
+            margin-top: 20px;
+        }
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Courier New", monospace;
+        }
+        pre code {
+            background: transparent;
+            padding: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            color: #777;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>NeuroHub File Design Document</h1>
+<h2>📁 Directory Structure & File Purpose</h2>
+<p>Last Updated: 2025-11-02</p>
+<p>---</p>
+<h2>🎯 Design Principles</h2>
+<p>1. <strong>Single Responsibility</strong>: Each file has one clear purpose
+2. <strong>Minimal Files</strong>: Reduce file count by consolidating similar functionality
+3. <strong>Common Components</strong>: Shared logic in common/ directory
+4. <strong>Agent Independence</strong>: Each agent can run standalone
+5. <strong>LLM-First Documentation</strong>: English prompts/rules for optimal LLM performance</p>
+<p>---</p>
+<h2>📂 Root Directory</h2>
+<pre><code class="language-">NeuroHub/
+├── main.py                    # 🎯 Main entry point - intent detection & agent routing
+├── requirements.txt           # 📦 Production dependencies
+├── requirements-dev.txt       # 🧪 Development dependencies
+├── pyproject.toml            # 🔧 Project configuration
+├── setup.cfg                 # ⚙️ Setup configuration
+├── .env                      # 🔐 Environment variables (not in git)
+├── .gitignore               # 🚫 Git ignore rules
+├── docker-compose.yml        # 🐳 Docker Compose configuration
+├── Dockerfile                # 🐳 Docker image definition
+└── neurohub_llm.db          # 💾 Main database (47 tables)
+</code></pre>
+<h3>main.py (NEW)</h3>
+<strong>Purpose</strong>: Central entry point for NeuroHub
+<strong>Functionality</strong>:
+<li>Parse user intent from prompt</li>
+<li>Route to appropriate agent:</li>
+  - Weather query → weather_agent
+  - Web search → web_agent
+  - Development task → mcp_agent
+  - Git operation → git_agent
+  - System command → command_agent
+<li>Provide unified CLI interface</li>
+<p>---</p>
+<h2>📂 agents/</h2>
+<pre><code class="language-">agents/
+├── __init__.py               # Agent registry & factory
+├── common.py                 # 🔧 Common agent functionality
+├── llm_agent.py             # 🤖 LLM provider orchestration
+├── git_agent.py             # 📝 Git operations
+├── command_agent.py         # 💻 System command execution
+├── config_agent.py          # ⚙️ Configuration management
+└── specialized/
+    ├── __init__.py
+    ├── weather_agent.py     # 🌤️ Weather information
+    ├── web_agent.py         # 🔍 Web search & scraping
+    └── mcp_agent.py         # 🛠️ MCP project generation
+</code></pre>
+<h3>agents/common.py (NEW)</h3>
+<strong>Purpose</strong>: Shared agent base class and utilities
+<strong>Functionality</strong>:
+<li>BaseAgent class with common methods</li>
+<li>Logging setup</li>
+<li>Error handling patterns</li>
+<li>Configuration loading</li>
+<h3>agents/llm_agent.py</h3>
+<strong>Purpose</strong>: LLM provider orchestration (NO git functionality)
+<strong>Functionality</strong>:
+<li>Multi-provider support (Gemini, Ollama, HuggingFace)</li>
+<li>Provider selection & fallback</li>
+<li>Request/Response handling</li>
+<li>Token counting & limits</li>
+<li>History management</li>
+<strong>REMOVED</strong>:
+<li>❌ generate_commit_message (moved to git_agent)</li>
+<li>❌ Git-specific methods</li>
+<h3>agents/git_agent.py</h3>
+<strong>Purpose</strong>: Git operations only
+<strong>Functionality</strong>:
+<li>Git status, diff, log</li>
+<li>Commit message generation (using llm_agent)</li>
+<li>Auto-commit with generated messages</li>
+<li>Branch management</li>
+<h3>agents/command_agent.py</h3>
+<strong>Purpose</strong>: System command execution
+<strong>Functionality</strong>:
+<li>Safe command execution</li>
+<li>History tracking</li>
+<li>Interactive mode</li>
+<h3>agents/config_agent.py</h3>
+<strong>Purpose</strong>: Configuration management
+<strong>Functionality</strong>:
+<li>Load/save config files</li>
+<li>Environment variable handling</li>
+<li>Validation</li>
+<h3>agents/specialized/weather_agent.py</h3>
+<strong>Purpose</strong>: Weather information retrieval
+<strong>Functionality</strong>:
+<li>Free weather API integration</li>
+<li>Location-based queries</li>
+<li>Forecast retrieval</li>
+<h3>agents/specialized/web_agent.py</h3>
+<strong>Purpose</strong>: Web search and scraping
+<strong>Functionality</strong>:
+<li>Search engine integration</li>
+<li>Content extraction</li>
+<li>Result ranking</li>
+<h3>agents/specialized/mcp_agent.py</h3>
+<strong>Purpose</strong>: MCP project generation orchestration
+<strong>Functionality</strong>:
+<li>Call MCP services (design, code, test)</li>
+<li>Project workflow management</li>
+<li>Quality validation</li>
+<p>---</p>
+<h2>📂 services/</h2>
+<pre><code class="language-">services/
+├── common/
+│   ├── __init__.py
+│   ├── llm_cli.py           # 🎯 Unified LLM CLI interface
+│   ├── database.py          # 💾 Database utilities
+│   ├── venv_manager.py      # 🐍 Virtual environment auto-creation
+│   └── system_info.py       # 💻 PC spec detection
+│
+├── llm/
+│   ├── __init__.py
+│   ├── llm_common.py        # 🔧 Shared LLM utilities
+│   ├── provider_gemini.py   # 🌟 Gemini provider (standalone)
+│   ├── provider_ollama.py   # 🦙 Ollama provider (standalone)
+│   ├── provider_huggingface.py  # 🤗 HuggingFace provider (standalone)
+│   ├── modelfile_generator.py   # 📝 Ollama Modelfile generation
+│   └── llm_history_manager.py   # 📚 Conversation history
+│
+├── mcp/
+│   ├── __init__.py
+│   ├── mcp_orchestrator.py  # 🎼 Main MCP workflow
+│   ├── mcp_enhanced.py      # 🛠️ Enhanced MCP with analysis
+│   ├── generated_projects/  # 🗂️ MCP generated code output
+│   ├── design_service.py    # 📐 Design generation
+│   ├── code_service.py      # 💻 Code generation
+│   ├── test_service.py      # 🧪 Test generation
+│   ├── debugger.py          # 🐛 Auto-debugging
+│   ├── validator.py         # ✅ Code validation
+│   └── prompt_templates.py  # 📄 LLM prompts (English)
+│
+├── web/
+│   ├── __init__.py
+│   ├── web_searcher.py      # 🔍 Web search implementation
+│   └── web_search_investigator.py  # 🔎 Advanced search with history
+│
+├── system/
+│   ├── __init__.py
+│   └── system_info_collector.py  # 💻 System information
+│
+└── db/
+    ├── __init__.py
+    ├── database_manager.py        # 💾 Unified database manager
+    ├── db_initializer.py          # 🔧 Database initialization (47 tables)
+    ├── llm_history_manager.py    # 📚 LLM interaction history
+    ├── llm_history_schema.py     # 📋 Database schema definitions
+    ├── knowledge_base.py          # 🧠 Knowledge storage
+    └── performance_tracker.py     # 📊 Performance metrics
+</code></pre>
+<h3>services/common/llm_cli.py (CONSOLIDATED)</h3>
+<strong>Purpose</strong>: Unified LLM command-line interface
+<strong>Functionality</strong>:
+<li>Single entry point for LLM interactions</li>
+<li>Provider selection</li>
+<li>Prompt processing</li>
+<li>Response formatting</li>
+<strong>CONSOLIDATES</strong>:
+<li>✅ services/llm/llm_cli.py (old)</li>
+<li>✅ Multiple scattered CLI implementations</li>
+<h3>services/common/venv_manager.py (NEW)</h3>
+<strong>Purpose</strong>: Automatic virtual environment management
+<strong>Functionality</strong>:
+<li>Detect <code>pip install</code> or <code>import</code> errors</li>
+<li>Create venv if not exists</li>
+<li>Install packages in venv</li>
+<li>Activate venv for subprocess</li>
+<h3>services/common/system_info.py (NEW)</h3>
+<strong>Purpose</strong>: PC specifications detection
+<strong>Functionality</strong>:
+<li>CPU model, cores, frequency</li>
+<li>RAM total, available</li>
+<li>GPU detection (NVIDIA, AMD, Intel)</li>
+<li>Disk space</li>
+<li>OS information</li>
+<li>Store to database for Ollama model selection</li>
+<h3>services/llm/provider_*.py</h3>
+<strong>Purpose</strong>: Standalone LLM provider implementations
+<strong>Requirements</strong>:
+<li>Must work independently</li>
+<li>Include all necessary functionality in single file</li>
+<li>No cross-dependencies between providers</li>
+<li>CLI support: <code>python provider_ollama.py --prompt "text"</code></li>
+<h3>services/mcp/mcp_orchestrator.py (NEW)</h3>
+<strong>Purpose</strong>: MCP workflow coordination
+<strong>Functionality</strong>:
+<li>Call design_service → code_service → test_service</li>
+<li>Manage project lifecycle</li>
+<li>Error recovery</li>
+<li>Quality gates</li>
+<h3>services/mcp/design_service.py (NEW)</h3>
+<strong>Purpose</strong>: Project design generation
+<strong>Functionality</strong>:
+<li>Requirement analysis</li>
+<li>Architecture design</li>
+<li>File structure planning</li>
+<li>Technology selection</li>
+<h3>services/mcp/code_service.py (NEW)</h3>
+<strong>Purpose</strong>: Code generation
+<strong>Functionality</strong>:
+<li>Implementation based on design</li>
+<li>Multi-file generation</li>
+<li>Dependency management</li>
+<li>Code quality checks</li>
+<h3>services/mcp/test_service.py (NEW)</h3>
+<strong>Purpose</strong>: Test generation & execution
+<strong>Functionality</strong>:
+<li>Unit test generation</li>
+<li>Integration test generation</li>
+<li>Test execution</li>
+<li>Coverage reporting</li>
+<h3>services/mcp/prompt_templates.py (NEW)</h3>
+<strong>Purpose</strong>: LLM prompt templates (English for optimal performance)
+<strong>Content</strong>:
+<li>Design prompts</li>
+<li>Coding prompts</li>
+<li>Testing prompts</li>
+<li>Debugging prompts</li>
+<li>All optimized for LLM understanding</li>
+<p>---</p>
+<h2>📂 tools/</h2>
+<pre><code class="language-">tools/
+├── __init__.py
+├── ollama_setup.py          # 🦙 Ollama installation & setup wizard
+├── modelfile_builder.py     # 📝 Interactive Modelfile creation
+└── environment_checker.py   # ✅ Environment validation
+</code></pre>
+<h3>tools/ollama_setup.py (NEW)</h3>
+<strong>Purpose</strong>: Complete Ollama setup automation
+<strong>Functionality</strong>:
+1. Check if Ollama is installed
+2. Install Ollama if needed (WSL/Linux)
+3. Detect PC specs → store in DB
+4. Query DB for optimal model based on specs
+5. Pull recommended model from Ollama registry
+6. Generate Modelfile with:
+   - MCP coding rules (English)
+   - Project-specific context
+   - Optimal parameters for detected hardware
+7. Build custom model
+8. Validate installation
+<p>---</p>
+<h2>📂 config/</h2>
+<pre><code class="language-">config/
+├── agent_config.yaml        # Agent-specific settings
+├── llm_config.yaml          # LLM provider settings
+├── mcp_config.yaml          # MCP service settings
+└── prompt_templates.yaml    # User-facing prompts (Japanese)
+</code></pre>
+<p>---</p>
+<h2>📂 docs/</h2>
+<pre><code class="language-">docs/
+├── ARCHITECTURE_DESIGN.md   # Overall architecture
+├── FILE_DESIGN.md          # This file
+├── TASK_MANAGEMENT.md      # Task tracking
+├── TESTING.md              # Testing guidelines
+├── MCP_CODING_RULES.md     # MCP coding standards
+├── API_REFERENCE.md        # API documentation
+└── USER_GUIDE.md           # User manual
+</code></pre>
+<p>---</p>
+<h2>📂 scripts/</h2>
+<pre><code class="language-">scripts/
+├── init_database.py         # 🔧 Database initialization (standalone)
+└── setup.sh                 # 🚀 Unified setup script (Linux/WSL/Mac)
+</code></pre>
+<h3>scripts/init_database.py (NEW)</h3>
+<strong>Purpose</strong>: Docker/ローカル両対応のDB初期化
+<strong>Functionality</strong>:
+<li>DatabaseInitializer使用</li>
+<li>47テーブル作成</li>
+<li>インデックス作成</li>
+<li>FTS（全文検索）テーブル作成</li>
+<li>デフォルトデータ挿入</li>
+<h3>scripts/setup.sh (NEW)</h3>
+<strong>Purpose</strong>: 統合セットアップスクリプト（7ステップ自動化）
+<strong>Functionality</strong>:
+1. 環境確認（Python 3.9+）
+2. システムパッケージインストール（apt/yum/brew）
+3. Python仮想環境作成
+4. 依存関係インストール
+5. .env設定
+6. DB初期化
+7. 実行権限設定
+<p>---</p>
+<h2>📂 modelfiles/</h2>
+<pre><code class="language-">modelfiles/
+├── base_mcp.Modelfile       # Base MCP model template
+├── base_chat.Modelfile      # Base chat model template
+└── [generated]/            # Runtime-generated modelfiles
+</code></pre>
+<p>---</p>
+<h2>📂 tests/</h2>
+<pre><code class="language-">tests/
+├── __init__.py
+├── conftest.py             # Pytest configuration
+├── test_agents.py          # Agent tests
+├── test_services.py        # Service tests
+├── test_llm_providers.py   # Provider tests
+├── test_mcp_workflow.py    # MCP integration tests
+└── test_main.py            # Main entry point tests
+</code></pre>
+<p>---</p>
+<h2>🗄️ Database Schema</h2>
+<h3>knowledge_base table</h3>
+<pre><code class="language-sql">CREATE TABLE knowledge_base (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL,           -- 'sql', 'code', 'command', 'faq'
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    tags TEXT,                        -- JSON array
+    sql_id TEXT,                      -- For SQL snippets
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+</code></pre>
+<h3>llm_interactions table</h3>
+<pre><code class="language-sql">CREATE TABLE llm_interactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider TEXT NOT NULL,           -- 'gemini', 'ollama', 'huggingface'
+    model TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    response TEXT NOT NULL,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    input_chars INTEGER,
+    output_chars INTEGER,
+    rate_limited BOOLEAN DEFAULT 0,
+    error TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+</code></pre>
+<h3>system_specs table</h3>
+<pre><code class="language-sql">CREATE TABLE system_specs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cpu_model TEXT,
+    cpu_cores INTEGER,
+    cpu_frequency REAL,
+    ram_total_gb REAL,
+    ram_available_gb REAL,
+    gpu_model TEXT,
+    gpu_vram_gb REAL,
+    disk_total_gb REAL,
+    disk_free_gb REAL,
+    os_name TEXT,
+    os_version TEXT,
+    recommended_model TEXT,           -- Ollama model recommendation
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+</code></pre>
+<h3>ollama_models table</h3>
+<pre><code class="language-sql">CREATE TABLE ollama_models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_name TEXT UNIQUE NOT NULL,
+    size_gb REAL,
+    min_ram_gb REAL,
+    min_vram_gb REAL,
+    recommended_for TEXT,             -- 'coding', 'chat', 'analysis'
+    performance_score INTEGER,        -- 1-10
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+</code></pre>
+<p>---</p>
+<h2>🔄 Migration Plan</h2>
+<h3>Phase 1: Core Consolidation (Priority: 🔴 Critical)</h3>
+1. ✅ Create agents/common.py
+2. ✅ Create services/common/llm_cli.py
+3. ✅ Remove duplicate LLM CLI files
+4. ✅ Update imports across codebase
+<h3>Phase 2: MCP Restructure (Priority: 🔴 Critical)</h3>
+1. ✅ Create mcp_orchestrator.py
+2. ✅ Create design_service.py, code_service.py, test_service.py
+3. ✅ Create prompt_templates.py (English)
+4. ✅ Update MCP workflow
+<h3>Phase 3: Agent Cleanup (Priority: 🟡 High)</h3>
+1. ✅ Remove git functions from llm_agent.py
+2. ✅ Consolidate git functionality in git_agent.py
+3. ✅ Create specialized agent directory
+<h3>Phase 4: Infrastructure (Priority: 🟡 High)</h3>
+1. ✅ Create services/common/venv_manager.py
+2. ✅ Create services/common/system_info.py
+3. ✅ Create database schemas
+4. ✅ Create tools/ollama_setup.py
+<h3>Phase 5: Main Entry Point (Priority: 🔴 Critical)</h3>
+1. ✅ Create main.py with intent detection
+2. ✅ Implement agent routing
+3. ✅ Add CLI interface
+<h3>Phase 6: Testing & Validation (Priority: 🔴 Critical)</h3>
+1. ✅ Run all unit tests
+2. ✅ Run integration tests
+3. ✅ Fix all errors
+4. ✅ Achieve 0 errors
+<p>---</p>
+<h2>📋 File Count Reduction</h2>
+<h3>Before Consolidation</h3>
+<li>Estimated: ~150+ files</li>
+<h3>After Consolidation (Target)</h3>
+<li>Core: ~10 files</li>
+<li>Agents: ~8 files</li>
+<li>Services: ~20 files</li>
+<li>Tools: ~5 files</li>
+<li>Tests: ~10 files</li>
+<li>Docs: ~8 files</li>
+<li><strong>Total Target</strong>: ~60 files</li>
+<h3>Files to Remove/Consolidate</h3>
+<li>❌ Duplicate CLI files (5+)</li>
+<li>❌ Scattered MCP files (10+)</li>
+<li>❌ Old test files (in old/)</li>
+<li>❌ Redundant utilities (3+)</li>
+<p>---</p>
+<h2>🎯 Success Criteria</h2>
+<li>[ ] File count reduced by 60%+</li>
+<li>[ ] All tests passing (0 errors)</li>
+<li>[ ] Each file has single clear purpose</li>
+<li>[ ] Common functionality consolidated</li>
+<li>[ ] Agents can run standalone</li>
+<li>[ ] Main.py provides unified interface</li>
+<li>[ ] Ollama setup fully automated</li>
+<li>[ ] Virtual environment auto-management working</li>
+<li>[ ] Database schemas created</li>
+<li>[ ] Documentation updated</li>
+<p>---</p>
+<em>This is a living document. Update as architecture evolves.</em>
+
+        <div class="footer">
+            <p>Generated from Markdown | NeuroHub Documentation</p>
+        </div>
+    </div>
+</body>
+</html>

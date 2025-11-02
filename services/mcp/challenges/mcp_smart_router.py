@@ -18,7 +18,7 @@ from dataclasses import dataclass
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from agents.llm_agent import LLMAgent, LLMRequest
+from agents.agent_llm import LLMAgent, LLMRequest
 from services.db.database_manager import DatabaseManager
 
 
