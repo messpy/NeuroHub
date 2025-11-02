@@ -15,9 +15,9 @@
 | ID | 課題 | 詳細 | 担当 | 状態 | 期限 |
 |----|------|------|------|------|------|
 | C009 | Discord Bot メッセージ・入退室失敗 | !vc_joinコマンドでVCに参加するが、チャンネルへのメッセージ送信・10秒後の自動退出が動作していない。vc_transcription.pyの実装確認必要 | AI | 🔍 調査中 | 即座 |
-| C010 | CLI/Agent 統合テスト未実施 | agent_*.pyの単体テスト・統合テスト未実施。DB参照確認、標準出力によるデバッグ機能追加必要 | AI | 📋 計画中 | 即座 |
-| C011 | MCP 統合テスト未実施 | services/mcp/の単体テスト・統合テスト未実施。実装正確性の検証必要 | AI | 📋 計画中 | 即座 |
-| C012 | プロバイダーテスト改善 | 現在のテストは接続確認のみ。"こんにちは世界を英語にしたら？"固定プロンプトで応答内容確認必要 | AI | 📋 計画中 | 即座 |
+| C010 | CLI/Agent 統合テスト未実施 | agent_*.pyの単体テスト・統合テスト実施中。test_provider_response.py（Gemini/Ollama成功）、test_agent_llm_integration.py作成済み | AI | � 進行中 | 即座 |
+| C011 | MCP 統合テスト未実施 | test_mcp_basic_flow.py作成・実行完了（8/8 PASSED）。EnhancedMCPServer/LLMInvestigator/MCPAgent初期化成功確認 | AI | ✅ 完了 | 即座 |
+| C012 | プロバイダーテスト改善 | test_provider_response.py作成完了。固定プロンプト「こんにちは世界を英語にしたら？」でGemini/Ollama応答確認成功 | AI | ✅ 完了 | 即座 |
 | C008 | Nature Remo照明制御失敗 | Cloud APIは成功するがRemoランプ点滅せず、実機が反応しない。'202'ボタンがAPI上に存在しない。API Key権限確認、ローカルAPI経由テスト必要 | AI | 🔍 調査中 | 即座 |
 | C004 | 大規模リファクタリング | ファイル設計書作成、フォルダ再構築、共通機能統合 | AI | 🔄 進行中 | 即座 |
 | C005 | 仮想環境自動作成 | pip install検知時の自動venv作成 | AI | 🔄 進行中 | 即座 |
@@ -34,7 +34,7 @@
 | H007 | Discord Bot VC機能実装 | ボイスチャンネル入退出、音声文字起こし（Whisper API使用）、会話ログ保存 | AI | 🔄 進行中 | 1週間 |
 | H001 | プロバイダー制限対策 | 各プロバイダーの制限を回避する仕組み | - | 📋 計画中 | 1週間 |
 | H002 | コミットメッセージ品質向上 | より具体的で有用なメッセージ生成 | - | 📋 計画中 | 1週間 |
-| H003 | エラーハンドリング強化 | 全エージェントの例外処理改善 | - | 📋 計画中 | 1週間 |
+| H003 | エラーハンドリング強化 | 全エージェントの例外処理改善 | - | 📋 計画中 | 1週間 wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && python3 -m pytest tests/test_agent_llm_integration.py::TestLLMAgentBasic::test_generate_response -v --tb=short -s"|
 | H005 | 設計書作成・README更新 | アーキテクチャ設計書とREADME.mdの新機能反映 | - | ✅ 完了 | 1週間 |
 | H004 | 文字の折り返し安全対策 | 長文出力時の安全な文字数制限実装 | - | ✅ 完了 | 1週間 |
 | H006 | ファイル整理・重複削除 | mcp_*, llm_*重複ファイルの統合とold/移動 | - | ✅ 完了 | 即座 |
@@ -93,6 +93,8 @@
 | ✅ DONE-022 | Docker環境構築見直し | 2025-11-03 | Dockerfile/docker-compose修正、統合セットアップスクリプト作成、DEPENDENCIES.md/DOCKER_SETUP.md大幅更新 |
 | ✅ DONE-023 | mainブランチ同期完了 | 2025-11-03 | 空白整形7ファイル、テスト追加2ファイル、aidev→mainマージ、343ファイル変更、プッシュ完了 |
 | ✅ DONE-024 | Discord Bot + Nature Remo実装 | 2025-11-03 | remo_plugin.py（照明ON/OFF、自動ボタン検出）、test_plugin.py（ping/hello/info/status/notify）、enhanced_features.py（ボイスチャンネル監視、アバター表示、LLM連携）、LLM Agent非同期対応、8プラグイン起動成功 |
+| ✅ DONE-025 | プロバイダー応答品質テスト実装 | 2025-11-03 | test_provider_response.py作成、固定プロンプト「こんにちは世界を英語にしたら？」でGemini/Ollama応答確認成功、"Hello World"キーワード検出 |
+| ✅ DONE-026 | MCP基本フロー統合テスト実装 | 2025-11-03 | test_mcp_basic_flow.py作成（8/8 PASSED）、spec_normalizer/command_validator/project_designer/mcp_enhanced/llm_investigator/mcp_agent全モジュールインポート成功 |
 
 ---
 
