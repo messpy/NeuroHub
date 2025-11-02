@@ -24,15 +24,15 @@ def test_mcp_model_code_generation():
     print("\n" + "=" * 80)
     print("🧪 neurohub-mcp-assistantモデルテスト")
     print("=" * 80)
-    
+
     # LLMAgent初期化（ollamaプロバイダー指定）
     agent = LLMAgent(provider="ollama")
-    
+
     # neurohub-mcp-assistantモデルを使用するよう設定
     agent.providers['ollama'].current_model = "neurohub-mcp-assistant"
-    
+
     print(f"📍 使用モデル: {agent.providers['ollama'].current_model}")
-    
+
     # テストプロンプト: 簡単な計算機
     prompt = """
 四則演算ができるCLI計算機を作成してください。
@@ -50,12 +50,12 @@ def test_mcp_model_code_generation():
 
 コードブロック ```python で囲んで出力してください。
 """
-    
+
     print("\n📝 プロンプト:")
     print("-" * 80)
     print(prompt)
     print("-" * 80)
-    
+
     # コード生成
     print("\n🤖 コード生成中...")
     request = LLMRequest(
@@ -66,17 +66,17 @@ def test_mcp_model_code_generation():
         temperature=0.2,
         preferred_provider="ollama"
     )
-    
+
     try:
         response = agent.generate_text(request)
-        
+
         if not response.is_success:
             print(f"\n❌ コード生成失敗: {response.error_message}")
             return False
-        
+
         print("\n✅ コード生成完了")
         print("=" * 80)
-        
+
         # コードブロックから抽出
         content = response.content
         if '```python' in content:
@@ -85,14 +85,14 @@ def test_mcp_model_code_generation():
             code = content[start:end].strip()
         else:
             code = content.strip()
-        
+
         print(code)
         print("=" * 80)
-        
+
         # コード検証
         print("\n🔍 コード検証:")
         print("-" * 80)
-        
+
         checks = {
             "input()なし": 'input(' not in code,
             "argparse使用": 'import argparse' in code or 'from argparse' in code,
@@ -101,19 +101,19 @@ def test_mcp_model_code_generation():
             "main()関数": 'def main(' in code,
             "if __name__": 'if __name__' in code
         }
-        
+
         all_passed = True
         for check_name, passed in checks.items():
             status = "✅" if passed else "❌"
             print(f"{status} {check_name}")
             if not passed:
                 all_passed = False
-        
+
         print("-" * 80)
-        
+
         if all_passed:
             print("\n🎉 全チェック合格! MCPルールに完全準拠しています!")
-            
+
             # 生成されたコードを保存
             output_file = project_root / "generated_calculator_mcp.py"
             with open(output_file, 'w', encoding='utf-8') as f:
@@ -121,9 +121,9 @@ def test_mcp_model_code_generation():
             print(f"\n💾 コードを {output_file.name} に保存しました")
         else:
             print("\n⚠️ 一部チェック失敗")
-        
+
         return all_passed
-        
+
     except Exception as e:
         print(f"\n❌ エラー: {e}")
         import traceback
@@ -133,10 +133,10 @@ def test_mcp_model_code_generation():
 
 if __name__ == "__main__":
     print("🚀 neurohub-mcp-assistantモデルテスト開始")
-    
+
     # メインテスト
     result = test_mcp_model_code_generation()
-    
+
     if result:
         print("\n" + "=" * 80)
         print("🎊 テスト完了！neurohub-mcp-assistantは正常に動作しています！")

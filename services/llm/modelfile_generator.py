@@ -9,34 +9,34 @@ import sys
 
 class ModelfileGenerator:
     """Modelfile動的生成クラス"""
-    
+
     def __init__(self):
         self.base_model = "qwen2.5-coder:7b"
         self.modelfiles_dir = Path("modelfiles")
         self.modelfiles_dir.mkdir(exist_ok=True)
-        
-    def generate_mcp_modelfile(self, 
+
+    def generate_mcp_modelfile(self,
                                rules_file: str = "docs/MCP_CODING_RULES.md",
                                output_name: str = "mcp_code_assistant") -> Path:
         """
         MCP専用Modelfileを生成
-        
+
         Args:
             rules_file: MCPコーディングルールファイルのパス
             output_name: 出力Modelfile名
-            
+
         Returns:
             生成されたModelfileのパス
         """
         rules_path = Path(rules_file)
-        
+
         if not rules_path.exists():
             raise FileNotFoundError(f"ルールファイルが見つかりません: {rules_file}")
-        
+
         # ルールファイルを読み込み
         with open(rules_path, 'r', encoding='utf-8') as f:
             rules_content = f.read()
-        
+
         # Modelfile生成
         modelfile_content = f'''# MCP Auto Code Generation Assistant
 # MCPコーディングルールに基づいたコード生成アシスタント
@@ -102,46 +102,46 @@ PARAMETER num_ctx 8192
 # 停止トークン
 PARAMETER stop "```\\n\\n"
 '''
-        
+
         # Modelfileを保存
         output_path = self.modelfiles_dir / f"{output_name}.Modelfile"
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(modelfile_content)
-        
+
         print(f"✅ Modelfile生成成功: {output_path}")
         return output_path
-    
+
     def generate_db_modelfile(self,
                               readme_path: str = "generated_projects/テキストエディタ_cli/README.md",
                               output_name: str = "db_sample_assistant") -> Path:
         """
         データベース操作用Modelfileを生成
-        
+
         Args:
             readme_path: サンプルコードを含むREADMEのパス
             output_name: 出力Modelfile名
-            
+
         Returns:
             生成されたModelfileのパス
         """
         readme = Path(readme_path)
-        
+
         if not readme.exists():
             raise FileNotFoundError(f"READMEが見つかりません: {readme_path}")
-        
+
         # READMEからサンプルコードセクションを抽出
         with open(readme, 'r', encoding='utf-8') as f:
             readme_content = f.read()
-        
+
         # データベース操作部分を抽出
         db_sample_start = readme_content.find("### データベース操作のサンプル")
         db_sample_end = readme_content.find("### ファイル操作のサンプル")
-        
+
         if db_sample_start == -1:
             raise ValueError("READMEにデータベースサンプルが見つかりません")
-        
+
         db_sample = readme_content[db_sample_start:db_sample_end] if db_sample_end != -1 else readme_content[db_sample_start:]
-        
+
         # Modelfile生成
         modelfile_content = f'''# Database Sample Code Assistant
 # READMEのDatabaseManagerサンプルコードを参照
@@ -171,49 +171,49 @@ PARAMETER temperature 0.2
 PARAMETER top_p 0.9
 PARAMETER num_ctx 8192
 '''
-        
+
         output_path = self.modelfiles_dir / f"{output_name}.Modelfile"
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(modelfile_content)
-        
+
         print(f"✅ Modelfile生成成功: {output_path}")
         return output_path
-    
+
     def build_model(self, modelfile_path: Path, model_name: str) -> bool:
         """
         Modelfileからollamaモデルをビルド
-        
+
         Args:
             modelfile_path: Modelfileのパス
             model_name: 作成するモデル名
-            
+
         Returns:
             成功フラグ
         """
         if not modelfile_path.exists():
             print(f"❌ エラー: Modelfileが見つかりません: {modelfile_path}")
             return False
-        
+
         print(f"\n{'='*80}")
         print(f"🔨 Ollamaモデルビルド")
         print(f"{'='*80}")
         print(f"📄 Modelfile: {modelfile_path}")
         print(f"🏷️  モデル名: {model_name}")
         print(f"{'-'*80}")
-        
+
         try:
             # ollama createコマンド実行
             cmd = ["ollama", "create", model_name, "-f", str(modelfile_path)]
             print(f"🚀 実行コマンド: {' '.join(cmd)}")
             print(f"{'-'*80}")
-            
+
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 encoding='utf-8'
             )
-            
+
             if result.returncode == 0:
                 print(f"\n✅ モデルビルド成功!")
                 print(f"{'-'*80}")
@@ -228,7 +228,7 @@ PARAMETER num_ctx 8192
                 print(result.stderr)
                 print(f"{'-'*80}")
                 return False
-                
+
         except FileNotFoundError:
             print(f"\n❌ エラー: ollamaコマンドが見つかりません")
             print("Ollamaがインストールされているか確認してください")
@@ -236,19 +236,19 @@ PARAMETER num_ctx 8192
         except Exception as e:
             print(f"\n❌ 予期しないエラー: {e}")
             return False
-    
+
     def generate_and_build(self,
                           purpose: str = "mcp",
                           model_name: Optional[str] = None,
                           **kwargs) -> bool:
         """
         Modelfileを生成してビルドまで一括実行
-        
+
         Args:
             purpose: 用途 ("mcp", "db", "custom")
             model_name: モデル名（Noneの場合は自動生成）
             **kwargs: generate_*_modelfile()への追加引数
-            
+
         Returns:
             成功フラグ
         """
@@ -262,10 +262,10 @@ PARAMETER num_ctx 8192
                 model_name = model_name or "neurohub-db-assistant"
             else:
                 raise ValueError(f"未対応の用途: {purpose}")
-            
+
             # モデルビルド
             return self.build_model(modelfile_path, model_name)
-            
+
         except Exception as e:
             print(f"❌ エラー: {e}")
             return False
@@ -274,7 +274,7 @@ PARAMETER num_ctx 8192
 def main():
     """メイン関数"""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Ollama Modelfile動的生成＆ビルド")
     parser.add_argument("--purpose", type=str, default="mcp",
                        choices=["mcp", "db"],
@@ -289,17 +289,17 @@ def main():
                        help="READMEパス（purpose=dbのみ）")
     parser.add_argument("--build", action="store_true",
                        help="Modelfile生成後にビルドも実行")
-    
+
     args = parser.parse_args()
-    
+
     generator = ModelfileGenerator()
-    
+
     kwargs = {}
     if args.purpose == "mcp":
         kwargs["rules_file"] = args.rules_file
     elif args.purpose == "db":
         kwargs["readme_path"] = args.readme_path
-    
+
     if args.build:
         # 生成＆ビルド
         success = generator.generate_and_build(
@@ -314,7 +314,7 @@ def main():
             modelfile_path = generator.generate_mcp_modelfile(**kwargs)
         elif args.purpose == "db":
             modelfile_path = generator.generate_db_modelfile(**kwargs)
-        
+
         print(f"\n使用方法:")
         print(f"  ollama create {args.model_name or 'モデル名'} -f {modelfile_path}")
 

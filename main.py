@@ -56,25 +56,25 @@ class IntentDetector:
 
     def detect(self, text: str) -> str:
         """Detect intent from user input.
-        
+
         Args:
             text: User input text
-            
+
         Returns:
             Agent name (weather/web/mcp/git/command/config/unknown)
         """
         text_lower = text.lower()
-        
+
         # Count matches for each intent
         scores = {}
         for intent, keywords in self.patterns.items():
             score = sum(1 for keyword in keywords if keyword in text_lower)
             scores[intent] = score
-        
+
         # Get highest score
         if not scores or max(scores.values()) == 0:
             return 'unknown'
-        
+
         return max(scores, key=scores.get)
 
 
@@ -87,20 +87,20 @@ class AgentRouter:
 
     def route(self, prompt: str, **kwargs) -> Any:
         """Route prompt to appropriate agent.
-        
+
         Args:
             prompt: User prompt
             **kwargs: Additional arguments for agents
-            
+
         Returns:
             Agent execution result
         """
         intent = self.intent_detector.detect(prompt)
-        
+
         print(f"🤖 Detected intent: {intent}")
         print(f"📝 Routing to {intent}_agent...")
         print()
-        
+
         if intent == 'weather':
             return self._call_weather_agent(prompt, **kwargs)
         elif intent == 'web':
@@ -203,48 +203,48 @@ def main():
 Examples:
   # Weather query
   python main.py "今日の天気は？"
-  
+
   # Web search
   python main.py "最新のAIニュースを検索して"
-  
+
   # Development task
   python main.py "ファイル一覧ツールを作成して"
-  
+
   # Git operation
   python main.py "git statusを確認"
-  
+
   # System command
   python main.py "カレントディレクトリの内容を表示"
-  
+
   # Configuration
   python main.py "設定ファイルの状態を確認"
         """
     )
-    
+
     parser.add_argument(
         'prompt',
         type=str,
         help='Natural language prompt'
     )
-    
+
     parser.add_argument(
         '--debug',
         action='store_true',
         help='Enable debug mode'
     )
-    
+
     parser.add_argument(
         '--force-agent',
         type=str,
         choices=['weather', 'web', 'mcp', 'git', 'command', 'config', 'llm'],
         help='Force specific agent (skip intent detection)'
     )
-    
+
     args = parser.parse_args()
-    
+
     # Initialize router
     router = AgentRouter()
-    
+
     # Override intent detection if forced
     if args.force_agent:
         print(f"🎯 Forced agent: {args.force_agent}")
@@ -265,12 +265,12 @@ Examples:
     else:
         # Auto-detect intent and route
         result = router.route(args.prompt)
-    
+
     # Print result
     if result is not None:
         print("\n✅ Result:")
         print(result)
-    
+
     return 0
 
 

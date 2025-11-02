@@ -26,7 +26,7 @@ def main():
     parser.add_argument("--value", type=str, help="値を入力")
     parser.add_argument("--test", action="store_true", help="テストモード")
     args = parser.parse_args()
-    
+
     if args.test:
         # テストケース実行
         test_values = ["test1", "test2", "test3"]
@@ -86,18 +86,18 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser(description="アプリケーションの説明")
-    
+
     # 最低限必要なオプション
-    parser.add_argument("--test", action="store_true", 
+    parser.add_argument("--test", action="store_true",
                        help="テストモード（自動テスト用）")
-    
+
     # アプリ固有のオプション
     parser.add_argument("--input", type=str, help="入力値")
     parser.add_argument("--output", type=str, help="出力先")
     parser.add_argument("--verbose", action="store_true", help="詳細出力")
-    
+
     args = parser.parse_args()
-    
+
     if args.test:
         run_tests()
     else:
@@ -154,21 +154,21 @@ class DatabaseManager:
         self.db_path = Path(db_path)
         self.conn = None
         self._connect()
-    
+
     def _connect(self):
         self.conn = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row
-    
+
     def execute(self, query, params=()):
         cursor = self.conn.cursor()
         cursor.execute(query, params)
         self.conn.commit()
         return cursor
-    
+
     def fetch_all(self, query, params=()):
         cursor = self.execute(query, params)
         return cursor.fetchall()
-    
+
     def close(self):
         if self.conn:
             self.conn.close()
@@ -222,10 +222,10 @@ def main():
         description="アプリケーション説明",
         epilog="使用例: python main.py --test"
     )
-    
+
     parser.add_argument("--test", action="store_true", help="テストモード")
     args = parser.parse_args()
-    
+
     try:
         if args.test:
             run_tests()
@@ -282,7 +282,7 @@ class TestMain(unittest.TestCase):
     def test_basic_functionality(self):
         result = process_data("test")
         self.assertIsNotNone(result)
-    
+
     def test_error_handling(self):
         with self.assertRaises(ValueError):
             process_data(None)

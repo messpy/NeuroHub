@@ -681,19 +681,19 @@ if __name__ == "__main__":
         elif args.build_mcp_model:
             # MCP専用モデルをビルド
             from modelfile_generator import ModelfileGenerator
-            
+
             generator = ModelfileGenerator()
             model_name = args.model_name or "neurohub-mcp-assistant"
-            
+
             print(f"🔨 MCP専用モデルをビルド中...")
             print(f"📄 ルールファイル: docs/MCP_CODING_RULES.md")
             print(f"🏷️  モデル名: {model_name}")
-            
+
             success = generator.generate_and_build(
                 purpose="mcp",
                 model_name=model_name
             )
-            
+
             if success:
                 print(f"\n✅ モデルビルド成功!")
                 print(f"\n使用方法:")

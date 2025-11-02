@@ -29,6 +29,7 @@ from services.llm.provider_gemini import GeminiConfig
 from services.llm.provider_huggingface import HuggingFaceConfig
 from services.llm.provider_ollama import OllamaConfig
 from services.db.llm_history_manager import LLMHistoryManager
+from agents.common import BaseAgent
 
 
 @dataclass
@@ -41,10 +42,13 @@ class GitStatus:
     total_files: int
 
 
-class GitAgent:
+class GitAgent(BaseAgent):
     """Git操作を支援するPythonエージェント"""
 
     def __init__(self, config_path: str = None):
+        # BaseAgent初期化
+        super().__init__("git_agent")
+        
         self.project_root = project_root
         self.config = load_config()
         self.history_manager = LLMHistoryManager()
@@ -65,6 +69,51 @@ class GitAgent:
 
         # セッション開始
         self.session_id = self.history_manager.start_session("git_agent")
+
+    def execute(self, prompt: str) -> str:
+        """Execute git operation based on prompt.
+        
+        Args:
+            prompt: User prompt (e.g., "git status確認", "コミットして")
+            
+        Returns:
+            Result message
+        """
+        prompt_lower = prompt.lower()
+        
+        # Git status
+        if 'status' in prompt_lower or '状態' in prompt_lower:
+            status = self.get_git_status()
+            result = f"📊 Git状態: {status.total_files}ファイル変更\n"
+            result += f"  ✅ Staged: {len(status.staged)}\n"
+            result += f"  📝 Modified: {len(status.modified)}\n"
+            result += f"  ❓ Untracked: {len(status.untracked)}\n"
+            
+            if status.staged:
+                result += f"\nStaged files:\n"
+                for f in status.staged[:5]:
+                    result += f"  - {f}\n"
+                if len(status.staged) > 5:
+                    result += f"  ... and {len(status.staged) - 5} more\n"
+            
+            return result
+        
+        # Generate commit message
+        elif 'commit' in prompt_lower or 'コミット' in prompt_lower:
+            try:
+                message = self.generate_commit_message()
+                if message:
+                    return f"📝 Generated commit message:\n\n{message}\n\nℹ️ Use: python agents/git_agent.py --auto-commit"
+                else:
+                    return "⚠️ No changes to commit"
+            except Exception as e:
+                self.handle_error(e, "Commit message generation")
+                return f"❌ Error: {e}"
+        
+        # Default: show status
+        else:
+            status = self.get_git_status()
+            return f"Git status: {status.total_files} files changed"
 
     def get_git_status(self) -> GitStatus:
         """Git状態を取得"""

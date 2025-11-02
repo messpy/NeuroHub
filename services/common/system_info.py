@@ -27,14 +27,14 @@ class SystemInfoCollector:
 
     def __init__(self, db_path: Optional[str] = None):
         """Initialize system info collector.
-        
+
         Args:
             db_path: Path to SQLite database. Defaults to neurohub_llm.db
         """
         if db_path is None:
             project_root = Path(__file__).parent.parent.parent
             db_path = project_root / "neurohub_llm.db"
-        
+
         self.db_path = Path(db_path)
         self._init_database()
 
@@ -42,7 +42,7 @@ class SystemInfoCollector:
         """Initialize database tables."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            
+
             # system_specs table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS system_specs (
@@ -62,7 +62,7 @@ class SystemInfoCollector:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            
+
             # ollama_models table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS ollama_models (
@@ -77,12 +77,12 @@ class SystemInfoCollector:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            
+
             conn.commit()
 
     def get_cpu_info(self) -> Dict[str, Any]:
         """Get CPU information.
-        
+
         Returns:
             Dictionary with cpu_model, cpu_cores, cpu_frequency
         """
@@ -91,7 +91,7 @@ class SystemInfoCollector:
             'cpu_cores': 0,
             'cpu_frequency': 0.0
         }
-        
+
         try:
             # Get CPU cores
             if platform.system() == 'Windows':
@@ -115,12 +115,12 @@ class SystemInfoCollector:
                 info['cpu_cores'] = int(result.stdout.strip())
         except Exception:
             pass
-        
+
         return info
 
     def get_ram_info(self) -> Dict[str, float]:
         """Get RAM information.
-        
+
         Returns:
             Dictionary with ram_total_gb, ram_available_gb
         """
@@ -128,7 +128,7 @@ class SystemInfoCollector:
             'ram_total_gb': 0.0,
             'ram_available_gb': 0.0
         }
-        
+
         try:
             if platform.system() == 'Windows':
                 # Total RAM
@@ -142,7 +142,7 @@ class SystemInfoCollector:
                 if len(lines) > 1:
                     total_bytes = int(lines[1].strip())
                     info['ram_total_gb'] = total_bytes / (1024**3)
-                
+
                 # Available RAM
                 result = subprocess.run(
                     ['wmic', 'OS', 'get', 'FreePhysicalMemory'],
@@ -167,12 +167,12 @@ class SystemInfoCollector:
                             info['ram_available_gb'] = available_kb / (1024**2)
         except Exception:
             pass
-        
+
         return info
 
     def get_gpu_info(self) -> Dict[str, Any]:
         """Get GPU information.
-        
+
         Returns:
             Dictionary with gpu_model, gpu_vram_gb
         """
@@ -180,7 +180,7 @@ class SystemInfoCollector:
             'gpu_model': 'None',
             'gpu_vram_gb': 0.0
         }
-        
+
         try:
             # Try nvidia-smi first
             result = subprocess.run(
@@ -199,12 +199,12 @@ class SystemInfoCollector:
                         info['gpu_vram_gb'] = int(vram_str) / 1024
         except Exception:
             pass
-        
+
         return info
 
     def get_disk_info(self) -> Dict[str, float]:
         """Get disk information.
-        
+
         Returns:
             Dictionary with disk_total_gb, disk_free_gb
         """
@@ -212,7 +212,7 @@ class SystemInfoCollector:
             'disk_total_gb': 0.0,
             'disk_free_gb': 0.0
         }
-        
+
         try:
             if platform.system() == 'Windows':
                 result = subprocess.run(
@@ -244,12 +244,12 @@ class SystemInfoCollector:
                         info['disk_free_gb'] = int(parts[3]) / (1024**3)
         except Exception:
             pass
-        
+
         return info
 
     def get_os_info(self) -> Dict[str, str]:
         """Get OS information.
-        
+
         Returns:
             Dictionary with os_name, os_version
         """
@@ -260,7 +260,7 @@ class SystemInfoCollector:
 
     def collect_all(self) -> Dict[str, Any]:
         """Collect all system information.
-        
+
         Returns:
             Complete system specifications
         """
@@ -274,16 +274,16 @@ class SystemInfoCollector:
 
     def recommend_model(self, specs: Dict[str, Any]) -> str:
         """Recommend Ollama model based on system specs.
-        
+
         Args:
             specs: System specifications dictionary
-            
+
         Returns:
             Recommended model name
         """
         ram_gb = specs.get('ram_total_gb', 0)
         gpu_vram_gb = specs.get('gpu_vram_gb', 0)
-        
+
         # High-end system
         if ram_gb >= 32 and gpu_vram_gb >= 8:
             return 'llama3.1:70b'
@@ -299,20 +299,20 @@ class SystemInfoCollector:
 
     def save_to_db(self, specs: Optional[Dict[str, Any]] = None) -> int:
         """Save system specs to database.
-        
+
         Args:
             specs: System specifications. If None, collect automatically.
-            
+
         Returns:
             ID of inserted record
         """
         if specs is None:
             specs = self.collect_all()
-        
+
         # Get recommendation
         recommended_model = self.recommend_model(specs)
         specs['recommended_model'] = recommended_model
-        
+
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -343,7 +343,7 @@ class SystemInfoCollector:
 
     def get_latest_specs(self) -> Optional[Dict[str, Any]]:
         """Get latest system specs from database.
-        
+
         Returns:
             Latest system specifications or None
         """
@@ -361,7 +361,7 @@ class SystemInfoCollector:
                 LIMIT 1
             """)
             row = cursor.fetchone()
-            
+
             if row:
                 return {
                     'cpu_model': row[0],
@@ -384,20 +384,20 @@ class SystemInfoCollector:
 def main():
     """CLI entry point for system info collection."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description='Collect and save system specifications')
     parser.add_argument('--db', type=str, help='Database path')
     parser.add_argument('--show', action='store_true', help='Show current specs')
     parser.add_argument('--save', action='store_true', help='Save specs to database')
-    
+
     args = parser.parse_args()
-    
+
     collector = SystemInfoCollector(db_path=args.db)
-    
+
     if args.show or not args.save:
         specs = collector.collect_all()
         recommended = collector.recommend_model(specs)
-        
+
         print("\n=== System Specifications ===")
         print(f"CPU: {specs['cpu_model']}")
         print(f"CPU Cores: {specs['cpu_cores']}")
@@ -409,7 +409,7 @@ def main():
         print(f"Disk Free: {specs['disk_free_gb']:.2f} GB")
         print(f"OS: {specs['os_name']} {specs['os_version']}")
         print(f"\nRecommended Model: {recommended}")
-    
+
     if args.save:
         specs_id = collector.save_to_db()
         print(f"\n✅ Saved to database (ID: {specs_id})")
