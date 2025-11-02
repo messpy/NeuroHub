@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gitエージェント 概要 - NeuroHub Documentation</title>
+    <link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>📚 NeuroHub Docs</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <ul><li><a href="index.html">🏠 トップ</a></li><li><a href="OVERVIEW.html">📖 プロジェクト概要</a></li><li><a href="ARCHITECTURE_DESIGN.html">🏗️ アーキテクチャ</a></li><li><a href="DATABASE_DESIGN.html">🗄️ データベース設計</a></li><li><a href="TASK_MANAGEMENT.html">📋 タスク管理</a></li><li class="nav-category">🤖 エージェント<ul><li><a href="agents/llm/README.html">LLM</a></li><li><a href="agents/git/README.html">Git</a></li><li><a href="agents/mcp/README.html">MCP</a></li><li><a href="agents/discord/README.html">Discord</a></li><li><a href="agents/config/README.html">Config</a></li><li><a href="agents/command/README.html">Command</a></li></ul></li></ul>
+            </nav>
+        </aside>
+        
+        <main class="content">
+            <div class="breadcrumb">
+                <a href="index.html">ホーム</a> &gt; <a href="agents/README.html">agents</a> &gt; <a href="agents/git/README.html">git</a>
+            </div>
+            <article>
+                <h1 id="git">Gitエージェント 概要</h1>
+<h2 id="_1">🎯 役割と責任</h2>
+<p>Gitエージェントは、Git操作を自動化し、LLMを活用したスマートなコミットメッセージ生成を行うエージェントです。</p>
+<hr />
+<h2 id="_2">📋 主要機能</h2>
+<h3 id="1-gitgit_agentpy">1. 基本Git操作（git_agent.py）</h3>
+<ul>
+<li><code>git status</code>実行</li>
+<li><code>git diff</code>取得</li>
+<li><code>git add</code>実行</li>
+<li><code>git commit</code>実行</li>
+<li><code>git push</code>実行</li>
+</ul>
+<h3 id="2-git_smart_agentpy">2. スマートコミット（git_smart_agent.py）</h3>
+<ul>
+<li>変更差分の自動チャンク処理</li>
+<li>LLM生成のコミットメッセージ</li>
+<li>プロバイダー自動切り替え</li>
+<li>日本語コミットメッセージ生成</li>
+</ul>
+<hr />
+<h2 id="_3">🏗️ アーキテクチャ</h2>
+<div class="codehilite"><pre><span></span><code>┌──────────────────────────────┐
+│  Git Smart Agent             │
+│                              │
+│  - チャンク処理              │
+│  - LLMコミットメッセージ生成  │
+│  - フォールバック制御        │
+└──────────┬───────────────────┘
+           │
+    ┌──────┴──────┐
+    │             │
+┌───▼────┐  ┌────▼────┐
+│Git Agent│  │LLM Agent│
+│         │  │         │
+│- status │  │- Gemini │
+│- diff   │  │- HF     │
+│- commit │  │- Ollama │
+└─────────┘  └─────────┘
+</code></pre></div>
+
+<hr />
+<h2 id="_4">🔧 使用方法</h2>
+<h3 id="git_1">基本的なGit操作</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">agents.git_agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">GitAgent</span>
+
+<span class="n">agent</span> <span class="o">=</span> <span class="n">GitAgent</span><span class="p">()</span>
+
+<span class="c1"># ステータス確認</span>
+<span class="n">status</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">get_status</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">status</span><span class="p">)</span>
+
+<span class="c1"># 変更差分取得</span>
+<span class="n">diff</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">get_diff</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">diff</span><span class="p">)</span>
+
+<span class="c1"># コミット</span>
+<span class="n">agent</span><span class="o">.</span><span class="n">commit</span><span class="p">(</span><span class="s2">&quot;feat: 新機能追加&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="_5">スマートコミット</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">agents.git_smart_agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">GitSmartAgent</span>
+
+<span class="n">agent</span> <span class="o">=</span> <span class="n">GitSmartAgent</span><span class="p">()</span>
+
+<span class="c1"># 自動コミット（LLMがメッセージ生成）</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">smart_commit</span><span class="p">()</span>
+<span class="c1"># 出力例:</span>
+<span class="c1"># feat(mcp): MCP新フロー実装</span>
+<span class="c1">#</span>
+<span class="c1"># ✅ 実装内容:</span>
+<span class="c1"># - spec_normalizer.py追加</span>
+<span class="c1"># - command_validator.py追加</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_6">📊 コミットメッセージ形式</h2>
+<h3 id="conventional-commits">Conventional Commits準拠</h3>
+<div class="codehilite"><pre><span></span><code><span class="p">&lt;</span><span class="k">type</span><span class="p">&gt;(&lt;</span><span class="nx">scope</span><span class="p">&gt;):</span><span class="w"> </span><span class="p">&lt;</span><span class="nx">subject</span><span class="p">&gt;</span>
+
+<span class="p">&lt;</span><span class="nx">body</span><span class="p">&gt;</span>
+
+<span class="p">&lt;</span><span class="nx">footer</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<h4 id="type">Type</h4>
+<ul>
+<li><code>feat</code>: 新機能</li>
+<li><code>fix</code>: バグ修正</li>
+<li><code>docs</code>: ドキュメント</li>
+<li><code>test</code>: テスト</li>
+<li><code>refactor</code>: リファクタリング</li>
+<li><code>chore</code>: その他</li>
+</ul>
+<h4 id="_7">例</h4>
+<div class="codehilite"><pre><span></span><code>feat(llm): Geminiプロバイダー追加
+
+✅ 実装内容:
+<span class="k">-</span> provider_gemini.py作成
+<span class="k">-</span> 自動モデル選択機能追加
+
+📊 テスト結果:
+<span class="k">-</span> test_provider_gemini.py: 4/4 PASSED
+</code></pre></div>
+
+<hr />
+<h2 id="_8">🧪 テスト</h2>
+<h3 id="_9">テストファイル</h3>
+<ul>
+<li><code>tests/test_git_agent.py</code></li>
+<li><code>tests/test_git_smart_agent.py</code></li>
+</ul>
+<h3 id="_10">実行コマンド</h3>
+<div class="codehilite"><pre><span></span><code>pytest<span class="w"> </span>tests/test_git_*.py<span class="w"> </span>-v
+</code></pre></div>
+
+<hr />
+<h2 id="_11">📖 関連ドキュメント</h2>
+<ul>
+<li><a href="./DETAILED_DESIGN.md">詳細設計</a></li>
+<li><a href="./COMMIT_STRATEGY.md">コミット戦略</a></li>
+<li><a href="./OTHER_DESIGNS.md">その他設計</a></li>
+</ul>
+<hr />
+<p><em>最終更新: 2025年11月2日</em></p>
+            </article>
+            <footer class="page-footer">
+                <p>最終更新: 2025年11月02日</p>
+                <p>© 2025 NeuroHub Project</p>
+            </footer>
+        </main>
+    </div>
+    <script src="../../script.js"></script>
+</body>
+</html>

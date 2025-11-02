@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discordエージェント 概要 - NeuroHub Documentation</title>
+    <link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>📚 NeuroHub Docs</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <ul><li><a href="index.html">🏠 トップ</a></li><li><a href="OVERVIEW.html">📖 プロジェクト概要</a></li><li><a href="ARCHITECTURE_DESIGN.html">🏗️ アーキテクチャ</a></li><li><a href="DATABASE_DESIGN.html">🗄️ データベース設計</a></li><li><a href="TASK_MANAGEMENT.html">📋 タスク管理</a></li><li class="nav-category">🤖 エージェント<ul><li><a href="agents/llm/README.html">LLM</a></li><li><a href="agents/git/README.html">Git</a></li><li><a href="agents/mcp/README.html">MCP</a></li><li><a href="agents/discord/README.html">Discord</a></li><li><a href="agents/config/README.html">Config</a></li><li><a href="agents/command/README.html">Command</a></li></ul></li></ul>
+            </nav>
+        </aside>
+        
+        <main class="content">
+            <div class="breadcrumb">
+                <a href="index.html">ホーム</a> &gt; <a href="agents/README.html">agents</a> &gt; <a href="agents/discord/README.html">discord</a>
+            </div>
+            <article>
+                <h1 id="discord">Discordエージェント 概要</h1>
+<h2 id="_1">🎯 役割と責任</h2>
+<p>DiscordエージェントはDiscord Botとしての機能を提供し、チャットを通じてNeuroHubの機能を利用できるようにします。</p>
+<hr />
+<h2 id="_2">📋 主要機能</h2>
+<h3 id="1-bot-corebot_corepy">1. Bot Core（bot_core.py）</h3>
+<ul>
+<li>Discordイベント処理</li>
+<li>コマンド管理</li>
+<li>メッセージ処理</li>
+</ul>
+<h3 id="2-plugin_managerpy">2. プラグインシステム（plugin_manager.py）</h3>
+<ul>
+<li>プラグイン動的ロード</li>
+<li>プラグイン有効化/無効化</li>
+<li>カスタムコマンド追加</li>
+</ul>
+<h3 id="3-voice_managerpy">3. 音声管理（voice_manager.py）</h3>
+<ul>
+<li>音声トリガー管理</li>
+<li>音声合成（TTS）</li>
+<li>音声認識（STT）</li>
+</ul>
+<h3 id="4-anti_spampy">4. アンチスパム（anti_spam.py）</h3>
+<ul>
+<li>スパム検出</li>
+<li>レート制限</li>
+<li>ユーザーブロック</li>
+</ul>
+<hr />
+<h2 id="_3">🏗️ アーキテクチャ</h2>
+<div class="codehilite"><pre><span></span><code>┌─────────────────────────┐
+│   Discord Bot Core      │
+│                         │
+│  - イベント処理         │
+│  - コマンド管理         │
+└──────────┬──────────────┘
+           │
+    ┌──────┴──────┐
+    │             │
+┌───▼────┐  ┌────▼────────┐
+│Plugin  │  │Voice Manager│
+│Manager │  │             │
+└────────┘  └─────────────┘
+    │             │
+┌───▼─────────────▼───┐
+│   LLM Agent         │
+│   (AI応答生成)       │
+└─────────────────────┘
+</code></pre></div>
+
+<hr />
+<h2 id="_4">🔧 使用方法</h2>
+<h3 id="bot">Bot起動</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Discord Bot起動</span>
+python3<span class="w"> </span>tools/run_discord_bot.py
+</code></pre></div>
+
+<h3 id="_5">コマンド例</h3>
+<div class="codehilite"><pre><span></span><code><span class="sx">!help          - ヘルプ表示</span>
+<span class="sx">!ask &lt;質問&gt;    - LLMに質問</span>
+<span class="sx">!status        - Bot状態確認</span>
+<span class="sx">!plugins       - プラグイン一覧</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_6">⚙️ 設定</h2>
+<h3 id="discord_configyaml">discord_config.yaml</h3>
+<div class="codehilite"><pre><span></span><code><span class="nt">discord</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">bot_token</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${DISCORD_BOT_TOKEN}</span>
+<span class="w">  </span><span class="nt">channel_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${DISCORD_CHANNEL_ID}</span>
+<span class="w">  </span><span class="nt">command_prefix</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;!&quot;</span>
+<span class="w">  </span><span class="nt">plugins</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">llm_plugin</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">voice_plugin</span>
+</code></pre></div>
+
+<h3 id="env">.env</h3>
+<div class="codehilite"><pre><span></span><code>DISCORD_BOT_TOKEN=your_bot_token_here
+DISCORD_CHANNEL_ID=your_channel_id_here
+</code></pre></div>
+
+<hr />
+<h2 id="_7">📖 関連ドキュメント</h2>
+<ul>
+<li><a href="./DETAILED_DESIGN.md">詳細設計</a></li>
+<li><a href="./VOICE_DESIGN.md">音声管理</a></li>
+<li><a href="./OTHER_DESIGNS.md">その他設計</a></li>
+</ul>
+<hr />
+<p><em>最終更新: 2025年11月2日</em></p>
+            </article>
+            <footer class="page-footer">
+                <p>最終更新: 2025年11月02日</p>
+                <p>© 2025 NeuroHub Project</p>
+            </footer>
+        </main>
+    </div>
+    <script src="../../script.js"></script>
+</body>
+</html>

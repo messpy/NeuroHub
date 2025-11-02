@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroHub プロジェクト課題管理表 - NeuroHub Documentation</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>📚 NeuroHub Docs</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <ul><li><a href="index.html">🏠 トップ</a></li><li><a href="OVERVIEW.html">📖 プロジェクト概要</a></li><li><a href="ARCHITECTURE_DESIGN.html">🏗️ アーキテクチャ</a></li><li><a href="DATABASE_DESIGN.html">🗄️ データベース設計</a></li><li><a href="TASK_MANAGEMENT.html">📋 タスク管理</a></li><li class="nav-category">🤖 エージェント<ul><li><a href="agents/llm/README.html">LLM</a></li><li><a href="agents/git/README.html">Git</a></li><li><a href="agents/mcp/README.html">MCP</a></li><li><a href="agents/discord/README.html">Discord</a></li><li><a href="agents/config/README.html">Config</a></li><li><a href="agents/command/README.html">Command</a></li></ul></li></ul>
+            </nav>
+        </aside>
+        
+        <main class="content">
+            <div class="breadcrumb">
+                <a href="index.html">ホーム</a>
+            </div>
+            <article>
+                <h1 id="neurohub">NeuroHub プロジェクト課題管理表</h1>
+<h2 id="_1">🎯 優先度分類</h2>
+<ul>
+<li>🔴 <strong>Critical</strong>: 即座対応必要</li>
+<li>🟡 <strong>High</strong>: 1週間以内</li>
+<li>🟢 <strong>Medium</strong>: 1ヶ月以内</li>
+<li>🔵 <strong>Low</strong>: 将来の改善</li>
+</ul>
+<hr />
+<h2 id="_2">📋 現在の課題一覧</h2>
+<h3 id="critical-issues">🔴 Critical Issues</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>課題</th>
+<th>詳細</th>
+<th>担当</th>
+<th>状態</th>
+<th>期限</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C004</td>
+<td>大規模リファクタリング</td>
+<td>ファイル設計書作成、フォルダ再構築、共通機能統合</td>
+<td>AI</td>
+<td>🔄 進行中</td>
+<td>即座</td>
+</tr>
+<tr>
+<td>C005</td>
+<td>仮想環境自動作成</td>
+<td>pip install検知時の自動venv作成</td>
+<td>AI</td>
+<td>🔄 進行中</td>
+<td>即座</td>
+</tr>
+<tr>
+<td>C006</td>
+<td>Ollama自動セットアップ</td>
+<td>PCスペック検出、最適モデル選択、Modelfile生成</td>
+<td>AI</td>
+<td>🔄 進行中</td>
+<td>即座</td>
+</tr>
+<tr>
+<td>C007</td>
+<td>メインエージェント実装</td>
+<td>main.py: 意図判定→適切なagent呼び出し</td>
+<td>AI</td>
+<td>🔄 進行中</td>
+<td>即座</td>
+</tr>
+<tr>
+<td>C001</td>
+<td>LLMエージェントのgit機能重複</td>
+<td><code>generate_commit_message</code>がllm_agentとgit_agentに重複存在</td>
+<td>-</td>
+<td>� 計画中</td>
+<td>即座</td>
+</tr>
+<tr>
+<td>C002</td>
+<td>git_smart_agentのチャンク処理失敗</td>
+<td>HuggingFace/Ollamaが英語応答、日本語指示無視</td>
+<td>-</td>
+<td>� 計画中</td>
+<td>即座</td>
+</tr>
+<tr>
+<td>C003</td>
+<td>Geminiクォータ制限</td>
+<td>1日250回制限で実用性低下</td>
+<td>-</td>
+<td>� 計画中</td>
+<td>即座</td>
+</tr>
+</tbody>
+</table>
+<h3 id="high-priority">🟡 High Priority</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>課題</th>
+<th>詳細</th>
+<th>担当</th>
+<th>状態</th>
+<th>期限</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H001</td>
+<td>プロバイダー制限対策</td>
+<td>各プロバイダーの制限を回避する仕組み</td>
+<td>-</td>
+<td>📋 計画中</td>
+<td>1週間</td>
+</tr>
+<tr>
+<td>H002</td>
+<td>コミットメッセージ品質向上</td>
+<td>より具体的で有用なメッセージ生成</td>
+<td>-</td>
+<td>📋 計画中</td>
+<td>1週間</td>
+</tr>
+<tr>
+<td>H003</td>
+<td>エラーハンドリング強化</td>
+<td>全エージェントの例外処理改善</td>
+<td>-</td>
+<td>📋 計画中</td>
+<td>1週間</td>
+</tr>
+<tr>
+<td>H005</td>
+<td>設計書作成・README更新</td>
+<td>アーキテクチャ設計書とREADME.mdの新機能反映</td>
+<td>-</td>
+<td>✅ 完了</td>
+<td>1週間</td>
+</tr>
+<tr>
+<td>H004</td>
+<td>文字の折り返し安全対策</td>
+<td>長文出力時の安全な文字数制限実装</td>
+<td>-</td>
+<td>✅ 完了</td>
+<td>1週間</td>
+</tr>
+<tr>
+<td>H006</td>
+<td>ファイル整理・重複削除</td>
+<td>mcp_<em>, llm_</em>重複ファイルの統合とold/移動</td>
+<td>-</td>
+<td>✅ 完了</td>
+<td>即座</td>
+</tr>
+</tbody>
+</table>
+<h3 id="medium-priority">🟢 Medium Priority</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>課題</th>
+<th>詳細</th>
+<th>担当</th>
+<th>状態</th>
+<th>期限</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M001</td>
+<td>テストカバレッジ向上</td>
+<td>全エージェントの単体テスト充実</td>
+<td>-</td>
+<td>📋 計画中</td>
+<td>1ヶ月</td>
+</tr>
+<tr>
+<td>M002</td>
+<td>ドキュメント整備</td>
+<td>使用方法とAPI仕様の詳細化</td>
+<td>-</td>
+<td>📋 計画中</td>
+<td>1ヶ月</td>
+</tr>
+<tr>
+<td>M003</td>
+<td>設定管理改善</td>
+<td>環境変数とconfig管理の統一</td>
+<td>-</td>
+<td>📋 計画中</td>
+<td>1ヶ月</td>
+</tr>
+</tbody>
+</table>
+<h3 id="low-priority">🔵 Low Priority</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>課題</th>
+<th>詳細</th>
+<th>担当</th>
+<th>状態</th>
+<th>期限</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>L001</td>
+<td>UI/UX改善</td>
+<td>コマンドライン操作の使いやすさ向上</td>
+<td>-</td>
+<td>💡 アイデア</td>
+<td>将来</td>
+</tr>
+<tr>
+<td>L002</td>
+<td>新プロバイダー対応</td>
+<td>Claude、GPT-4等の追加サポート</td>
+<td>-</td>
+<td>💡 アイデア</td>
+<td>将来</td>
+</tr>
+<tr>
+<td>L003</td>
+<td>パフォーマンス最適化</td>
+<td>処理速度とメモリ使用量改善</td>
+<td>-</td>
+<td>💡 アイデア</td>
+<td>将来</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_3">📊 進捗状況</h2>
+<h3 id="_4">ステータス凡例</h3>
+<ul>
+<li>✅ <strong>完了</strong>: 実装・テスト完了</li>
+<li>🔄 <strong>進行中</strong>: 現在作業中</li>
+<li>🔍 <strong>調査中</strong>: 原因分析・解決策検討中</li>
+<li>📋 <strong>計画中</strong>: 実装計画策定中</li>
+<li>💡 <strong>アイデア</strong>: 概念段階</li>
+</ul>
+<h3 id="_5">完了済み課題 ✅</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>課題</th>
+<th>完了日</th>
+<th>備考</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>✅ DONE-001</td>
+<td>ファイル整理・ルート整理</td>
+<td>2025-11-01</td>
+<td>_archive/への移動完了</td>
+</tr>
+<tr>
+<td>✅ DONE-002</td>
+<td>エージェント統一化</td>
+<td>2025-11-01</td>
+<td>命名規則統一、インターフェース統一</td>
+</tr>
+<tr>
+<td>✅ DONE-004</td>
+<td>文字の折り返し安全対策実装</td>
+<td>2024-12-19</td>
+<td>llm_common.pyに日本語対応安全テキスト処理追加</td>
+</tr>
+<tr>
+<td>✅ DONE-005</td>
+<td>設計書・README更新</td>
+<td>2024-12-19</td>
+<td>ARCHITECTURE_DESIGN.md作成、README.md新機能反映</td>
+</tr>
+<tr>
+<td>✅ DONE-006</td>
+<td>重複ファイル整理</td>
+<td>2025-11-01</td>
+<td>mcp_<em>(4個)とtest_llm_</em>(7個)をold/に移動、utils.py作成</td>
+</tr>
+<tr>
+<td>✅ DONE-007</td>
+<td>Gemini/HuggingFace単体テスト</td>
+<td>2025-11-02</td>
+<td>test_provider_gemini.py (4/4 PASSED), test_provider_huggingface.py (4/4 PASSED), モデル自動取得機能追加</td>
+</tr>
+<tr>
+<td>✅ DONE-008</td>
+<td>Ollama Modelfile build</td>
+<td>2025-11-02</td>
+<td>test_provider_ollama.py (9/9 PASSED), build_db_assistant実装完了</td>
+</tr>
+<tr>
+<td>✅ DONE-009</td>
+<td>services/llm→ai リネーム</td>
+<td>2025-11-02</td>
+<td>ディレクトリ構造変更、全インポート文更新、16/16テストPASSED</td>
+</tr>
+<tr>
+<td>✅ DONE-010</td>
+<td>MCPドキュメント整理</td>
+<td>2025-11-02</td>
+<td>services/mcp/にREADME/CODING_RULES/CONFIG作成、構造明確化</td>
+</tr>
+<tr>
+<td>✅ DONE-011</td>
+<td>docs国際化対応</td>
+<td>2025-11-02</td>
+<td>docs/jp/, docs/en/作成、主要ドキュメント整理</td>
+</tr>
+<tr>
+<td>✅ DONE-012</td>
+<td>AI単体テスト完了</td>
+<td>2025-11-02</td>
+<td>全プロバイダー16/16 PASSED、タイムアウト対策実装</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_6">🔧 解決策・対策案</h2>
+<h3 id="c001-llmgit">C001: LLMエージェントのgit機能重複</h3>
+<p><strong>対策</strong>:
+1. LLMエージェントから<code>generate_commit_message</code>と関連メソッド削除
+2. Git関連機能はgit_agent/git_smart_agentに集約
+3. 依存関係を明確化</p>
+<h3 id="c002-git_smart_agent">C002: git_smart_agentのチャンク処理失敗</h3>
+<p><strong>対策</strong>:
+1. チャンク処理プロンプトの日本語強化
+2. 出力形式の明確な指定
+3. プロバイダー別の最適化
+4. フォールバック機能強化</p>
+<h3 id="c003-gemini">C003: Geminiクォータ制限</h3>
+<p><strong>対策</strong>:
+1. プロバイダー優先順位の調整
+2. キャッシュ機能の実装
+3. 効率的なリクエスト管理
+4. 代替プロバイダーの活用</p>
+<hr />
+<h2 id="_7">📈 品質メトリクス</h2>
+<h3 id="_8">目標値</h3>
+<ul>
+<li>コミット成功率: &gt; 95%</li>
+<li>平均応答時間: &lt; 3秒</li>
+<li>エラー率: &lt; 5%</li>
+<li>ユーザー満足度: &gt; 4.0/5.0</li>
+</ul>
+<h3 id="2025-11-01">現在値 (2025-11-01)</h3>
+<ul>
+<li>コミット成功率: 80% (スマートフォールバック含む)</li>
+<li>平均応答時間: 5-10秒</li>
+<li>エラー率: 15% (プロバイダー制限による)</li>
+<li>ユーザー満足度: 評価中</li>
+</ul>
+<hr />
+<h2 id="_9">📝 実装ガイドライン</h2>
+<h3 id="_10">新機能開発時のチェックリスト</h3>
+<ul>
+<li>[ ] 単体テスト作成</li>
+<li>[ ] エラーハンドリング実装</li>
+<li>[ ] ドキュメント更新</li>
+<li>[ ] 既存機能との競合チェック</li>
+<li>[ ] プロバイダー制限考慮</li>
+</ul>
+<h3 id="_11">コードレビューポイント</h3>
+<ul>
+<li>責任分離の原則 (SRP)</li>
+<li>依存関係の最小化</li>
+<li>エラー処理の充実</li>
+<li>パフォーマンス考慮</li>
+<li>ドキュメント整備</li>
+</ul>
+<hr />
+<p><em>最終更新: 2025年11月1日</em></p>
+<p>ゆーざーからの改善案
+DB作成
+テーブルを作成して、ユーザー情報を格納するテーブルを追加する。
+テーブルを作成して、LLMで生成する前に読ませることで知識を提供する。また関連する疑問などを簡単なコマンドから取得できる(sqlとかをいれるsql_idとsql_textみたいなカラムを作ってllmがidを入力すると取得できたりする)　また、LLM自身がコマンドなどを行ってエラーがなかったときは登録できるようにもなる
+テーブルを作成して、LLMに関する情報を格納する。プロバイダー名、モデル名、レスポンス、プロンプト、レスポンス内容、読み込んだ文字数、トークン数、制限flagなどを格納する。
+gitagentが安定しないので即座の対応</p>
+<p>重要MCPのコーディング機能が甘すぎる。MCPの標準フローに合わせて行うこと</p>
+<p>LLMがDBを参照したり　各agentを呼び出しllmから自発的に調査を行うこと　web や　wether command などは既に実装済
+また他に情報が取れそうなagentがあれば随時追加すること、
+ただし、LLMが自発的に調査を行う場合は、その旨を明確にすること。</p>
+<p>NatureRemoのAPIを.envの環境変数から実行できるようにする</p>
+<h1 id="copilot">copilotさんへのお願い</h1>
+<p>仕様変更等あればすぐに単体テスト結合テストを行うこと
+基本的に新機能よりもエラーなどの修正を優先すること
+設計書を積極的に更新すること
+不要なファイルは積極的に消したい、しかし念のためrootのoldフォルダを作成しそこに格納すること　その際は.gitignoreから除外されていることを確認する　なけばつける
+ファイル数は極限まで減らすこと
+同じフォルダ内で似たような意図した構成であるかぎり IF とresponseの構成を統一すること
+同じような性能のfileが複数あってはならない
+同じ機能で３つ以上ある場合は統一を検討すること
+このタスクマネージャーを実行したらこのファイ随時更新すること
+ファイルを編集してテストが通った場合はgit agentのルールに沿ってgit commitすること
+dockerで構築するようにして
+llm は　gemini huggingface ollama の3つを使用すること
+もし無料で使えるプロバイダーがあればそちらの機能を追加すること
+プロバイダ管理できる機構を追加すること</p>
+            </article>
+            <footer class="page-footer">
+                <p>最終更新: 2025年11月02日</p>
+                <p>© 2025 NeuroHub Project</p>
+            </footer>
+        </main>
+    </div>
+    <script src="./script.js"></script>
+</body>
+</html>

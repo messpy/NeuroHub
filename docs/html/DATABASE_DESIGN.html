@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroHub データベース設計書 - NeuroHub Documentation</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>📚 NeuroHub Docs</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <ul><li><a href="index.html">🏠 トップ</a></li><li><a href="OVERVIEW.html">📖 プロジェクト概要</a></li><li><a href="ARCHITECTURE_DESIGN.html">🏗️ アーキテクチャ</a></li><li><a href="DATABASE_DESIGN.html">🗄️ データベース設計</a></li><li><a href="TASK_MANAGEMENT.html">📋 タスク管理</a></li><li class="nav-category">🤖 エージェント<ul><li><a href="agents/llm/README.html">LLM</a></li><li><a href="agents/git/README.html">Git</a></li><li><a href="agents/mcp/README.html">MCP</a></li><li><a href="agents/discord/README.html">Discord</a></li><li><a href="agents/config/README.html">Config</a></li><li><a href="agents/command/README.html">Command</a></li></ul></li></ul>
+            </nav>
+        </aside>
+        
+        <main class="content">
+            <div class="breadcrumb">
+                <a href="index.html">ホーム</a>
+            </div>
+            <article>
+                <h1 id="neurohub">NeuroHub データベース設計書</h1>
+<h2 id="_1">📋 概要</h2>
+<p>NeuroHubプロジェクトの統合データベース設計とCRUD操作インターフェース仕様</p>
+<h2 id="_2">🏗️ データベース構造</h2>
+<h3 id="_3">テーブル一覧</h3>
+<table>
+<thead>
+<tr>
+<th>テーブル名</th>
+<th>説明</th>
+<th>主キー</th>
+<th>外部キー</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>users</code></td>
+<td>ユーザー情報</td>
+<td><code>user_id</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>llm_history</code></td>
+<td>LLM実行履歴</td>
+<td><code>id</code></td>
+<td><code>user_id</code></td>
+</tr>
+<tr>
+<td><code>llm_sessions</code></td>
+<td>LLMセッション管理</td>
+<td><code>session_id</code></td>
+<td><code>user_id</code></td>
+</tr>
+<tr>
+<td><code>knowledge_base</code></td>
+<td>知識データベース</td>
+<td><code>id</code></td>
+<td><code>user_id</code></td>
+</tr>
+<tr>
+<td><code>related_questions</code></td>
+<td>関連質問</td>
+<td><code>id</code></td>
+<td><code>knowledge_id</code>, <code>user_id</code></td>
+</tr>
+<tr>
+<td><code>command_history</code></td>
+<td>コマンド履歴</td>
+<td><code>id</code></td>
+<td><code>user_id</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_4">📊 テーブル詳細設計</h2>
+<h3 id="1-users">1. users（ユーザー情報）</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">user_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span><span class="w">           </span><span class="c1">-- ユーザーID（ハッシュ値）</span>
+<span class="w">    </span><span class="n">username</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">      </span><span class="c1">-- ユーザー名</span>
+<span class="w">    </span><span class="n">email</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">UNIQUE</span><span class="p">,</span><span class="w">                  </span><span class="c1">-- メールアドレス</span>
+<span class="w">    </span><span class="n">full_name</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                     </span><span class="c1">-- フルネーム</span>
+<span class="w">    </span><span class="n">preferred_provider</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="s1">&#39;ollama&#39;</span><span class="p">,</span><span class="w">  </span><span class="c1">-- デフォルトプロバイダー</span>
+<span class="w">    </span><span class="n">provider_config</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">               </span><span class="c1">-- JSON: プロバイダー設定</span>
+<span class="w">    </span><span class="n">settings</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                      </span><span class="c1">-- JSON: ユーザー設定</span>
+<span class="w">    </span><span class="n">api_keys</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                      </span><span class="c1">-- JSON: 暗号化APIキー</span>
+<span class="w">    </span><span class="n">usage_stats</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                   </span><span class="c1">-- JSON: 使用統計</span>
+<span class="w">    </span><span class="n">last_login</span><span class="w"> </span><span class="n">DATETIME</span><span class="p">,</span><span class="w">                </span><span class="c1">-- 最終ログイン</span>
+<span class="w">    </span><span class="n">is_active</span><span class="w"> </span><span class="nb">BOOLEAN</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">        </span><span class="c1">-- アクティブ状態</span>
+<span class="w">    </span><span class="n">created_at</span><span class="w"> </span><span class="n">DATETIME</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">CURRENT_TIMESTAMP</span><span class="p">,</span>
+<span class="w">    </span><span class="n">updated_at</span><span class="w"> </span><span class="n">DATETIME</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">CURRENT_TIMESTAMP</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<h3 id="2-llm_historyllm">2. llm_history（LLM実行履歴）</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">llm_history</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
+<span class="w">    </span><span class="k">timestamp</span><span class="w"> </span><span class="n">DATETIME</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">CURRENT_TIMESTAMP</span><span class="p">,</span>
+<span class="w">    </span><span class="n">session_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                    </span><span class="c1">-- セッションID</span>
+<span class="w">    </span><span class="n">user_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                       </span><span class="c1">-- ユーザーID</span>
+<span class="w">    </span><span class="n">provider</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">             </span><span class="c1">-- プロバイダー名</span>
+<span class="w">    </span><span class="n">model</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">                </span><span class="c1">-- モデル名</span>
+<span class="w">    </span><span class="n">request_type</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                  </span><span class="c1">-- リクエスト種別</span>
+<span class="w">    </span><span class="n">prompt_text</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                   </span><span class="c1">-- プロンプト</span>
+<span class="w">    </span><span class="n">response_text</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                 </span><span class="c1">-- レスポンス</span>
+<span class="w">    </span><span class="n">status_code</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span><span class="w">                </span><span class="c1">-- ステータスコード</span>
+<span class="w">    </span><span class="n">success</span><span class="w"> </span><span class="nb">BOOLEAN</span><span class="p">,</span><span class="w">                    </span><span class="c1">-- 成功フラグ</span>
+<span class="w">    </span><span class="n">error_message</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                 </span><span class="c1">-- エラーメッセージ</span>
+<span class="w">    </span><span class="n">response_time_ms</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span><span class="w">           </span><span class="c1">-- 応答時間</span>
+<span class="w">    </span><span class="n">token_count_input</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span><span class="w">          </span><span class="c1">-- 入力トークン数</span>
+<span class="w">    </span><span class="n">token_count_output</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span><span class="w">         </span><span class="c1">-- 出力トークン数</span>
+<span class="w">    </span><span class="n">token_count_total</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span><span class="w">          </span><span class="c1">-- 総トークン数</span>
+<span class="w">    </span><span class="n">char_count_input</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span><span class="w">           </span><span class="c1">-- 入力文字数</span>
+<span class="w">    </span><span class="n">char_count_output</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span><span class="w">          </span><span class="c1">-- 出力文字数</span>
+<span class="w">    </span><span class="n">rate_limit_flag</span><span class="w"> </span><span class="nb">BOOLEAN</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">  </span><span class="c1">-- 制限フラグ</span>
+<span class="w">    </span><span class="n">debug_level</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">      </span><span class="c1">-- デバッグレベル</span>
+<span class="w">    </span><span class="n">debug_info</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                    </span><span class="c1">-- JSON: デバッグ情報</span>
+<span class="w">    </span><span class="n">metadata</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                      </span><span class="c1">-- JSON: メタデータ</span>
+<span class="w">    </span><span class="n">created_at</span><span class="w"> </span><span class="n">DATETIME</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">CURRENT_TIMESTAMP</span><span class="p">,</span>
+<span class="w">    </span><span class="k">FOREIGN</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">users</span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<h3 id="3-knowledge_base">3. knowledge_base（知識データベース）</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">knowledge_base</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">title</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">                </span><span class="c1">-- タイトル</span>
+<span class="w">    </span><span class="n">content</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">              </span><span class="c1">-- 内容</span>
+<span class="w">    </span><span class="n">category</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                      </span><span class="c1">-- カテゴリー</span>
+<span class="w">    </span><span class="n">tags</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                          </span><span class="c1">-- カンマ区切りタグ</span>
+<span class="w">    </span><span class="n">source_type</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                   </span><span class="c1">-- ソース種別</span>
+<span class="w">    </span><span class="n">source_file</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                   </span><span class="c1">-- 元ファイル</span>
+<span class="w">    </span><span class="k">language</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                      </span><span class="c1">-- プログラミング言語</span>
+<span class="w">    </span><span class="n">relevance_score</span><span class="w"> </span><span class="nb">REAL</span><span class="p">,</span><span class="w">               </span><span class="c1">-- 関連度スコア</span>
+<span class="w">    </span><span class="n">usage_count</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">      </span><span class="c1">-- 使用回数</span>
+<span class="w">    </span><span class="n">user_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                       </span><span class="c1">-- 作成者</span>
+<span class="w">    </span><span class="n">is_public</span><span class="w"> </span><span class="nb">BOOLEAN</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">        </span><span class="c1">-- 公開フラグ</span>
+<span class="w">    </span><span class="n">created_at</span><span class="w"> </span><span class="n">DATETIME</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">CURRENT_TIMESTAMP</span><span class="p">,</span>
+<span class="w">    </span><span class="n">updated_at</span><span class="w"> </span><span class="n">DATETIME</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">CURRENT_TIMESTAMP</span><span class="p">,</span>
+<span class="w">    </span><span class="k">FOREIGN</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">users</span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<h3 id="4-related_questions">4. related_questions（関連質問）</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">related_questions</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">knowledge_id</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span><span class="w">               </span><span class="c1">-- 知識ベースID</span>
+<span class="w">    </span><span class="n">question</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">             </span><span class="c1">-- 質問</span>
+<span class="w">    </span><span class="n">answer</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                        </span><span class="c1">-- 回答</span>
+<span class="w">    </span><span class="n">question_type</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                 </span><span class="c1">-- 質問タイプ</span>
+<span class="w">    </span><span class="n">difficulty_level</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="c1">-- 難易度</span>
+<span class="w">    </span><span class="n">tags</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                          </span><span class="c1">-- タグ</span>
+<span class="w">    </span><span class="n">usage_count</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">      </span><span class="c1">-- 使用回数</span>
+<span class="w">    </span><span class="n">user_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                       </span><span class="c1">-- 作成者</span>
+<span class="w">    </span><span class="n">created_at</span><span class="w"> </span><span class="n">DATETIME</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">CURRENT_TIMESTAMP</span><span class="p">,</span>
+<span class="w">    </span><span class="n">updated_at</span><span class="w"> </span><span class="n">DATETIME</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">CURRENT_TIMESTAMP</span><span class="p">,</span>
+<span class="w">    </span><span class="k">FOREIGN</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">knowledge_id</span><span class="p">)</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">knowledge_base</span><span class="p">(</span><span class="n">id</span><span class="p">),</span>
+<span class="w">    </span><span class="k">FOREIGN</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">users</span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<hr />
+<h2 id="crud">🔧 CRUD操作インターフェース設計</h2>
+<h3 id="_5">基本メソッド命名規則</h3>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>メソッド名</th>
+<th>説明</th>
+<th>例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>作成</td>
+<td><code>create_table</code></td>
+<td>テーブル作成</td>
+<td><code>create_table(table_name, schema)</code></td>
+</tr>
+<tr>
+<td>挿入</td>
+<td><code>insert_data</code></td>
+<td>データ挿入</td>
+<td><code>insert_data(table_name, data)</code></td>
+</tr>
+<tr>
+<td>取得</td>
+<td><code>get_data</code></td>
+<td>データ取得</td>
+<td><code>get_data(table_name, conditions)</code></td>
+</tr>
+<tr>
+<td>更新</td>
+<td><code>update_data</code></td>
+<td>データ更新</td>
+<td><code>update_data(table_name, data, conditions)</code></td>
+</tr>
+<tr>
+<td>削除</td>
+<td><code>delete_data</code></td>
+<td>データ削除</td>
+<td><code>delete_data(table_name, conditions)</code></td>
+</tr>
+<tr>
+<td>検索</td>
+<td><code>search_data</code></td>
+<td>全文検索</td>
+<td><code>search_data(table_name, query)</code></td>
+</tr>
+<tr>
+<td>スキーマ</td>
+<td><code>get_schema</code></td>
+<td>テーブル構造取得</td>
+<td><code>get_schema(table_name)</code></td>
+</tr>
+<tr>
+<td>カラム</td>
+<td><code>get_columns</code></td>
+<td>カラム一覧取得</td>
+<td><code>get_columns(table_name)</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="db">統一DBマネージャークラス</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">DatabaseManager</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">db_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span>
+
+    <span class="c1"># テーブル操作</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">schema</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">drop_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_tables</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_schema</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_columns</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+    <span class="c1"># データ操作（CRUD）</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">insert_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">conditions</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">order_by</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+                   <span class="n">conditions</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">conditions</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+
+    <span class="c1"># 検索・集計</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">search_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                   <span class="n">columns</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">count_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">conditions</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">aggregate_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                      <span class="n">conditions</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+
+    <span class="c1"># カラム操作</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                  <span class="n">column_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">default_value</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">drop_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">rename_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">old_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">new_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+
+    <span class="c1"># インデックス操作</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">column_names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+                    <span class="n">index_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">drop_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_indexes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+    <span class="c1"># トランザクション</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">begin_transaction</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">commit_transaction</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">rollback_transaction</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+
+    <span class="c1"># バックアップ・復元</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">backup_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">file_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">restore_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">file_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+
+    <span class="c1"># 統計情報</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_table_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">analyze_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_6">📈 インデックス設計</h2>
+<h3 id="_7">主要インデックス</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">-- ユーザーテーブル</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_users_username</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">users</span><span class="p">(</span><span class="n">username</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_users_email</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">users</span><span class="p">(</span><span class="n">email</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_users_active</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">users</span><span class="p">(</span><span class="n">is_active</span><span class="p">);</span>
+
+<span class="c1">-- LLM履歴テーブル</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_llm_timestamp</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">llm_history</span><span class="p">(</span><span class="k">timestamp</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_llm_provider</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">llm_history</span><span class="p">(</span><span class="n">provider</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_llm_user</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">llm_history</span><span class="p">(</span><span class="n">user_id</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_llm_success</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">llm_history</span><span class="p">(</span><span class="n">success</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_llm_rate_limit</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">llm_history</span><span class="p">(</span><span class="n">rate_limit_flag</span><span class="p">);</span>
+
+<span class="c1">-- 知識ベーステーブル</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_knowledge_title</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">knowledge_base</span><span class="p">(</span><span class="n">title</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_knowledge_category</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">knowledge_base</span><span class="p">(</span><span class="n">category</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_knowledge_user</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">knowledge_base</span><span class="p">(</span><span class="n">user_id</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_knowledge_public</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">knowledge_base</span><span class="p">(</span><span class="n">is_public</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_knowledge_relevance</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">knowledge_base</span><span class="p">(</span><span class="n">relevance_score</span><span class="p">);</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_8">🔍 全文検索設計</h2>
+<h3 id="fts5">FTS5仮想テーブル</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">-- 知識ベース全文検索</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="n">VIRTUAL</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">knowledge_base_fts</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="n">fts5</span><span class="p">(</span>
+<span class="w">    </span><span class="n">title</span><span class="p">,</span><span class="w"> </span><span class="n">content</span><span class="p">,</span><span class="w"> </span><span class="n">tags</span><span class="p">,</span>
+<span class="w">    </span><span class="n">content</span><span class="o">=</span><span class="s1">&#39;knowledge_base&#39;</span><span class="p">,</span>
+<span class="w">    </span><span class="n">content_rowid</span><span class="o">=</span><span class="s1">&#39;id&#39;</span>
+<span class="p">);</span>
+
+<span class="c1">-- 関連質問全文検索</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="n">VIRTUAL</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">related_questions_fts</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="n">fts5</span><span class="p">(</span>
+<span class="w">    </span><span class="n">question</span><span class="p">,</span><span class="w"> </span><span class="n">answer</span><span class="p">,</span><span class="w"> </span><span class="n">tags</span><span class="p">,</span>
+<span class="w">    </span><span class="n">content</span><span class="o">=</span><span class="s1">&#39;related_questions&#39;</span><span class="p">,</span>
+<span class="w">    </span><span class="n">content_rowid</span><span class="o">=</span><span class="s1">&#39;id&#39;</span>
+<span class="p">);</span>
+
+<span class="c1">-- LLM履歴全文検索</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="n">VIRTUAL</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">llm_history_fts</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="n">fts5</span><span class="p">(</span>
+<span class="w">    </span><span class="n">prompt_text</span><span class="p">,</span><span class="w"> </span><span class="n">response_text</span><span class="p">,</span><span class="w"> </span><span class="n">error_message</span><span class="p">,</span>
+<span class="w">    </span><span class="n">content</span><span class="o">=</span><span class="s1">&#39;llm_history&#39;</span><span class="p">,</span>
+<span class="w">    </span><span class="n">content_rowid</span><span class="o">=</span><span class="s1">&#39;id&#39;</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_9">💻 使用例</h2>
+<h3 id="crud_1">基本的なCRUD操作</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># データベースマネージャー初期化</span>
+<span class="n">db</span> <span class="o">=</span> <span class="n">DatabaseManager</span><span class="p">(</span><span class="s2">&quot;neurohub.db&quot;</span><span class="p">)</span>
+
+<span class="c1"># ユーザー作成</span>
+<span class="n">user_data</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;user_id&quot;</span><span class="p">:</span> <span class="s2">&quot;user123&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;username&quot;</span><span class="p">:</span> <span class="s2">&quot;kenny&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="s2">&quot;kenny@example.com&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;preferred_provider&quot;</span><span class="p">:</span> <span class="s2">&quot;ollama&quot;</span>
+<span class="p">}</span>
+<span class="n">db</span><span class="o">.</span><span class="n">insert_data</span><span class="p">(</span><span class="s2">&quot;users&quot;</span><span class="p">,</span> <span class="n">user_data</span><span class="p">)</span>
+
+<span class="c1"># ユーザー検索</span>
+<span class="n">users</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="s2">&quot;users&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;username&quot;</span><span class="p">:</span> <span class="s2">&quot;kenny&quot;</span><span class="p">})</span>
+
+<span class="c1"># 知識ベース追加</span>
+<span class="n">knowledge</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;Pythonリスト操作&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;リストの基本操作について...&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;category&quot;</span><span class="p">:</span> <span class="s2">&quot;programming&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;tags&quot;</span><span class="p">:</span> <span class="s2">&quot;python,list,tutorial&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;user_id&quot;</span><span class="p">:</span> <span class="s2">&quot;user123&quot;</span>
+<span class="p">}</span>
+<span class="n">kb_id</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">insert_data</span><span class="p">(</span><span class="s2">&quot;knowledge_base&quot;</span><span class="p">,</span> <span class="n">knowledge</span><span class="p">)</span>
+
+<span class="c1"># 全文検索</span>
+<span class="n">results</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">search_data</span><span class="p">(</span><span class="s2">&quot;knowledge_base&quot;</span><span class="p">,</span> <span class="s2">&quot;Python リスト&quot;</span><span class="p">)</span>
+
+<span class="c1"># テーブル情報取得</span>
+<span class="n">schema</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">get_schema</span><span class="p">(</span><span class="s2">&quot;users&quot;</span><span class="p">)</span>
+<span class="n">columns</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">get_columns</span><span class="p">(</span><span class="s2">&quot;llm_history&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_10">🛡️ セキュリティ考慮事項</h2>
+<ol>
+<li><strong>APIキー暗号化</strong>: <code>api_keys</code>フィールドは暗号化して保存</li>
+<li><strong>SQLインジェクション対策</strong>: パラメータ化クエリ使用</li>
+<li><strong>ユーザー権限</strong>: 公開/非公開データの適切な分離</li>
+<li><strong>データバックアップ</strong>: 定期的な自動バックアップ</li>
+<li><strong>ログ監査</strong>: 重要操作のログ記録</li>
+</ol>
+<hr />
+<h2 id="_11">📊 パフォーマンス最適化</h2>
+<ol>
+<li><strong>適切なインデックス</strong>: 検索頻度の高いカラムにインデックス</li>
+<li><strong>クエリ最適化</strong>: EXPLAINを使った実行計画確認</li>
+<li><strong>バッチ処理</strong>: 大量データ操作時のバッチ処理</li>
+<li><strong>接続プール</strong>: 複数接続時のプール管理</li>
+<li><strong>キャッシュ</strong>: 頻繁にアクセスされるデータのキャッシュ</li>
+</ol>
+<hr />
+<p><em>最終更新: 2025年11月1日</em></p>
+            </article>
+            <footer class="page-footer">
+                <p>最終更新: 2025年11月02日</p>
+                <p>© 2025 NeuroHub Project</p>
+            </footer>
+        </main>
+    </div>
+    <script src="./script.js"></script>
+</body>
+</html>

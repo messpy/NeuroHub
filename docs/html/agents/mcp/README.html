@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCPエージェント 概要 - NeuroHub Documentation</title>
+    <link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>📚 NeuroHub Docs</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <ul><li><a href="index.html">🏠 トップ</a></li><li><a href="OVERVIEW.html">📖 プロジェクト概要</a></li><li><a href="ARCHITECTURE_DESIGN.html">🏗️ アーキテクチャ</a></li><li><a href="DATABASE_DESIGN.html">🗄️ データベース設計</a></li><li><a href="TASK_MANAGEMENT.html">📋 タスク管理</a></li><li class="nav-category">🤖 エージェント<ul><li><a href="agents/llm/README.html">LLM</a></li><li><a href="agents/git/README.html">Git</a></li><li><a href="agents/mcp/README.html">MCP</a></li><li><a href="agents/discord/README.html">Discord</a></li><li><a href="agents/config/README.html">Config</a></li><li><a href="agents/command/README.html">Command</a></li></ul></li></ul>
+            </nav>
+        </aside>
+        
+        <main class="content">
+            <div class="breadcrumb">
+                <a href="index.html">ホーム</a> &gt; <a href="agents/README.html">agents</a> &gt; <a href="agents/mcp/README.html">mcp</a>
+            </div>
+            <article>
+                <h1 id="mcp">MCPエージェント 概要</h1>
+<h2 id="_1">🎯 役割と責任</h2>
+<p>MCPエージェント（Model Context Protocol Agent）は、ユーザーのプロンプトから自動的にプロジェクトを生成するシステムです。</p>
+<hr />
+<h2 id="_2">📋 主要機能</h2>
+<h3 id="1-spec_normalizerpy">1. 仕様正規化（spec_normalizer.py）</h3>
+<ul>
+<li>ユーザープロンプト→JSON Schema変換</li>
+<li>プロジェクトタイプ自動検出</li>
+<li>バリデーション</li>
+</ul>
+<h3 id="2-command_validatorpy">2. 禁止コマンド検知（command_validator.py）</h3>
+<ul>
+<li>危険コマンドの検出（rm -rf, chmod 777等）</li>
+<li>代替案自動提示</li>
+<li>コードスニペット内検証</li>
+</ul>
+<h3 id="3-project_designerpy">3. プロジェクト設計（project_designer.py）</h3>
+<ul>
+<li>プロジェクト構造生成</li>
+<li>依存関係自動検出</li>
+<li>タスクリスト生成</li>
+<li>テスト戦略生成</li>
+</ul>
+<hr />
+<h2 id="mcp_1">🏗️ MCP新フロー</h2>
+<div class="codehilite"><pre><span></span><code>ユーザープロンプト
+    ↓
+仕様正規化（JSON Schema）
+    ↓
+プロジェクト設計・計画生成
+    ↓
+スキャフォールド生成（Jinja2）
+    ↓
+テスト生成
+    ↓
+静的検証（ruff/mypy/bandit）
+    ↓
+ユニットテスト実行
+    ↓
+修正ループ
+    ↓
+README生成・成果物固定化
+</code></pre></div>
+
+<hr />
+<h2 id="_3">🔧 使用方法</h2>
+<h3 id="_4">仕様正規化</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">services.mcp.spec_normalizer</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecNormalizer</span>
+
+<span class="n">normalizer</span> <span class="o">=</span> <span class="n">SpecNormalizer</span><span class="p">()</span>
+
+<span class="c1"># プロンプト正規化</span>
+<span class="n">spec</span> <span class="o">=</span> <span class="n">normalizer</span><span class="o">.</span><span class="n">normalize_prompt</span><span class="p">(</span>
+    <span class="s2">&quot;シンプルなTODOリストCLIアプリを作りたい&quot;</span>
+<span class="p">)</span>
+
+<span class="c1"># バリデーション</span>
+<span class="n">is_valid</span><span class="p">,</span> <span class="n">error</span> <span class="o">=</span> <span class="n">normalizer</span><span class="o">.</span><span class="n">validate_spec</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="_5">コマンド検証</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">services.mcp.command_validator</span><span class="w"> </span><span class="kn">import</span> <span class="n">CommandValidator</span>
+
+<span class="n">validator</span> <span class="o">=</span> <span class="n">CommandValidator</span><span class="p">()</span>
+
+<span class="c1"># コマンド検証</span>
+<span class="n">is_safe</span><span class="p">,</span> <span class="n">violation</span> <span class="o">=</span> <span class="n">validator</span><span class="o">.</span><span class="n">validate_command</span><span class="p">(</span><span class="s2">&quot;rm -rf /&quot;</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="ow">not</span> <span class="n">is_safe</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;危険: </span><span class="si">{</span><span class="n">violation</span><span class="p">[</span><span class="s1">&#39;reason&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;代替案:&quot;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">alt</span> <span class="ow">in</span> <span class="n">violation</span><span class="p">[</span><span class="s1">&#39;alternatives&#39;</span><span class="p">]:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  - </span><span class="si">{</span><span class="n">alt</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<h3 id="_6">プロジェクト設計</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">services.mcp.project_designer</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectDesigner</span>
+
+<span class="n">designer</span> <span class="o">=</span> <span class="n">ProjectDesigner</span><span class="p">()</span>
+
+<span class="c1"># 計画生成</span>
+<span class="n">plan</span> <span class="o">=</span> <span class="n">designer</span><span class="o">.</span><span class="n">create_plan</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+
+<span class="c1"># 構造確認</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">designer</span><span class="o">.</span><span class="n">get_file_structure_tree</span><span class="p">())</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_7">🧪 テスト</h2>
+<h3 id="_8">テストファイル</h3>
+<ul>
+<li><code>tests/test_mcp_workflow.py</code>: 統合テスト（6/6 PASSED）</li>
+</ul>
+<h3 id="_9">実行コマンド</h3>
+<div class="codehilite"><pre><span></span><code>pytest<span class="w"> </span>tests/test_mcp_workflow.py<span class="w"> </span>-v<span class="w"> </span>-s
+</code></pre></div>
+
+<hr />
+<h2 id="_10">📖 関連ドキュメント</h2>
+<ul>
+<li><a href="./DETAILED_DESIGN.md">詳細設計</a></li>
+<li><a href="./CODING_RULES.md">コーディングルール</a></li>
+<li><a href="./OTHER_DESIGNS.md">その他設計</a></li>
+</ul>
+<hr />
+<p><em>最終更新: 2025年11月2日</em></p>
+            </article>
+            <footer class="page-footer">
+                <p>最終更新: 2025年11月02日</p>
+                <p>© 2025 NeuroHub Project</p>
+            </footer>
+        </main>
+    </div>
+    <script src="../../script.js"></script>
+</body>
+</html>
