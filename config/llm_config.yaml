@@ -43,10 +43,10 @@ llm:
       enabled: true
       priority: 1
       api_url: http://localhost:11434
-      model: qwen2.5:1.5b-instruct
-      max_tokens: 500
+      model: neurohub-mcp-assistant  # コード生成に最適化
+      max_tokens: 8000  # コード生成用に増量
       temperature: 0.3
-      timeout: 30
+      timeout: 180  # コード生成は時間がかかるため延長
       # ビジョンモデル設定（画像分析用）
       vision_model: llava:7b
 
