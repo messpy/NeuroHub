@@ -18,7 +18,7 @@ from dataclasses import dataclass
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from services.llm.llm_common import (
+from services.ai.llm_common import (
     load_env_from_config,
     load_config,
     get_prompt_template,
@@ -26,7 +26,7 @@ from services.llm.llm_common import (
     auto_log_llm_request
 )
 # 他のプロバイダーは将来分離予定
-from services.llm.provider_ollama import OllamaConfig
+from services.ai.provider_ollama import OllamaConfig
 from services.db.llm_history_manager import LLMHistoryManager
 from agents.common import BaseAgent
 

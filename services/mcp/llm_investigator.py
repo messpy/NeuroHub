@@ -28,7 +28,7 @@ if str(ROOT) not in sys.path:
 
 from services.db.database_manager import DatabaseManager
 from services.db.knowledge_manager import KnowledgeManager
-from services.llm.llm_common import load_env_from_config, DebugLogger
+from services.ai.llm_common import load_env_from_config, DebugLogger
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)

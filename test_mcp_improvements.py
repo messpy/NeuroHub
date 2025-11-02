@@ -32,7 +32,7 @@ def test_modelfile_generator():
     print("=" * 80)
 
     try:
-        from services.llm.modelfile_generator import ModelfileGenerator
+        from services.ai.modelfile_generator import ModelfileGenerator
 
         generator = ModelfileGenerator()
         print("✅ ModelfileGeneratorをインポート成功")

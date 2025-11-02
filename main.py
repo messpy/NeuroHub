@@ -184,7 +184,7 @@ class AgentRouter:
         """Fallback to LLM for unknown intents."""
         print("🤔 Intent unclear, using LLM fallback...")
         try:
-            from services.llm.llm_cli import main as llm_cli_main
+            from services.ai.llm_cli import main as llm_cli_main
             # Call LLM CLI
             sys.argv = ['llm_cli.py', prompt]
             return llm_cli_main()

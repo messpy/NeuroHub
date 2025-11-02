@@ -7,8 +7,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'services' / 'llm'))
 
-from services.llm.provider_huggingface import HuggingFaceConfig
-from services.llm.llm_common import DebugLogger
+from services.ai.provider_huggingface import HuggingFaceConfig
+from services.ai.llm_common import DebugLogger
 
 @pytest.fixture
 def hf_config():

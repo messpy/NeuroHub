@@ -28,7 +28,7 @@ def load_env():
     sys.path.insert(0, str(ROOT))
     try:
         # 環境変数をロード
-        from services.llm.llm_common import load_env_from_config
+        from services.ai.llm_common import load_env_from_config
         load_env_from_config(debug=False)
     except Exception as e:
         print(f"[warn] .env load skipped: {e}", file=sys.stderr)
@@ -37,7 +37,7 @@ def load_llm_config():
     """LLM設定をYAMLから読み込み"""
     if yaml is None:
         return {}
-    
+
     config_path = ROOT / "config" / "llm_config.yaml"
     if not config_path.exists():
         return {}
@@ -65,16 +65,16 @@ def parse_response(stdout, stderr):
 def test_gemini(prompt=DEFAULT_PROMPT, model=None, config=None):
     if not os.getenv("GEMINI_API_KEY"):
         return ("gemini", "SKIP", 0.0, "", "", "GEMINI_API_KEY missing")
-    
+
     # configからモデル取得（引数優先）
     if model is None and config:
         model = config.get("llm", {}).get("providers", {}).get("gemini", {}).get("model", "gemini-1.5-flash")
-    
+
     cmd = [PY, str(ROOT/"services/llm/provider_gemini.py"), "--debug"]
     if model:
         cmd.extend(["--model", model])
     cmd.append(prompt)
-    
+
     rc, dt, out, err = run(cmd)
     response = parse_response(out, err) if rc == 0 else ""
     return ("gemini", "OK" if rc == 0 else "NG", dt, response, out, err)
@@ -90,13 +90,13 @@ def test_ollama(prompt=DEFAULT_PROMPT, model=None, config=None):
     host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
     if not ollama_alive(host):
         return ("ollama", "SKIP", 0.0, "", "", f"Ollama server not responding: {host}")
-    
+
     # configからモデル取得（引数優先）
     if model is None and config:
         model = config.get("llm", {}).get("providers", {}).get("ollama", {}).get("model", "qwen2.5:1.5b-instruct")
     if model is None:
         model = "qwen2.5:1.5b-instruct"
-    
+
     cmd = [PY, str(ROOT/"services/llm/provider_ollama.py"), "--model", model, prompt]
     rc, dt, out, err = run(cmd)
     response = parse_response(out, err) if rc == 0 else ""
@@ -105,16 +105,16 @@ def test_ollama(prompt=DEFAULT_PROMPT, model=None, config=None):
 def test_hugging(prompt=DEFAULT_PROMPT, model=None, config=None):
     if not os.getenv("HF_TOKEN"):
         return ("hugging", "SKIP", 0.0, "", "", "HF_TOKEN missing")
-    
+
     # configからモデル取得（引数優先）
     if model is None and config:
         model = config.get("llm", {}).get("providers", {}).get("huggingface", {}).get("model", "microsoft/phi-2")
-    
+
     cmd = [PY, str(ROOT/"services/llm/provider_huggingface.py"), "--debug"]
     if model:
         cmd.extend(["--model", model])
     cmd.append(prompt)
-    
+
     rc, dt, out, err = run(cmd)
     response = parse_response(out, err) if rc == 0 else ""
     return ("hugging", "OK" if rc == 0 else "NG", dt, response, out, err)
@@ -148,16 +148,16 @@ def main():
     print("\n=== LLM TEST SUITE RESULT ===")
     print(f"Prompt: {args.prompt}")
     print("")
-    
+
     fail = False
     for name, status, dt, response, out, err in results:
         print(f"[{name:7}] {status:4}  ({dt:.3f}s)")
-        
+
         # 応答情報を表示
         if args.show_response or not args.quiet:
             if response and status == "OK":
                 print(f"  [Response] {response[:200]}{'...' if len(response) > 200 else ''}")
-        
+
         if not args.quiet:
             if out.strip() and status != "OK":
                 print("  [STDOUT]")
@@ -165,10 +165,10 @@ def main():
             if err.strip():
                 print("  [STDERR]")
                 print("\n".join("    "+line for line in err.strip().splitlines()[:10]))
-        
+
         if status == "NG":
             fail = True
-    
+
     return 1 if fail else 0
 
 if __name__ == "__main__":

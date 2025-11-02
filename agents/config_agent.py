@@ -17,7 +17,7 @@ from dataclasses import dataclass, asdict
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from services.llm.llm_common import load_config, load_prompt_templates
+from services.ai.llm_common import load_config, load_prompt_templates
 from services.db.llm_history_manager import LLMHistoryManager
 
 

@@ -1763,7 +1763,7 @@ class GitSmartAgent(GitAgent):
     def _test_gemini_connection(self) -> Dict[str, Any]:
         """Gemini接続テスト"""
         try:
-            from services.llm.provider_gemini import GeminiProvider
+            from services.ai.provider_gemini import GeminiProvider
             provider = GeminiProvider()
 
             # 簡単なテストプロンプト
@@ -1786,7 +1786,7 @@ class GitSmartAgent(GitAgent):
     def _test_huggingface_connection(self) -> Dict[str, Any]:
         """HuggingFace接続テスト"""
         try:
-            from services.llm.provider_huggingface import HuggingFaceProvider
+            from services.ai.provider_huggingface import HuggingFaceProvider
             provider = HuggingFaceProvider()
 
             result = provider.generate_text("Hello", max_tokens=10)

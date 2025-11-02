@@ -24,7 +24,7 @@ from pathlib import Path
 from agents.common import BaseAgent
 from agents.config_agent import AgentConfig
 
-from services.llm.llm_common import (
+from services.ai.llm_common import (
     load_env_from_config,
     load_config,
     get_prompt_template,
@@ -33,7 +33,7 @@ from services.llm.llm_common import (
     LLMResponse
 )
 # Ollama統一（他のプロバイダーは将来分離予定）
-from services.llm.provider_ollama import OllamaConfig
+from services.ai.provider_ollama import OllamaConfig
 from services.db.llm_history_manager import LLMHistoryManager
 
 
@@ -668,7 +668,7 @@ class LLMAgent:
 
             except Exception as e:
                 # エラーレスポンスを作成
-                from services.llm.llm_common import create_llm_response
+                from services.ai.llm_common import create_llm_response
                 error_response = create_llm_response(
                     status_code=500,
                     provider=provider_name,

@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from services.llm.llm_common import load_env_from_config, DebugLogger
+from services.ai.llm_common import load_env_from_config, DebugLogger
 
 LOG_DIR = ROOT / "logs"
 LOG_DIR.mkdir(exist_ok=True)
