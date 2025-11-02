@@ -85,6 +85,8 @@
 | ✅ DONE-020 | MCPエージェント開発デモ | 2025-11-02 | ファイル管理CLI自動生成、3ファイル生成、課題検出・改善案提示 |
 | ✅ DONE-021 | ルートフォルダ整理完了 | 2025-11-03 | htmlcov→_archive、generated_projects→services/mcp、venv統一、不要ファイル40+個→old、ルート77%削減 |
 | ✅ DONE-022 | Docker環境構築見直し | 2025-11-03 | Dockerfile/docker-compose修正、統合セットアップスクリプト作成、DEPENDENCIES.md/DOCKER_SETUP.md大幅更新 |
+| ✅ DONE-023 | mainブランチ同期完了 | 2025-11-03 | 空白整形7ファイル、テスト追加2ファイル、aidev→mainマージ、343ファイル変更、プッシュ完了 |
+| ✅ DONE-024 | Discord Bot + Nature Remo実装 | 2025-11-03 | remo_plugin.py（照明ON/OFF、自動ボタン検出）、test_plugin.py（ping/hello/info/status/notify）、enhanced_features.py（ボイスチャンネル監視、アバター表示、LLM連携）、LLM Agent非同期対応、8プラグイン起動成功 |
 
 ---
 
