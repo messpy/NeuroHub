@@ -17,8 +17,8 @@
 | C004 | 大規模リファクタリング | ファイル設計書作成、フォルダ再構築、共通機能統合 | AI | 🔄 進行中 | 即座 |
 | C005 | 仮想環境自動作成 | pip install検知時の自動venv作成 | AI | 🔄 進行中 | 即座 |
 | C006 | Ollama自動セットアップ | PCスペック検出、最適モデル選択、Modelfile生成 | AI | 🔄 進行中 | 即座 |
-| C007 | メインエージェント実装 | main.py: 意図判定→適切なagent呼び出し | AI | 🔄 進行中 | 即座 |
-| C001 | LLMエージェントのgit機能重複 | `generate_commit_message`がllm_agentとgit_agentに重複存在 | - | � 計画中 | 即座 |
+| C007 | メインエージェント実装 | main.py: 意図判定→適切なagent呼び出し | AI | ✅ 完了 | 即座 |
+| C001 | LLMエージェントのgit機能重複 | `generate_commit_message`がllm_agentとgit_agentに重複存在 | - | 📋 計画中 | 即座 |
 | C002 | git_smart_agentのチャンク処理失敗 | HuggingFace/Ollamaが英語応答、日本語指示無視 | - | � 計画中 | 即座 |
 | C003 | Geminiクォータ制限 | 1日250回制限で実用性低下 | - | � 計画中 | 即座 |
 
@@ -76,6 +76,9 @@
 | ✅ DONE-011 | MCP新フロー実装 | 2025-11-02 | spec_normalizer.py, command_validator.py, project_designer.py作成、test_mcp_workflow.py (6/6 PASSED) |
 | ✅ DONE-012 | 日本語ドキュメント体系整備 | 2025-11-02 | docs/jp/構造化、エージェント別設計書、HTML版生成（24ファイル、6677行追加） |
 | ✅ DONE-013 | Docker対応実装 | 2025-11-02 | Dockerfile, docker-compose.yml, .dockerignore, DOCKER_SETUP.md作成、Windows/ラズパイ統一環境（7ファイル、648行追加） |
+| ✅ DONE-014 | DBエージェント実装 | 2025-11-02 | agents/db_agent.py（600行）、MCP用ヒントDB（3テーブル）、15テスト全成功 |
+| ✅ DONE-015 | MCP手動実行ガイド作成 | 2025-11-02 | docs/MCP_MANUAL_GUIDE.md（400行）、実行例10以上、テンプレート3種 |
+| ✅ DONE-016 | MCPエージェント実装 | 2025-11-02 | agents/mcp_agent.py（800行）、5モード（generate/project/debug/optimize/design）、16テストケース |
 
 ---
 
