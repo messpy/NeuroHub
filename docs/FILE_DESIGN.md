@@ -27,7 +27,9 @@ NeuroHub/
 ├── setup.cfg                 # ⚙️ Setup configuration
 ├── .env                      # 🔐 Environment variables (not in git)
 ├── .gitignore               # 🚫 Git ignore rules
-└── neurohub_llm.db          # 💾 Main database
+├── docker-compose.yml        # 🐳 Docker Compose configuration
+├── Dockerfile                # 🐳 Docker image definition
+└── neurohub_llm.db          # 💾 Main database (47 tables)
 ```
 
 ### main.py (NEW)
@@ -150,6 +152,8 @@ services/
 ├── mcp/
 │   ├── __init__.py
 │   ├── mcp_orchestrator.py  # 🎼 Main MCP workflow
+│   ├── mcp_enhanced.py      # 🛠️ Enhanced MCP with analysis
+│   ├── generated_projects/  # 🗂️ MCP generated code output
 │   ├── design_service.py    # 📐 Design generation
 │   ├── code_service.py      # 💻 Code generation
 │   ├── test_service.py      # 🧪 Test generation
@@ -159,7 +163,8 @@ services/
 │
 ├── web/
 │   ├── __init__.py
-│   └── web_searcher.py      # 🔍 Web search implementation
+│   ├── web_searcher.py      # 🔍 Web search implementation
+│   └── web_search_investigator.py  # 🔎 Advanced search with history
 │
 ├── system/
 │   ├── __init__.py
@@ -167,7 +172,10 @@ services/
 │
 └── db/
     ├── __init__.py
+    ├── database_manager.py        # 💾 Unified database manager
+    ├── db_initializer.py          # 🔧 Database initialization (47 tables)
     ├── llm_history_manager.py    # 📚 LLM interaction history
+    ├── llm_history_schema.py     # 📋 Database schema definitions
     ├── knowledge_base.py          # 🧠 Knowledge storage
     └── performance_tracker.py     # 📊 Performance metrics
 ```
@@ -304,6 +312,36 @@ docs/
 ├── API_REFERENCE.md        # API documentation
 └── USER_GUIDE.md           # User manual
 ```
+
+---
+
+## 📂 scripts/
+
+```
+scripts/
+├── init_database.py         # 🔧 Database initialization (standalone)
+└── setup.sh                 # 🚀 Unified setup script (Linux/WSL/Mac)
+```
+
+### scripts/init_database.py (NEW)
+**Purpose**: Docker/ローカル両対応のDB初期化
+**Functionality**:
+- DatabaseInitializer使用
+- 47テーブル作成
+- インデックス作成
+- FTS（全文検索）テーブル作成
+- デフォルトデータ挿入
+
+### scripts/setup.sh (NEW)
+**Purpose**: 統合セットアップスクリプト（7ステップ自動化）
+**Functionality**:
+1. 環境確認（Python 3.9+）
+2. システムパッケージインストール（apt/yum/brew）
+3. Python仮想環境作成
+4. 依存関係インストール
+5. .env設定
+6. DB初期化
+7. 実行権限設定
 
 ---
 
