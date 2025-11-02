@@ -74,6 +74,7 @@
 | ✅ DONE-009 | services/llm→ai リネーム | 2025-11-02 | ディレクトリ構造変更、全インポート文更新、16/16テストPASSED |
 | ✅ DONE-010 | 3つのLLM「こんにちは」テスト | 2025-11-02 | test_hello_llm.py作成、Ollama/Gemini/HuggingFace全成功 (3/3 PASSED) |
 | ✅ DONE-011 | MCP新フロー実装 | 2025-11-02 | spec_normalizer.py, command_validator.py, project_designer.py作成、test_mcp_workflow.py (6/6 PASSED) |
+| ✅ DONE-012 | 日本語ドキュメント体系整備 | 2025-11-02 | docs/jp/構造化、エージェント別設計書、HTML版生成（24ファイル、6677行追加） |
 
 ---
 
