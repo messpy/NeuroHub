@@ -46,9 +46,9 @@ services:
       # データ永続化
       - neurohub_data:/app/data
       - neurohub_logs:/app/logs
-      - neurohub_projects:/app/generated_projects
+      - neurohub_projects:/app/services/mcp/generated_projects
       # データベース
-      - ./neurohub_llm.db:/app/neurohub_llm.db
+      - neurohub_db:/app/neurohub_llm.db
     environment:
       # Ollama接続設定
       - OLLAMA_HOST=http://ollama:11434
@@ -86,6 +86,8 @@ volumes:
   neurohub_logs:
     driver: local
   neurohub_projects:
+    driver: local
+  neurohub_db:
     driver: local
 
 networks:
