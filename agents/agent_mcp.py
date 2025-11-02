@@ -220,8 +220,10 @@ class MCPAgent(BaseAgent):
                 metadata={}
             )
         
-        # プロジェクトディレクトリ
-        project_dir = project_root / "generated_projects" / request.project_name
+        # プロジェクトディレクトリ（MCP専用フォルダ）
+        mcp_projects_dir = project_root / "services" / "mcp" / "generated_projects"
+        mcp_projects_dir.mkdir(parents=True, exist_ok=True)
+        project_dir = mcp_projects_dir / request.project_name
         project_dir.mkdir(parents=True, exist_ok=True)
         
         files_created = []

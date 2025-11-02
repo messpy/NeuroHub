@@ -1,0 +1,55 @@
+{
+  "status": "success",
+  "results": [
+    {
+      "name": "help",
+      "cmd": "python3 main.py --help",
+      "expected_rc": 0,
+      "actual_rc": 0,
+      "success": true,
+      "stdout": "usage: main.py [-h] [-r] [-a] [--filter FILTER] [--sort {name,size,modified}]\n               [--format {table,json,csv}] [--count] [--version]\n               [directory]\n\nファイル一覧表示ツール - MCP デモ\n\npositional arguments:\n  directory             対象ディレクトリのパス（デフォルト: 現在のディレクトリ）\n\noptions:\n  -h, --help            show this help message and exit\n  -r, --recursive       サブディレクトリも再帰的に表示\n  -a, --all             隠しファイル（.で始まるファイル）も表示\n  --filter FILTER       拡張子でフィルタ（例: .py, .txt）\n  --sort {name,size,modified}\n                        ソート方法（デフォルト: name）\n  --format {table,json,csv}\n                        出力形式（デフォルト: table）\n  --count               ファイル数のみ表示\n  --version             show program's version number and exit\n\n使用例:\n  python main.py                          # 現在のディレクトリのファイル一覧\n  python main.py /home/user/documents     # 指定ディレクトリのファイル一覧\n  python main.py -r                       # 再帰的にサブディレクトリも含める\n  python main.py -a                       # 隠しファイルも表示\n  python main.py --filter .py             # Python",
+      "stderr": ""
+    },
+    {
+      "name": "run",
+      "cmd": "python3 main.py",
+      "expected_rc": 0,
+      "actual_rc": 0,
+      "success": true,
+      "stdout": "ディレクトリ: /mnt/c/Users/kenny/sandbox/NeuroHub/projects/file_list_demo\nファイル数: 3\n\n名前                             タイプ        サイズ        更新日時                 パス\n==========================================================================================\nmain.py                        file       8.2 KB     2025-11-01 08:48:03  main.py\nREADME.md                      file       3.6 KB     2025-11-01 08:48:23  README.md\ntest_results.json              file       1.2 KB     2025-11-01 08:51:08  test_results.json\n",
+      "stderr": ""
+    },
+    {
+      "name": "count",
+      "cmd": "python3 main.py --count",
+      "expected_rc": 0,
+      "actual_rc": 0,
+      "success": true,
+      "stdout": "ファイル数: 3, ディレクトリ数: 0, 合計: 3\n",
+      "stderr": ""
+    },
+    {
+      "name": "filter_py",
+      "cmd": "python3 main.py --filter .py",
+      "expected_rc": 0,
+      "actual_rc": 0,
+      "success": true,
+      "stdout": "ディレクトリ: /mnt/c/Users/kenny/sandbox/NeuroHub/projects/file_list_demo\nファイル数: 1\n\n名前                             タイプ        サイズ        更新日時                 パス\n==========================================================================================\nmain.py                        file       8.2 KB     2025-11-01 08:48:03  main.py\n",
+      "stderr": ""
+    },
+    {
+      "name": "json_format",
+      "cmd": "python3 main.py --format json",
+      "expected_rc": 0,
+      "actual_rc": 0,
+      "success": true,
+      "stdout": "ディレクトリ: /mnt/c/Users/kenny/sandbox/NeuroHub/projects/file_list_demo\nファイル数: 3\n\n[\n  {\n    \"name\": \"main.py\",\n    \"path\": \"main.py\",\n    \"absolute_path\": \"/mnt/c/Users/kenny/sandbox/NeuroHub/projects/file_list_demo/main.py\",\n    \"type\": \"file\",\n    \"size\": 8410,\n    \"modified\": \"2025-11-01 08:48:03\",\n    \"permissions\": \"777\",\n    \"extension\": \".py\"\n  },\n  {\n    \"name\": \"README.md\",\n    \"path\": \"README.md\",\n    \"absolute_path\": \"/mnt/c/Users/kenny/sandbox/NeuroHub/projects/file_list_demo/README.md\",\n    \"type\": \"file\",\n    \"size\": 3691,\n    \"modified\": \"2025-11-01 08:48:23\",\n    \"permissions\": \"777\",\n    \"extension\": \".md\"\n  },\n  {\n    \"name\": \"test_results.json\",\n    \"path\": \"test_results.json\",\n    \"absolute_path\": \"/mnt/c/Users/kenny/sandbox/NeuroHub/projects/file_list_demo/test_results.json\",\n    \"type\": \"file\",\n    \"size\": 1212,\n    \"modified\": \"2025-11-01 08:51:08\",\n    \"permissions\": \"777\",\n    \"extension\": \".json\"\n  }\n]\n",
+      "stderr": ""
+    }
+  ],
+  "summary": {
+    "total_tests": 5,
+    "passed": 5,
+    "failed": 0
+  }
+}
