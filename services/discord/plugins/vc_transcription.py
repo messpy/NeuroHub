@@ -83,6 +83,7 @@ class VCTranscription(PluginBase, commands.Cog):
     async def vc_join(self, ctx: commands.Context):
         """
         ボイスチャンネルに参加して録音開始（簡易版）
+        10秒後に自動退出
         
         使用例:
             !vc_join
@@ -104,14 +105,29 @@ class VCTranscription(PluginBase, commands.Cog):
         try:
             # VC参加
             voice_client = await channel.connect()
-            await ctx.send(f"✅ {channel.name} に参加しました！\n")
-            await ctx.send("⚠️ **注意**: 現在のdiscord.pyバージョンでは録音機能が制限されています。")
-            await ctx.send("💡 **代替案**: 会話をテキストで送信してください。文字起こしを記録します。")
+            await ctx.send(f"✅ **{channel.name}** に入りました！")
             
             # 録音状態をマーク
             self.recording[guild_id] = True
             self.audio_buffers[guild_id] = {}
             self.transcripts[guild_id] = []
+            
+            # 10秒待機
+            await asyncio.sleep(10)
+            
+            # 自動退出
+            await ctx.send(f"⏰ 10秒経過しました。退出します...")
+            await voice_client.disconnect()
+            await ctx.send(f"� **{channel.name}** から退出しました。")
+            
+            # 録音状態をクリア
+            if guild_id in self.recording:
+                del self.recording[guild_id]
+            
+            # 文字起こし記録があれば表示
+            if guild_id in self.transcripts and self.transcripts[guild_id]:
+                await self.send_transcripts(ctx.channel, self.transcripts[guild_id])
+                await self.save_transcripts(guild_id, self.transcripts[guild_id])
             
         except Exception as e:
             await ctx.send(f"❌ VC参加エラー: {e}")
