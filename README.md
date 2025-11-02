@@ -44,85 +44,240 @@ NeuroHubは、AI駆動のコミットメッセージ生成、チャンク処理�
 
 ## 🚀 クイックスタート
 
-### 方法1: Docker（推奨 - Windows/ラズパイ両対応）🐳
+### 📦 前提条件
+
+以下のいずれかが必要です:
+
+**方法1: Docker（推奨）**
+- Docker Desktop（Windows/Mac）または Docker Engine（Linux）
+- Docker Compose v2.0以上
+
+**方法2: ローカルインストール**
+- Python 3.9以上
+- Git
+- (オプション) Ollama（ローカルLLM用）
+
+---
+
+### 🐳 方法1: Docker（推奨 - 最も簡単）
+
+**特徴**:
+- ⚡ **1コマンドセットアップ** - 環境依存なし
+- 🌍 **環境統一** - Windows/Linux/ラズパイで同じ動作
+- � **安定動作** - 依存関係の衝突なし
+- 🔄 **自動初期化** - データベース・フォルダ自動作成
+
+#### ステップ1: リポジトリクローン
 
 ```bash
-# プロジェクトクローン
 git clone https://github.com/messpy/NeuroHub.git
 cd NeuroHub
+```
 
+#### ステップ2: 環境変数設定
+
+```bash
 # .envファイル作成
 cp .env.example .env
-# エディタで.envを編集してAPI Keyを入力
 
-# Docker Composeで起動（1コマンド！）
+# エディタで.envを編集（必須）
+nano .env  # または vi, vim, code など
+```
+
+**.env 最小構成** (無料APIのみ):
+```bash
+# Gemini API Key（無料: 1日250リクエスト）
+# 取得: https://aistudio.google.com/app/apikey
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# HuggingFace API Key（無料: 月間制限あり）
+# 取得: https://huggingface.co/settings/tokens
+HUGGINGFACE_API_KEY=your_huggingface_token_here
+
+# Ollama設定（Docker内で自動起動）
+OLLAMA_HOST=http://ollama:11434
+
+# ログレベル
+LOG_LEVEL=INFO
+```
+
+#### ステップ3: Docker起動
+
+```bash
+# Docker Composeで全て起動（Ollama + NeuroHub）
 docker-compose up -d
+
+# 起動確認
+docker-compose ps
 
 # ログ確認
 docker-compose logs -f neurohub
 ```
 
-**メリット**:
-- ⚡ 超簡単セットアップ
-- 🌍 環境統一（Windows/Linux/ラズパイ）
-- 🔒 安定動作
+#### ステップ4: 動作確認
 
-詳細: [DOCKER_SETUP.md](./docs/DOCKER_SETUP.md)
+```bash
+# コンテナ内でテスト実行
+docker-compose exec neurohub python3 -m pytest tests/ -v
+
+# データベース確認
+docker-compose exec neurohub ls -la data/
+
+# Ollama確認
+curl http://localhost:11434/api/tags
+```
+
+#### Docker管理コマンド
+
+```bash
+# 停止
+docker-compose stop
+
+# 再起動
+docker-compose restart
+
+# 完全削除（データも削除）
+docker-compose down -v
+
+# ログ表示
+docker-compose logs -f neurohub
+docker-compose logs -f ollama
+
+# コンテナ内シェル
+docker-compose exec neurohub bash
+```
+
+**詳細ドキュメント**: [DOCKER_SETUP.md](./docs/DOCKER_SETUP.md)
 
 ---
 
-### 方法2: 自動セットアップ（従来の方法）
+### 🛠️ 方法2: 自動セットアップスクリプト（Linux/WSL/Mac）
+
+**特徴**:
+- 🤖 **全自動** - 依存関係・仮想環境・DBを自動セットアップ
+- ✅ **環境チェック** - 不足パッケージを自動検出・インストール
+- 📦 **最適化** - 各OS向けに最適化されたセットアップ
 
 ```bash
 # プロジェクトクローン
 git clone https://github.com/messpy/NeuroHub.git
 cd NeuroHub
 
-# 自動セットアップ（Linux）
-chmod +x setup_neurohub_linux.sh
-./setup_neurohub_linux.sh
+# 統合セットアップスクリプト実行
+chmod +x scripts/setup.sh
+./scripts/setup.sh
 
-# 自動セットアップ（Windows）
-setup_neurohub_windows.bat
-```
-
-### 方法3: 手動セットアップ
-
-```bash
-# Python仮想環境作成
-python3 -m venv venv_linux  # Linux
-python -m venv venv         # Windows
+# 完了後、.envを編集
+nano .env
 
 # 仮想環境アクティベート
-source venv_linux/bin/activate  # Linux
-venv\Scripts\activate           # Windows
-
-# 依存関係インストール
-pip install --upgrade pip
-pip install -r requirements.txt
-
-# データベース初期化
-python setup_database.py
+source venv_linux/bin/activate  # Linux/WSL
+source venv_mac/bin/activate    # macOS
 ```
 
-### 3. 環境設定
+**セットアップ内容**:
+1. システムパッケージチェック・インストール
+2. Python仮想環境作成
+3. 依存関係インストール (requirements.txt)
+4. データベース初期化（27テーブル作成）
+5. 実行権限設定
+6. 環境変数テンプレート作成
 
-`.env` ファイルを作成：
+---
+
+### 📝 方法3: 手動セットアップ（上級者向け）
+
+#### ステップ1: 依存関係インストール
+
+**Linux (Ubuntu/Debian)**:
+```bash
+sudo apt update
+sudo apt install -y python3 python3-pip python3-venv git curl \
+                    sqlite3 build-essential portaudio19-dev
+```
+
+**macOS**:
+```bash
+brew install python3 git curl sqlite3 portaudio
+```
+
+#### ステップ2: Python仮想環境
 
 ```bash
-# 必須: Gemini API Key
-GEMINI_API_KEY=your_gemini_api_key_here
+# 仮想環境作成
+python3 -m venv venv_linux  # Linux/WSL
+python3 -m venv venv_mac    # macOS
 
-# 必須: HuggingFace API Key
-HUGGINGFACE_API_KEY=your_huggingface_token_here
-
-# オプション: Ollama（ローカル）
-OLLAMA_BASE_URL=http://localhost:11434
+# アクティベート
+source venv_linux/bin/activate  # Linux/WSL
+source venv_mac/bin/activate    # macOS
 ```
 
-## 🎯 基本的な使用方法
+#### ステップ3: Pythonパッケージ
 
-### ⚡ LLMプロバイダー切り替え
+```bash
+# pipアップグレード
+pip install --upgrade pip
+
+# 依存関係インストール
+pip install -r requirements.txt
+
+# 開発用依存関係（オプション）
+pip install -r requirements-dev.txt
+```
+
+#### ステップ4: データベース初期化
+
+```bash
+# データベーステーブル作成
+python3 scripts/init_database.py
+```
+
+#### ステップ5: 環境変数
+
+```bash
+# .envファイル作成
+cp .env.example .env
+
+# 編集（API Key設定）
+nano .env
+```
+
+---
+
+### 🎯 セットアップ後の確認
+
+---
+
+### 🎯 セットアップ後の確認
+
+すべての方法で、セットアップ後に以下を確認してください:
+
+```bash
+# 1. データベース確認
+ls -la neurohub_llm.db  # ファイルが存在するか
+
+# 2. LLMエージェントテスト
+python3 -c "from agents.agent_llm import LLMAgent; agent = LLMAgent(); print('✅ LLM OK')"
+
+# 3. テスト実行
+python3 -m pytest tests/ -v
+
+# 4. プロバイダー確認
+python3 -c "import yaml; config = yaml.safe_load(open('config/llm_config.yaml', 'r', encoding='utf-8')); print('\n'.join([f'{k}: {v.get(\"model\")} (enabled={v.get(\"enabled\")})' for k,v in config.get('llm', {}).get('providers', {}).items()]))"
+```
+
+**期待される出力**:
+```
+✅ LLM OK
+gemini: gemini-1.5-flash (enabled=True)
+huggingface: Qwen/Qwen2.5-Coder-32B-Instruct (enabled=True)
+ollama: qwen2.5:1.5b-instruct (enabled=True)
+```
+
+---
+
+## 🎯 基本的な使用方法
 
 ```bash
 # Ollamaに切り替え（ローカル・無料・推奨）
@@ -581,5 +736,11 @@ MIT License - 詳細は [LICENSE](LICENSE) ファイルを参照
 - ✅ **大規模変更対応**: 100+ファイルの自動分類・AI解析
 - ✅ **安全性向上**: 入力検証・出力サニタイズ・エラー耐性
 
-**詳細なアーキテクチャ情報**: [docs/ARCHITECTURE_DESIGN.md](docs/ARCHITECTURE_DESIGN.md)
-**タスク管理**: [docs/TASK_MANAGEMENT.md](docs/TASK_MANAGEMENT.md)
+**詳細ドキュメント**:
+- [ARCHITECTURE_DESIGN.md](docs/ARCHITECTURE_DESIGN.md) - アーキテクチャ設計書
+- [DOCKER_SETUP.md](docs/DOCKER_SETUP.md) - Docker詳細ガイド
+- [DEPENDENCIES.md](docs/DEPENDENCIES.md) - 依存関係・環境構築ガイド
+- [TASK_MANAGEMENT.md](docs/TASK_MANAGEMENT.md) - タスク管理
+- [MCP_ENHANCEMENT.md](docs/MCP_ENHANCEMENT.md) - MCP強化システム
+- [DATABASE_DESIGN.md](docs/DATABASE_DESIGN.md) - データベース設計
+
