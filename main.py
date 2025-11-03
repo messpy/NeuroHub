@@ -46,7 +46,9 @@ class IntentDetector:
             ],
             'command': [
                 'コマンド', 'command', '実行', 'execute', 'run', 'ls', 'cd',
-                'mkdir', 'rmdir', 'cat', 'echo', 'pwd', 'find', 'grep'
+                'mkdir', 'rmdir', 'cat', 'echo', 'pwd', 'find', 'grep',
+                'discord', 'Discord', 'チャンネル', 'channel', 'メッセージ', 'message',
+                '送信', 'send', '送って', 'post'
             ],
             'config': [
                 '設定', 'config', 'configuration', '環境', 'environment',
@@ -85,16 +87,23 @@ class AgentRouter:
         """Initialize agent router."""
         self.intent_detector = IntentDetector()
 
-    def route(self, prompt: str, **kwargs) -> Any:
+    def route(self, prompt: str, provider: Optional[str] = None, **kwargs) -> Any:
         """Route prompt to appropriate agent.
 
         Args:
             prompt: User prompt
+            provider: LLM provider (ollama/gemini/huggingface)
             **kwargs: Additional arguments for agents
 
         Returns:
             Agent execution result
         """
+        # If provider is specified, use LLM mode with provider
+        if provider:
+            print(f"🤖 LLM mode with provider: {provider}")
+            print("💬 Entering interactive chat mode...")
+            return self._call_llm_with_provider(prompt, provider, **kwargs)
+
         intent = self.intent_detector.detect(prompt)
 
         print(f"🤖 Detected intent: {intent}")
@@ -139,55 +148,149 @@ class AgentRouter:
     def _call_mcp_agent(self, prompt: str, **kwargs) -> Any:
         """Call MCP agent."""
         try:
-            from agents.specialized.mcp_agent import MCPAgent
-            agent = MCPAgent()
-            return agent.execute(prompt)
-        except ImportError:
-            print("⚠️ MCP agent not implemented yet")
-            print("ℹ️ You can use: python services/mcp/mcp_run.py '<project_description>'")
+            import subprocess
+            print("🛠️ MCP Agent - Code Generation & Project Development")
+            cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_mcp.py generate '{prompt}'"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+            
+            if result.returncode == 0:
+                return result.stdout.strip()
+            else:
+                print(f"❌ MCP Error: {result.stderr.strip()}")
+                return None
+        except Exception as e:
+            print(f"⚠️ MCP agent error: {e}")
+            print("ℹ️ You can use: python agents/agent_mcp.py generate '<project_description>'")
             return None
 
     def _call_git_agent(self, prompt: str, **kwargs) -> Any:
         """Call git agent."""
         try:
-            from agents.git_agent import GitAgent
-            agent = GitAgent()
-            return agent.execute(prompt)
+            import subprocess
+            print("🔧 Git Agent - Repository Management")
+            cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_git.py --status"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+            
+            if result.returncode == 0:
+                return result.stdout.strip()
+            else:
+                print(f"❌ Git Error: {result.stderr.strip()}")
+                return None
         except Exception as e:
             print(f"⚠️ Git agent error: {e}")
-            print("ℹ️ You can use: python agents/git_agent.py --status")
+            print("ℹ️ You can use: python agents/agent_git.py --status")
             return None
 
     def _call_command_agent(self, prompt: str, **kwargs) -> Any:
         """Call command agent."""
         try:
-            from agents.agent_command import CommandAgent
-            agent = CommandAgent()
-            return agent.execute(prompt)
+            import subprocess
+            print("💻 Command Agent - System Commands & Discord")
+            # Check if it's a Discord command
+            if 'discord' in prompt.lower() or 'チャンネル' in prompt.lower():
+                cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 services/discord/bot_message_sender.py '{prompt}'"
+            else:
+                cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_command.py '{prompt}'"
+            
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+            
+            if result.returncode == 0:
+                return result.stdout.strip()
+            else:
+                print(f"❌ Command Error: {result.stderr.strip()}")
+                return None
         except Exception as e:
             print(f"⚠️ Command agent error: {e}")
-            print("ℹ️ You can use: python agents/command_agent.py '<command>'")
+            print("ℹ️ You can use: python agents/agent_command.py '<command>'")
             return None
 
     def _call_config_agent(self, prompt: str, **kwargs) -> Any:
         """Call config agent."""
         try:
-            from agents.agent_config import ConfigAgent
-            agent = ConfigAgent()
-            return agent.execute(prompt)
+            import subprocess
+            print("⚙️ Config Agent - Project Configuration")
+            cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_config.py --status"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+            
+            if result.returncode == 0:
+                return result.stdout.strip()
+            else:
+                print(f"❌ Config Error: {result.stderr.strip()}")
+                return None
         except Exception as e:
             print(f"⚠️ Config agent error: {e}")
-            print("ℹ️ You can use: python agents/config_agent.py --status")
+            print("ℹ️ You can use: python agents/agent_config.py --status")
+            return None
+
+    def _call_llm_with_provider(self, prompt: str, provider: str, **kwargs) -> Any:
+        """Call LLM with specific provider in interactive mode."""
+        try:
+            import subprocess
+            
+            # Interactive chat mode with provider
+            print(f"🎯 Starting chat with {provider} provider")
+            print("📝 Type 'quit' or 'exit' to end conversation")
+            print()
+            
+            while True:
+                # If it's the first prompt, use it
+                if prompt:
+                    user_input = prompt
+                    prompt = None  # Clear after first use
+                else:
+                    user_input = input("You: ").strip()
+                    
+                if user_input.lower() in ['quit', 'exit', 'q']:
+                    print("👋 Goodbye!")
+                    break
+                
+                if not user_input:
+                    continue
+                    
+                try:
+                    # Check if user wants to switch to specific agent
+                    intent = self.intent_detector.detect(user_input)
+                    if intent != 'unknown' and intent != 'llm':
+                        response = input(f"🤖 Switch to {intent} agent? (y/n): ").strip().lower()
+                        if response in ['y', 'yes']:
+                            return self.route(user_input)
+                    
+                    # Call LLM with provider using unified interface
+                    cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 unified_interface.py '{user_input}'"
+                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+                    
+                    if result.returncode == 0:
+                        print(f"{provider}: {result.stdout.strip()}")
+                    else:
+                        print(f"❌ Error: {result.stderr.strip()}")
+                        
+                except KeyboardInterrupt:
+                    print("\n👋 Goodbye!")
+                    break
+                except Exception as e:
+                    print(f"❌ Error: {e}")
+            
+            return "Chat session completed"
+            
+        except Exception as e:
+            print(f"⚠️ LLM provider error: {e}")
+            print(f"ℹ️ You can use: python services/llm/llm_cli.py '{prompt}' --provider {provider}")
             return None
 
     def _call_llm_fallback(self, prompt: str, **kwargs) -> Any:
         """Fallback to LLM for unknown intents."""
         print("🤔 Intent unclear, using LLM fallback...")
         try:
-            from services.ai.llm_cli import main as llm_cli_main
-            # Call LLM CLI
-            sys.argv = ['llm_cli.py', prompt]
-            return llm_cli_main()
+            import subprocess
+            # Call LLM CLI using unified interface
+            cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 unified_interface.py '{prompt}'"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+            
+            if result.returncode == 0:
+                return result.stdout.strip()
+            else:
+                print(f"❌ LLM Error: {result.stderr.strip()}")
+                return None
         except Exception as e:
             print(f"⚠️ LLM fallback error: {e}")
             print("ℹ️ You can use: python services/llm/llm_cli.py '<prompt>'")
@@ -240,6 +343,13 @@ Examples:
         help='Force specific agent (skip intent detection)'
     )
 
+    parser.add_argument(
+        '-p', '--provider',
+        type=str,
+        choices=['ollama', 'gemini', 'huggingface'],
+        help='Select LLM provider (ollama/gemini/huggingface)'
+    )
+
     args = parser.parse_args()
 
     # Initialize router
@@ -264,7 +374,7 @@ Examples:
             result = router._call_llm_fallback(args.prompt)
     else:
         # Auto-detect intent and route
-        result = router.route(args.prompt)
+        result = router.route(args.prompt, provider=args.provider)
 
     # Print result
     if result is not None:
