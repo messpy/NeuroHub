@@ -99,8 +99,8 @@ class WeatherAgent(BaseAgent):
             if 'current' in forecast:
                 current = forecast['current']
                 weather_desc, emoji = self.get_weather_description(current.get('weather_code', 0))
-                result += f"🌡️ 現在: {current.get('temperature', 'N/A')}°C {emoji} {weather_desc}\n"
-                result += f"💨 風速: {current.get('wind_speed', 'N/A')} km/h\n\n"
+                result += f"🌡️ 現在: {current.get('temperature_2m', 'N/A')}°C {emoji} {weather_desc}\n"
+                result += f"💨 風速: {current.get('wind_speed_10m', 'N/A')} km/h\n\n"
 
             # Today's forecast
             if 'daily' in forecast:
@@ -122,6 +122,28 @@ class WeatherAgent(BaseAgent):
         except Exception as e:
             self.handle_error(e, "Weather query")
             return f"❌ Error: {e}"
+
+    def get_forecast(self, lat: float, lon: float) -> Dict[str, Any]:
+        """Get comprehensive forecast data including current and daily."""
+        try:
+            url = "https://api.open-meteo.com/v1/forecast"
+            params = {
+                "latitude": lat,
+                "longitude": lon,
+                "current": "temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m",
+                "daily": "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max",
+                "forecast_days": 7,
+                "timezone": "auto"
+            }
+            r = self.session.get(url, params=params, timeout=self.timeout)
+            r.raise_for_status()
+            data = r.json()
+
+            return data
+
+        except Exception as e:
+            self.logger.error(f"Failed to get forecast: {e}")
+            return {}
 
     def get_location_from_ip(self) -> Tuple[float, float, str]:
         """IPアドレスから位置を取得"""

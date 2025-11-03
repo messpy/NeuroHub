@@ -1,54 +1,486 @@
-# NeuroHub アーキテクチャ設計書
+# NeuroHub アーキテクチャ設計書 v2.0
 
-## 概要
+## 🎯 概要
 
-NeuroHubは、複数のAIプロバイダーと統合されたインテリジェントなGitワークフローシステムです。分散した長いテキストの処理、マルチプロバイダーLLMサポート、安全なテキスト処理機能を提供します。
+NeuroHubは、複数のAIプロバイダーと統合されたインテリジェントな統一インターフェースシステムです。AI、Web検索、Git、開発ツールを融合し、スマートスピーカーの上位互換を目指します。
 
-## アーキテクチャ概要
+## 🏗️ 全体アーキテクチャ
 
 ```
-NeuroHub/
-├── agents/          # AIエージェント層
-├── services/        # サービス層
-├── tools/           # CLI・ツール層
-├── config/          # 設定管理
-├── data/            # データ層
-└── docs/            # ドキュメント
+┌─────────────────────────────────────────────────────────────┐
+│                    NeuroHub Core System                    │
+├─────────────────────────────────────────────────────────────┤
+│ 🎯 main.py - 統一インターフェース (Unified Interface)        │
+│   ├── Intent Detection (意図検出)                           │
+│   ├── Agent Routing (エージェント振り分け)                   │
+│   ├── Smart Web Fallback (スマートWeb検索フォールバック)     │
+│   └── Comprehensive Logging (包括的ログ機能)                │
+├─────────────────────────────────────────────────────────────┤
+│ 🤖 Agent Layer (エージェント層)                            │
+│   ├── 🧠 LLM Agent        │ 🛠️  MCP Agent                    │
+│   ├── 🌐 Web Agent        │ 📊 Git Agent                     │
+│   ├── 🌤️  Weather Agent   │ ⚙️  Command Agent                │
+│   └── ⚙️  Config Agent    │ 💾 Database Agent                │
+├─────────────────────────────────────────────────────────────┤
+│ 🔧 Service Layer (サービス層)                              │
+│   ├── 🎭 AI Services      │ 💽 Database Services             │
+│   │   ├── Gemini          │   ├── SQLite                    │
+│   │   ├── HuggingFace     │   ├── History Manager           │
+│   │   └── Ollama          │   └── Analytics                 │
+│   ├── 🌐 Web Services     │ 🔧 MCP Services                  │
+│   │   ├── DuckDuckGo      │   ├── Code Generator             │
+│   │   ├── BS Parser       │   ├── Project Designer          │
+│   │   └── URL Analyzer    │   └── Auto Debugger             │
+│   └── 🐙 Git Services     │ 📡 External APIs                │
+│       ├── Smart Commit    │   ├── Nature Remo               │
+│       ├── Auto Branch     │   ├── Discord Bot               │
+│       └── Diff Analysis   │   └── Weather API               │
+├─────────────────────────────────────────────────────────────┤
+│ 💾 Data Layer (データ層)                                   │
+│   ├── 📊 Analytics DB     │ 📁 File Storage                 │
+│   ├── 📝 History DB       │ 🗂️  Generated Projects          │
+│   ├── 💡 Knowledge DB     │ 📋 Config Files                 │
+│   └── 🎯 User Preferences │ 📄 Documentation                │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## 主要コンポーネント
+## 🔄 実行フロー図
 
-### 1. エージェント層 (agents/)
+### 1. 統一インターフェース実行フロー
 
-#### LLMエージェント (agent_llm.py)
-- **責務**: 汎用LLM処理とテキスト生成
-- **主要機能**:
-  - マルチプロバイダー対応 (Gemini, HuggingFace, Ollama)
-  - チャンク処理による長文対応
-  - 統一レスポンス形式 (LLMResponse)
-  - 自動フォールバック機能
-  - **履歴管理**: `LLMHistoryManager`を使用してllm_historyテーブルに全リクエスト・レスポンスを自動保存
-  - **統計分析**: セッション管理、プロバイダー別統計、成功率・応答時間分析
+```mermaid
+graph TD
+    A[ユーザー入力] --> B[main.py 起動]
+    B --> C[Setup Logging]
+    C --> D[Intent Detection]
 
-#### Git Smart エージェント (git_smart_agent.py)
-- **責務**: インテリジェントなGitワークフロー管理
-- **主要機能**:
-  - ファイル変更の自動カテゴライズ
-  - AI支援コミットメッセージ生成
-  - 大規模変更の分析と要約
-  - 日本語コミットメッセージ対応
+    D --> E1[weather]
+    D --> E2[web]
+    D --> E3[mcp]
+    D --> E4[git]
+    D --> E5[command]
+    D --> E6[config]
+    D --> E7[unknown]
 
-#### MCP エージェント (agent_mcp.py)
-- **責務**: Model Context Protocol による高度なコード生成・プロジェクト作成
-- **主要機能**:
-  - プロンプトからコード生成
-  - プロジェクトテンプレート生成
-  - デバッグサポート
-  - プロンプト最適化
-- **現状**: ⚠️ 履歴保存機能未実装（将来改善予定）
+    E1 --> F1[Weather Agent]
+    E2 --> F2[Web Agent]
+    E3 --> F3[MCP Agent]
+    E4 --> F4[Git Agent]
+    E5 --> F5[Command Agent]
+    E6 --> F6[Config Agent]
+    E7 --> F7[LLM Fallback]
 
-#### その他エージェント
-- **Command Agent**: システムコマンド実行
+    F7 --> G[LLM Response Check]
+    G -->|十分な回答| H[Return Response]
+    G -->|不十分| I[Web Search]
+    I --> J[Combine Results]
+    J --> K[AI Re-analysis]
+    K --> H
+
+    F1 --> H
+    F2 --> H
+    F3 --> H
+    F4 --> H
+    F5 --> H
+    F6 --> H
+
+    H --> L[Log & Return]
+```
+
+### 2. MCP自動デバッグフロー
+
+```mermaid
+graph TD
+    A[MCP Request] --> B[Generate Code]
+    B --> C[Auto Debug Loop]
+    C --> D[Syntax Check]
+    D -->|エラー| E[Fix Syntax]
+    D -->|OK| F[Execution Test]
+    F -->|エラー| G[Fix Runtime]
+    F -->|OK| H[Quality Check]
+    H -->|課題| I[Fix Quality]
+    H -->|OK| J[Success]
+
+    E --> K[Attempt Count++]
+    G --> K
+    I --> K
+    K -->|< 10回| C
+    K -->|>= 10回| L[Max Attempts]
+
+    J --> M[Save & Return]
+    L --> N[Return with Errors]
+```
+
+### 3. Web検索フロー
+
+```mermaid
+graph TD
+    A[Web Query] --> B[URL Detection]
+    B -->|URL Found| C[URL Analysis]
+    B -->|No URL| D[Web Search]
+
+    C --> E[Fetch HTML]
+    E --> F[Parse Content]
+    F --> G[Answer Question]
+
+    D --> H[DuckDuckGo Search]
+    H -->|Success| I[Parse Results]
+    H -->|Redirect/Error| J[Handle Redirect]
+    J --> K[Retry with html.duckduckgo.com]
+    K -->|Success| I
+    K -->|Failed| L[Basic Answer]
+
+    I --> M[Format Results]
+    L --> M
+    G --> M
+    M --> N[Return Response]
+```
+
+## 🧩 主要コンポーネント詳細
+
+### 1. 統一インターフェース (main.py)
+
+#### 🎯 Intent Detector
+**責務**: ユーザーの意図を自動検出し適切なエージェントに振り分け
+
+**パターンマッチング**:
+```python
+patterns = {
+    'weather': ['天気', '気温', '降水', '予報', 'weather', 'temperature'],
+    'web': ['検索', 'ググ', 'google', 'search', 'トレンド', 'news'],
+    'mcp': ['開発', '作成', 'コード', 'プログラム', 'プロジェクト', 'アプリ'],
+    'git': ['git', 'commit', 'push', 'pull', 'branch', 'コミット'],
+    'command': ['コマンド', '実行', 'execute', 'discord', 'Discord'],
+    'config': ['設定', 'config', '環境', 'api key', '何ができる']
+}
+```
+
+#### 🚀 Agent Router
+**責務**: 検出された意図に基づいてエージェントを実行
+
+**実行オプション**:
+- `--force-agent`: 特定エージェント強制実行
+- `--provider`: LLMプロバイダー指定 (ollama/gemini/huggingface)
+- `--debug`: デバッグモード（詳細ログ出力）
+
+### 2. LLMエージェント (agent_llm.py)
+
+#### 🧠 マルチプロバイダー対応
+**Gemini API**:
+- モデル: gemini-2.5-flash
+- 制限: 1日250回
+- 特徴: 高速・高品質、日本語対応
+
+**HuggingFace API**:
+- モデル: openai/gpt-oss-20b:groq
+- 制限: レート制限あり
+- 特徴: 中速・安定、英語重視
+
+**Ollama (ローカル)**:
+- モデル: カスタム設定可能
+- 制限: なし
+- 特徴: 低速・無制限、プライベート
+
+#### 📊 履歴管理システム
+```sql
+llm_history テーブル:
+├── session_id (セッション識別)
+├── provider (プロバイダー名)
+├── model (使用モデル)
+├── prompt (入力プロンプト)
+├── response (AI応答)
+├── success (成功/失敗)
+├── response_time (応答時間)
+├── input_chars (入力文字数)
+├── output_chars (出力文字数)
+└── created_at (実行日時)
+```
+
+### 3. MCPエージェント (agent_mcp.py)
+
+#### 🛠️ コード生成モード
+**5つの実行モード**:
+1. **generate**: 単一ファイルコード生成
+2. **project**: 複数ファイルプロジェクト作成
+3. **debug**: 既存コードデバッグ
+4. **optimize**: コード最適化
+5. **design**: 設計書・ドキュメント作成
+
+#### 🔄 自動デバッグループ
+**3段階修正プロセス**:
+1. **構文チェック**: `ast.parse()`による構文検証
+2. **実行テスト**: `subprocess.run()`による実行確認
+3. **品質チェック**: コード品質・ベストプラクティス確認
+
+**最大10回の修正試行**: エラーが消えるまで自動ループ
+
+#### 💾 プロジェクト管理
+- 生成ファイル保存先: `services/mcp/generated_projects/`
+- 自動ファイル名生成: プロンプトベース
+- 実行権限自動付与: Linux/WSL対応
+
+### 4. Webエージェント (agents/specialized/web_agent.py)
+
+#### 🌐 統合検索機能
+**URL解析モード**:
+- URL自動検出・抽出
+- HTML取得・BeautifulSoup解析
+- 質問ベース要約生成
+
+**Web検索モード**:
+- DuckDuckGo検索エンジン
+- リダイレクト対応強化
+- 検索結果5件取得・フォーマット
+
+#### 🔄 フォールバック機能
+**基本回答提供**:
+- 検索失敗時の基本的回答
+- よくある質問への即座対応
+- エラー時の適切なメッセージ
+
+### 5. Gitエージェント (agent_git.py)
+
+#### 🐙 スマートGit操作
+**自動コミットメッセージ生成**:
+- 変更ファイル解析
+- 適切なプレフィックス自動選択 (feat/fix/docs/refactor)
+- 日本語・英語対応
+
+**安全な操作**:
+- aidevブランチ強制
+- mainブランチ保護
+- 危険コマンド防止
+
+### 6. データベースエージェント (agents/agent_db.py)
+
+#### 💾 知識ベース管理
+**3つのテーブル**:
+1. **knowledge_base**: 一般知識・FAQ
+2. **sql_snippets**: SQL実行可能スニペット
+3. **llm_history**: LLM実行履歴
+
+#### 🔍 動的検索
+- キーワードベース検索
+- 関連度スコアリング
+- LLM前の事前知識注入
+
+## ⚙️ 全オプション一覧
+
+### main.py 実行オプション
+
+```bash
+python main.py "プロンプト" [オプション]
+
+必須引数:
+  prompt                プロンプト文字列
+
+オプション引数:
+  -h, --help           ヘルプメッセージ表示
+  --force-agent {weather,web,mcp,git,command,config,llm}
+                       特定エージェントを強制実行
+  --provider {ollama,gemini,huggingface}
+                       LLMプロバイダーを指定
+  --debug              デバッグモード（詳細ログ出力）
+
+使用例:
+  python main.py "今日の天気は？"
+  python main.py "Pythonファイル作成" --force-agent mcp
+  python main.py "質問" --provider ollama --debug
+```
+
+### agent_mcp.py 実行オプション
+
+```bash
+python agents/agent_mcp.py [mode] "プロンプト" [オプション]
+
+モード (第1引数、省略可):
+  generate             コード生成 (デフォルト)
+  project              プロジェクト作成
+  debug                既存コードデバッグ
+  optimize             コード最適化・改善
+  design               設計書・ドキュメント作成
+
+必須引数:
+  prompt               プロンプト文字列
+
+オプション引数:
+  -h, --help          ヘルプメッセージ表示
+  --output OUTPUT     出力ファイル名指定
+  --provider {ollama,gemini,huggingface}
+                      LLMプロバイダー指定
+  --model MODEL       特定モデル名指定
+
+使用例:
+  python agents/agent_mcp.py "計算ツール作成"
+  python agents/agent_mcp.py generate "ツール作成"
+  python agents/agent_mcp.py project "ToDoアプリ" --output todo.py
+  python agents/agent_mcp.py debug "コードを修正" --provider ollama
+```
+
+### agent_llm.py 実行オプション
+
+```bash
+python agents/agent_llm.py "プロンプト" [オプション]
+
+必須引数:
+  prompt               プロンプト文字列
+
+オプション引数:
+  -h, --help          ヘルプメッセージ表示
+  --provider {ollama,gemini,huggingface}
+                      LLMプロバイダー指定
+  --model MODEL       特定モデル名指定
+
+使用例:
+  python agents/agent_llm.py "こんにちはって何語？"
+  python agents/agent_llm.py "質問" --provider gemini
+  python agents/agent_llm.py "技術質問" --provider huggingface
+```
+
+### Web Agent 実行オプション
+
+```bash
+python agents/specialized/web_agent.py "プロンプト"
+
+機能:
+  URL解析              URLを含むプロンプトでサイト解析
+  Web検索             クエリでDuckDuckGo検索
+
+使用例:
+  python agents/specialized/web_agent.py "https://example.com 要約"
+  python agents/specialized/web_agent.py "Python最新情報"
+```
+
+### Git Agent 実行オプション
+
+```bash
+python agents/agent_git.py "gitコマンド"
+
+安全機能:
+  - aidevブランチ強制チェック
+  - 危険コマンド防止
+  - 自動コミットメッセージ生成
+
+使用例:
+  python agents/agent_git.py "status"
+  python agents/agent_git.py "add . && commit -m '修正'"
+  python agents/agent_git.py "push origin aidev"
+```
+
+## 🔧 環境変数・設定
+
+### 必要な環境変数
+```bash
+# Google Gemini API
+export GOOGLE_API_KEY="your_gemini_key"
+
+# HuggingFace API (OpenAI互換)
+export OPENAI_API_KEY="your_hf_key"
+
+# Nature Remo (IoT制御)
+export NATURE_REMO_TOKEN="your_remo_token"
+
+# Discord Bot
+export DISCORD_TOKEN="your_discord_token"
+```
+
+### 設定ファイル
+```
+config/
+├── config.yaml              # メイン設定
+├── llm_config.yaml          # LLM設定
+├── discord_config.yaml      # Discord設定
+├── agent_config.yaml        # エージェント設定
+└── prompt_templates.yaml    # プロンプトテンプレート
+```
+
+## 📊 ログ・モニタリング
+
+### ログファイル構成
+```
+logs/
+├── neurohub_YYYYMMDD.log    # メインシステムログ
+├── mcp.log                  # MCPエージェントログ
+├── database.log             # データベース操作ログ
+├── weather_agent.log        # 天気エージェントログ
+└── git_agent.log           # Git操作ログ
+```
+
+### ログレベル
+- **DEBUG**: 詳細デバッグ情報 (--debugオプション)
+- **INFO**: 通常の動作情報
+- **WARNING**: 警告・注意事項
+- **ERROR**: エラー・例外情報
+
+## 🚀 パフォーマンス特性
+
+### 応答時間目安
+```
+LLM (Gemini):        2-5秒    (高速・高品質)
+LLM (HuggingFace):   3-8秒    (中速・安定)
+LLM (Ollama):        10-30秒  (低速・無制限)
+Web Search:          5-15秒   (ネットワーク依存)
+MCP Generation:      10-60秒  (複雑さ依存)
+Git Operations:      1-3秒    (ローカル操作)
+```
+
+### メモリ使用量
+- **基本実行**: ~50MB
+- **LLM処理**: ~100-200MB
+- **MCP生成**: ~150-300MB
+- **Web解析**: ~80-150MB
+
+## 🔒 セキュリティ
+
+### APIキー管理
+- 環境変数による管理
+- .envファイル対応
+- コミット除外設定
+
+### 実行制限
+- WSL環境推奨
+- aidevブランチ強制
+- 危険コマンド防止
+- ファイル出力先制限
+
+## 📈 拡張性
+
+### 新エージェント追加
+1. `agents/` 以下に実装
+2. `main.py` の `IntentDetector` にパターン追加
+3. `AgentRouter` にルーティング追加
+4. テスト作成・実行
+
+### 新プロバイダー追加
+1. `services/ai/` 以下に実装
+2. 統一インターフェース準拠
+3. エラーハンドリング実装
+4. 設定ファイル更新
+
+## 🎯 今後の計画
+
+### 短期計画 (1-2週間)
+- [ ] NatureRemo API統合
+- [ ] Discord Bot機能強化
+- [ ] Docker完全対応
+- [ ] テストカバレッジ向上
+
+### 中期計画 (1-2ヶ月)
+- [ ] 音声認識・合成
+- [ ] 画像生成・解析
+- [ ] プラグインシステム
+- [ ] Web UI開発
+
+### 長期計画 (3-6ヶ月)
+- [ ] スマートホーム統合
+- [ ] マルチモーダルAI
+- [ ] リアルタイム学習
+- [ ] クラウド展開
+
+---
+
+*最終更新: 2025年11月3日*
+*バージョン: 2.0 - AI統合・Web検索・自動デバッグ対応*
 - **Config Agent**: 設定管理（⚠️ DB保存未実装）
 - **Git Agent**: 基本Git操作
 - **Database Agent**: データベース操作統合管理

@@ -246,7 +246,7 @@ class MCPAgent(BaseAgent):
         print(f"📄 FILES: {', '.join([Path(f).name for f in files_created])}")
         print("="*60)
 
-        # 🧪 詳細実行テスト
+        # 🧪 詳細実行テスト（緊急修正版）
         if extension == '.py':
             print("\n=== 🧪 実行テスト ===")
             test_file = output_file if request.output_path else project_dir / f"main{extension}"
@@ -255,14 +255,16 @@ class MCPAgent(BaseAgent):
             print(f"📁 [Test Location] {test_file}")
             print(f"🐧 [Test Environment] WSL環境での実行テスト")
             
-            # 複数のテストコマンドを実行
+            # 🚨 修正: より厳格なテストケース
             test_commands = [
+                ("", "引数なし実行テスト (最重要)"),      # 最も重要
                 ("--help", "ヘルプ表示テスト"),
-                ("-h", "短縮ヘルプテスト"),
-                ("", "引数なし実行テスト")
+                ("-h", "短縮ヘルプテスト")
             ]
             
             test_results = []
+            critical_failure = False
+            
             for cmd_args, test_desc in test_commands:
                 print(f"\n🔍 [Test Case] {test_desc}")
                 
@@ -274,13 +276,34 @@ class MCPAgent(BaseAgent):
                 test_result = self._detailed_execution_test(test_file, cmd_args, test_desc)
                 test_results.append(test_result)
                 
-                if test_result['success']:
+                # 🚨 重要: 引数なし実行での失敗は致命的
+                if cmd_args == "" and not test_result['success']:
+                    critical_failure = True
+                    print(f"❌ [Critical Failure] {test_desc} 失敗")
+                    print(f"🔧 [Error Details] Return Code: {test_result['returncode']}")
+                    if test_result['error']:
+                        print(f"🔧 [Error Output] {test_result['error'][:300]}")
+                elif test_result['success']:
                     print(f"✅ [Test OK] {test_desc} 成功")
                     if test_result['output']:
                         print(f"📄 [Output] {test_result['output'][:200]}...")
                 else:
                     print(f"❌ [Test Failed] {test_desc} 失敗")
-                    print(f"🔧 [Error] {test_result['error']}")
+                    print(f"🔧 [Error] {test_result['error'][:200] if test_result['error'] else 'No error message'}")
+            
+            # 総合テスト結果（修正版）
+            success_count = sum(1 for r in test_results if r['success'])
+            print(f"\n📊 [Test Summary] {success_count}/{len(test_results)} テストケース成功")
+            
+            # 🚨 重要: 致命的失敗がある場合は全体失敗として扱う
+            if critical_failure:
+                print(f"❌ [Critical Test Failure] 引数なし実行が失敗 - アプリケーション使用不可")
+            elif success_count == len(test_results):
+                print(f"✅ [Test OK] 全テストケース成功")
+            elif success_count > 0:
+                print(f"⚠️ [Test Partial] 部分的成功 - 一部機能に問題あり")
+            else:
+                print(f"❌ [Test Failed] 全テストケース失敗")
             
             # 総合テスト結果
             success_count = sum(1 for r in test_results if r['success'])
@@ -1795,83 +1818,143 @@ wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub/services/mcp/generated_proje
         return fixed_test['success'] or (not original_test['success'] and fixed_test['error'] != original_test['error'])
 
     def _calculate_code_quality_score(self, code: str) -> int:
-        """コード品質スコア計算（厳格版・実行重視）"""
+        """コード品質スコア計算（緊急修正版・実際のエラー検出重視）"""
         score = 100
+        errors_detected = []
         
         # 基本的な品質チェック
         if 'import' not in code:
-            score -= 30  # import文なし（重要）
+            score -= 30
+            errors_detected.append("import文なし")
         
         if 'def ' not in code:
-            score -= 25  # 関数定義なし（重要）
+            score -= 25
+            errors_detected.append("関数定義なし")
         
         if 'if __name__ == "__main__"' not in code:
-            score -= 15  # メイン実行ブロックなし
+            score -= 15
+            errors_detected.append("メイン実行ブロックなし")
         
         if len(code.strip()) < 100:
-            score -= 30  # コードが短すぎ（実用性なし）
+            score -= 30
+            errors_detected.append("コードが短すぎ")
         
         # 構文エラーチェック（厳格）
         syntax_errors = self._strict_syntax_check(code, 'python')
         if syntax_errors:
-            score -= len(syntax_errors) * 40  # 構文エラーあり（重大）
+            score -= len(syntax_errors) * 40
+            errors_detected.extend([f"構文エラー: {e}" for e in syntax_errors])
         
-        # 未定義変数チェック
-        if 'json' in code and 'import json' not in code:
-            score -= 30  # jsonを使用してるがimportなし
-            
-        if 'Dict[' in code and 'from typing import' not in code:
-            score -= 25  # Dict型ヒントを使用してるがimportなし
-            
-        if 'Union[' in code and 'from typing import' not in code:
-            score -= 25  # Union型ヒントを使用してるがimportなし
-            
-        # 未定義変数問題
-        lines = code.split('\n')
-        for line in lines:
-            if 'result_list.append' in line and 'result_list = ' not in code:
-                score -= 30  # 未定義の変数を使用
-                
-            if 'args.options' in line and '.add_argument' not in code:
-                score -= 25  # 定義されていないargument
-                
-            if 'args.py' in line:
-                score -= 25  # 間違った属性名
+        # 🚨 重要: 実際のランタイムエラー検出（緊急追加）
+        runtime_errors = self._detect_runtime_errors(code)
+        if runtime_errors:
+            score -= len(runtime_errors) * 50  # ランタイムエラーは致命的
+            errors_detected.extend([f"ランタイムエラー: {e}" for e in runtime_errors])
         
-        # 実用性チェック
-        if 'calculator' in code.lower() or '計算' in code:
-            # 計算機アプリなのに計算機能がない
-            if '+' not in code and '-' not in code and '*' not in code and '/' not in code:
-                score -= 40
-        
-        # 🚨 実行可能性の厳格チェック（新規追加）
+        # 🚨 重要: 実行テスト（引数なし）での動作確認
         try:
-            exec_test = self._strict_execution_test(code)
-            if not exec_test['success']:
-                score -= 50  # 実行できない場合は大幅減点
-                self.logger.warning(f"実行テスト失敗: {exec_test['error']}")
-        except:
-            score -= 50  # 実行テストでエラー
-        
-        # 🚨 コード論理性チェック（新規追加）
-        # 再帰的な無限ループを検出
-        if 'evaluate_expression(expression)' in code:
-            # evaluate_expression関数内でevaluate_expression(expression)を呼ぶ = 無限ループ
-            func_lines = []
-            in_evaluate_func = False
-            for line in lines:
-                if 'def evaluate_expression(' in line:
-                    in_evaluate_func = True
-                elif line.strip().startswith('def ') and in_evaluate_func:
-                    break
-                elif in_evaluate_func:
-                    func_lines.append(line)
+            import tempfile
+            import subprocess
+            import platform
             
-            # evaluate_expression関数内でevaluate_expression(expression)を呼んでいる
-            func_body = '\n'.join(func_lines)
-            if 'evaluate_expression(expression)' in func_body:
-                score -= 60  # 無限ループは致命的
-                self.logger.warning("無限ループ検出: evaluate_expression内でevaluate_expression(expression)呼び出し")
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as tmp:
+                tmp.write(code)
+                tmp.flush()
+                
+                # WSLでの実行（引数なし）
+                if platform.system() == 'Windows':
+                    wsl_path = tmp.name.replace('C:\\', '/mnt/c/').replace('\\', '/')
+                    cmd = f"wsl bash -c \"python3 '{wsl_path}'\""
+                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=5)
+                else:
+                    result = subprocess.run(['python3', tmp.name], capture_output=True, text=True, timeout=5)
+                
+                # ファイル削除
+                import os
+                os.unlink(tmp.name)
+                
+                # エラーコード1は失敗
+                if result.returncode != 0:
+                    score -= 60  # 実行失敗は致命的
+                    errors_detected.append(f"実行失敗 (exit code: {result.returncode})")
+                    if result.stderr:
+                        # AttributeError等の検出
+                        if 'AttributeError' in result.stderr:
+                            score -= 30  # 追加ペナルティ
+                            errors_detected.append("AttributeError検出")
+                        if 'NameError' in result.stderr:
+                            score -= 30
+                            errors_detected.append("NameError検出")
+                        if 'ImportError' in result.stderr or 'ModuleNotFoundError' in result.stderr:
+                            score -= 25
+                            errors_detected.append("Import関連エラー検出")
+                            
+        except Exception as e:
+            score -= 50
+            errors_detected.append(f"実行テストエラー: {e}")
+        
+        # 未定義変数・属性チェック（強化）
+        lines = code.split('\n')
+        for line_num, line in enumerate(lines, 1):
+            # argparse関連の問題検出
+            if 'argparse' in line and 'import argparse' not in code:
+                score -= 30
+                errors_detected.append(f"行{line_num}: argparse未import")
+            
+            if 'logging' in line and 'import logging' not in code:
+                score -= 25
+                errors_detected.append(f"行{line_num}: logging未import")
+                
+            # 未定義属性アクセス検出
+            if '.show_history' in line and 'show_history' not in [l for l in lines if 'add_argument' in l or 'show_history =' in l]:
+                score -= 40  # 致命的
+                errors_detected.append(f"行{line_num}: 未定義属性show_history")
+        
+        # ログ出力（デバッグ用）
+        if errors_detected:
+            self.logger.warning(f"品質問題検出: {', '.join(errors_detected[:5])}")
+        
+        return max(0, score)
+
+    def _detect_runtime_errors(self, code: str) -> List[str]:
+        """ランタイムエラーの静的解析検出"""
+        errors = []
+        lines = code.split('\n')
+        
+        # argparse関連の一般的な問題
+        has_argparse_import = 'import argparse' in code
+        uses_argparse = any('argparse.' in line or 'ArgumentParser' in line for line in lines)
+        
+        if uses_argparse and not has_argparse_import:
+            errors.append("argparse使用しているがimportなし")
+        
+        # logging関連の問題
+        has_logging_import = 'import logging' in code
+        uses_logging = any('logging.' in line for line in lines)
+        
+        if uses_logging and not has_logging_import:
+            errors.append("logging使用しているがimportなし")
+        
+        # 未定義属性アクセスの検出
+        for line_num, line in enumerate(lines, 1):
+            # args.xxx 形式の属性アクセス
+            import re
+            attr_matches = re.findall(r'args\.(\w+)', line)
+            for attr in attr_matches:
+                # add_argumentで定義されているかチェック
+                defined = False
+                for other_line in lines:
+                    if f"add_argument('--{attr}'" in other_line or f'add_argument("--{attr}"' in other_line:
+                        defined = True
+                        break
+                    if f"add_argument('-{attr[0]}'" in other_line and attr.startswith(other_line.split("'")[1][2:]):
+                        defined = True
+                        break
+                
+                if not defined and attr not in ['help', 'version']:  # 標準属性は除外
+                    errors.append(f"未定義属性: args.{attr} (行{line_num})")
+        
+        return errors
         
         return max(0, score)
 

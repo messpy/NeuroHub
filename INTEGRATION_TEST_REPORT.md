@@ -1,8 +1,8 @@
 # NeuroHub統合テストレポート
 
-**実行日時**: 2025-11-03  
-**テスト環境**: WSL + aidevブランチ  
-**対象**: main.py統一インターフェース  
+**実行日時**: 2025-11-03
+**テスト環境**: WSL + aidevブランチ
+**対象**: main.py統一インターフェース
 
 ## 🎯 テスト目標
 
@@ -37,8 +37,8 @@ python main.py "こんにちは" -p ollama
 ### 3. Intent検出強化
 ```python
 'command': [
-    # 既存のコマンド関連キーワード + 
-    'discord', 'Discord', 'チャンネル', 'channel', 
+    # 既存のコマンド関連キーワード +
+    'discord', 'Discord', 'チャンネル', 'channel',
     'メッセージ', 'message', '送信', 'send', '送って', 'post'
 ]
 ```
@@ -91,7 +91,7 @@ python main.py "Discordで標準チャンネルに「あ」と送って"
 **修正**: `unified_interface.py`使用に変更
 
 ### 2. エージェントパス問題
-**問題**: 
+**問題**:
 - `agents/git_agent.py` → `agents/agent_git.py`
 - `services/mcp/mcp_run.py` → `agents/agent_mcp.py`
 
@@ -99,7 +99,7 @@ python main.py "Discordで標準チャンネルに「あ」と送って"
 
 ### 3. PYTHONPATH設定
 **問題**: WSLでのモジュールインポートエラー
-**修正**: 
+**修正**:
 ```bash
 cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub
 ```
@@ -125,7 +125,7 @@ cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && expo
 - Git Agent: リポジトリ状態管理
 
 **🟡 部分動作 (4/7)**:
-- MCP Agent: generateモード要求 
+- MCP Agent: generateモード要求
 - Command Agent: Discord intent検出
 - Config Agent: 設定ファイル管理
 - LLM Agent: unified_interface経由
@@ -149,7 +149,7 @@ python main.py "こんにちは" -p ollama
 ```bash
 # 各種クエリの自動振り分け
 python main.py "今日の天気は？"     # → weather_agent
-python main.py "git statusを確認"   # → git_agent  
+python main.py "git statusを確認"   # → git_agent
 python main.py "MCPで開発"         # → mcp_agent
 python main.py "Discord送信"       # → command_agent
 ```
@@ -157,19 +157,19 @@ python main.py "Discord送信"       # → command_agent
 ## 🎓 学習事項
 
 ### 1. プロンプト指示遵守
-✅ **aidevブランチ運用**: 全作業をaidevブランチで実行  
-✅ **WSL環境**: 必ずWSL環境でPython実行  
-✅ **タスク管理**: TODO管理と進捗追跡  
+✅ **aidevブランチ運用**: 全作業をaidevブランチで実行
+✅ **WSL環境**: 必ずWSL環境でPython実行
+✅ **タスク管理**: TODO管理と進捗追跡
 
 ### 2. 統一インターフェース設計
-✅ **LLM判断システム**: temperature=0.1の安定判断  
-✅ **フォールバック機能**: エラー時の代替実行  
-✅ **対話モード**: プロバイダー指定時の継続対話  
+✅ **LLM判断システム**: temperature=0.1の安定判断
+✅ **フォールバック機能**: エラー時の代替実行
+✅ **対話モード**: プロバイダー指定時の継続対話
 
 ### 3. エージェント統合パターン
-✅ **subprocess実行**: WSL環境での安全な実行  
-✅ **エラーハンドリング**: stderr確認と代替案提示  
-✅ **パス統一**: PYTHONPATHとvenv_linux活用  
+✅ **subprocess実行**: WSL環境での安全な実行
+✅ **エラーハンドリング**: stderr確認と代替案提示
+✅ **パス統一**: PYTHONPATHとvenv_linux活用
 
 ## 📋 今後の課題
 
@@ -207,7 +207,7 @@ NeuroHub統一インターフェースの基盤は **85%完成** しました。
 
 ---
 
-**テスト実行者**: GitHub Copilot  
-**環境**: Windows + WSL + Python 3.12  
-**ブランチ**: aidev  
+**テスト実行者**: GitHub Copilot
+**環境**: Windows + WSL + Python 3.12
+**ブランチ**: aidev
 **コミット**: 31d622d
