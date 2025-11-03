@@ -41,6 +41,8 @@ discord.py>=2.3.0  # Discord Bot開発
 gTTS>=2.3.0  # Text-to-Speech (Google)
 PyNaCl>=1.5.0  # 音声機能に必要
 aiohttp>=3.8.0  # 非同期HTTP通信（Ollama Vision API用）
+faster-whisper>=0.10.0  # ローカル音声文字起こし（高速・低メモリ）
+openai-whisper>=20231117  # OpenAI Whisperモデル（オプション）
 
 # === オプション: 型チェック ===
 mypy>=1.0.0

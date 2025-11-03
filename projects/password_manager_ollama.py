@@ -1,0 +1,332 @@
+#!/usr/bin/env python3
+"""
+MCPパスワードマネージャー
+Ollama実装版
+"""
+
+import os
+import sys
+import sqlite3
+import hashlib
+import secrets
+from typing import Dict, List, Optional, Any, Union
+from dataclasses import dataclass
+from pathlib import Path
+import json
+import base64
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+
+class DatabaseError(Exception):
+    """データベースエラー"""
+    pass
+
+
+class EncryptionError(Exception):
+    """暗号化エラー"""
+    pass
+
+
+@dataclass
+class PasswordEntry:
+    """パスワードエントリデータクラス"""
+    id: Optional[int] = None
+    site: str = ""
+    username: str = ""
+    password: str = ""
+    notes: str = ""
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class PasswordManager:
+    '''完全なパスワードマネージャークラス'''
+    
+    def __init__(self, db_path: str = "passwords.db"):
+        '''初期化メソッド'''
+        try:
+            self.db_path = db_path
+            self.crypto = Cryptography()
+            self._setup_database()
+        except Exception as e:
+            raise RuntimeError(f"初期化エラー: {e}")
+    
+    def _setup_database(self) -> None:
+        '''データベースセットアップ'''
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS passwords (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    site TEXT NOT NULL,
+                    username TEXT NOT NULL,
+                    password TEXT NOT NULL,
+                    notes TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            raise DatabaseError(f"設定エラー: {e}")
+
+class Cryptography:
+    '''暗号化のためのクラス'''
+    
+    def __init__(self, password: Optional[str] = None):
+        '''暗号化キー初期化'''
+        try:
+            if password:
+                self.key = self._derive_key(password)
+            else:
+                self.key = Fernet.generate_key()
+            self.fernet = Fernet(self.key)
+        except Exception as e:
+            raise EncryptionError(f"暗号化初期化エラー: {e}")
+    
+    def _derive_key(self, password: str) -> bytes:
+        """パスワードから暗号化キーを生成"""
+        try:
+            salt = b'stable_salt_for_mcp'  # 実際のプロダクションでは動的に生成
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=salt,
+                iterations=100000,
+            )
+            key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
+            return key
+        except Exception as e:
+            raise EncryptionError(f"キー生成エラー: {e}")
+    
+    def encrypt(self, data: str) -> str:
+        """データを暗号化"""
+        try:
+            encrypted_bytes = self.fernet.encrypt(data.encode())
+            return base64.urlsafe_b64encode(encrypted_bytes).decode()
+        except Exception as e:
+            raise EncryptionError(f"暗号化エラー: {e}")
+    
+    def decrypt(self, encrypted_data: str) -> str:
+        """データを復号化"""
+        try:
+            encrypted_bytes = base64.urlsafe_b64decode(encrypted_data)
+            decrypted_bytes = self.fernet.decrypt(encrypted_bytes)
+            return decrypted_bytes.decode()
+        except Exception as e:
+            raise EncryptionError(f"復号化エラー: {e}")
+
+
+class DatabaseAgent:
+    '''データベース操作のためのクラス'''
+    
+    def __init__(self, db_path: str):
+        """データベースエージェント初期化"""
+        try:
+            self.db_path = db_path
+            self._init_connection()
+        except Exception as e:
+            raise DatabaseError(f"DB初期化エラー: {e}")
+    
+    def _init_connection(self) -> None:
+        """データベース接続初期化"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.close()
+        except Exception as e:
+            raise DatabaseError(f"接続エラー: {e}")
+    
+    
+    def get_table_schema(self, table_name: str) -> Dict[str, Any]:
+        """テーブルスキーマ取得"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            columns = cursor.fetchall()
+            conn.close()
+            
+            schema = {
+                'table_name': table_name,
+                'columns': [{'name': col[1], 'type': col[2], 'not_null': col[3]} for col in columns]
+            }
+            return schema
+        except Exception as e:
+            raise DatabaseError(f"スキーマ取得エラー: {e}")
+    
+    def execute_query(self, query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
+        """SQLクエリ実行"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            if params:
+                cursor.execute(query, params)
+            else:
+                cursor.execute(query)
+            
+            if query.strip().upper().startswith('SELECT'):
+                results = [dict(row) for row in cursor.fetchall()]
+            else:
+                conn.commit()
+                results = [{'affected_rows': cursor.rowcount}]
+            
+            conn.close()
+            return results
+        except Exception as e:
+            raise DatabaseError(f"クエリ実行エラー: {e}")
+
+
+class MCPPasswordManager:
+    '''MCPパスワードマネージャーメインクラス'''
+    
+    def __init__(self, db_path: str = "passwords.db", master_password: Optional[str] = None):
+        """メインマネージャー初期化"""
+        try:
+            self.password_manager = PasswordManager(db_path)
+            self.crypto = Cryptography(master_password)
+            self.db_agent = DatabaseAgent(db_path)
+        except Exception as e:
+            raise RuntimeError(f"MCPマネージャー初期化エラー: {e}")
+    
+    def add_password(self, site: str, username: str, password: str, notes: str = "") -> bool:
+        """パスワード追加"""
+        try:
+            encrypted_password = self.crypto.encrypt(password)
+            query = """
+                INSERT INTO passwords (site, username, password, notes)
+                VALUES (?, ?, ?, ?)
+            """
+            result = self.db_agent.execute_query(query, (site, username, encrypted_password, notes))
+            return result[0]['affected_rows'] > 0
+        except Exception as e:
+            raise DatabaseError(f"パスワード追加エラー: {e}")
+    
+    def get_password(self, site: str, username: Optional[str] = None) -> List[PasswordEntry]:
+        """パスワード取得"""
+        try:
+            if username:
+                query = "SELECT * FROM passwords WHERE site = ? AND username = ?"
+                params = (site, username)
+            else:
+                query = "SELECT * FROM passwords WHERE site = ?"
+                params = (site,)
+            
+            results = self.db_agent.execute_query(query, params)
+            
+            entries = []
+            for result in results:
+                decrypted_password = self.crypto.decrypt(result['password'])
+                entry = PasswordEntry(
+                    id=result['id'],
+                    site=result['site'],
+                    username=result['username'],
+                    password=decrypted_password,
+                    notes=result['notes'],
+                    created_at=result['created_at'],
+                    updated_at=result['updated_at']
+                )
+                entries.append(entry)
+            
+            return entries
+        except Exception as e:
+            raise DatabaseError(f"パスワード取得エラー: {e}")
+    
+    def list_sites(self) -> List[str]:
+        """サイト一覧取得"""
+        try:
+            query = "SELECT DISTINCT site FROM passwords ORDER BY site"
+            results = self.db_agent.execute_query(query)
+            return [result['site'] for result in results]
+        except Exception as e:
+            raise DatabaseError(f"サイト一覧取得エラー: {e}")
+    
+    def delete_password(self, site: str, username: str) -> bool:
+        """パスワード削除"""
+        try:
+            query = "DELETE FROM passwords WHERE site = ? AND username = ?"
+            result = self.db_agent.execute_query(query, (site, username))
+            return result[0]['affected_rows'] > 0
+        except Exception as e:
+            raise DatabaseError(f"パスワード削除エラー: {e}")
+
+
+def main():
+    """メイン関数 - CLI実行用"""
+    try:
+        print("🔐 MCPパスワードマネージャー")
+        master_password = input("マスターパスワードを入力してください: ")
+        
+        manager = MCPPasswordManager(master_password=master_password)
+        
+        while True:
+            print("\n=== メニュー ===")
+            print("1. パスワード追加")
+            print("2. パスワード取得")
+            print("3. サイト一覧")
+            print("4. パスワード削除")
+            print("5. 終了")
+            
+            choice = input("選択してください (1-5): ")
+            
+            if choice == "1":
+                site = input("サイト名: ")
+                username = input("ユーザー名: ")
+                password = input("パスワード: ")
+                notes = input("メモ (オプション): ")
+                
+                if manager.add_password(site, username, password, notes):
+                    print("✅ パスワードが追加されました")
+                else:
+                    print("❌ パスワード追加に失敗しました")
+            
+            elif choice == "2":
+                site = input("サイト名: ")
+                username = input("ユーザー名 (オプション): ") or None
+                
+                entries = manager.get_password(site, username)
+                if entries:
+                    for entry in entries:
+                        print(f"📝 サイト: {entry.site}")
+                        print(f"👤 ユーザー: {entry.username}")
+                        print(f"🔑 パスワード: {entry.password}")
+                        print(f"📄 メモ: {entry.notes}")
+                        print("-" * 30)
+                else:
+                    print("❌ パスワードが見つかりませんでした")
+            
+            elif choice == "3":
+                sites = manager.list_sites()
+                print("🌐 登録済みサイト:")
+                for site in sites:
+                    print(f"  - {site}")
+            
+            elif choice == "4":
+                site = input("サイト名: ")
+                username = input("ユーザー名: ")
+                
+                if manager.delete_password(site, username):
+                    print("✅ パスワードが削除されました")
+                else:
+                    print("❌ パスワード削除に失敗しました")
+            
+            elif choice == "5":
+                print("👋 終了します")
+                break
+            
+            else:
+                print("❌ 無効な選択です")
+    
+    except KeyboardInterrupt:
+        print("\n👋 終了します")
+    except Exception as e:
+        print(f"❌ エラー: {e}")
+
+
+if __name__ == "__main__":
+    main()

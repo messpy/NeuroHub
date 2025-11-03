@@ -21,6 +21,10 @@ from datetime import datetime
 
 import discord
 from discord.ext import commands
+from dotenv import load_dotenv
+
+# .envファイルの読み込み
+load_dotenv()
 
 # プロジェクトルートをPYTHONPATHに追加
 ROOT = Path(__file__).resolve().parents[2]
@@ -178,11 +182,18 @@ class NeuroHubBot(commands.Bot):
             # プラグイン読み込み
             await self.plugin_manager.load_all_plugins()
 
+            # コマンドリスト表示（デバッグ用）
+            logger.info(f"📋 登録コマンド数: {len(self.commands)}")
+            for cmd in self.commands:
+                logger.info(f"  - {cmd.name} ({cmd.cog_name if cmd.cog else 'No Cog'})")
+
             # ログチャンネルに起動通知
             await self._send_startup_notification()
 
             # データベースにBot起動記録
-            self._log_bot_event('bot_start', {'guilds': len(self.guilds)})        @self.event
+            self._log_bot_event('bot_start', {'guilds': len(self.guilds)})
+
+        @self.event
         async def on_message(message: discord.Message):
             """メッセージ受信時"""
             # Botメッセージは無視
@@ -331,8 +342,12 @@ class NeuroHubBot(commands.Bot):
             admin_config = self.config.get('admin', {})
             log_channel_id = admin_config.get('log_channel_id')
 
+            logger.info(f"📢 起動通知送信開始 - チャンネルID: {log_channel_id}")
+
             if log_channel_id:
                 channel = self.get_channel(int(log_channel_id))
+                logger.info(f"📢 チャンネル取得: {channel}")
+
                 if channel:
                     embed = discord.Embed(
                         title="🚀 NeuroHub Bot 起動",
@@ -344,8 +359,13 @@ class NeuroHubBot(commands.Bot):
                     embed.add_field(name="起動時刻", value=self.start_time.strftime('%Y-%m-%d %H:%M:%S'), inline=True)
 
                     await channel.send(embed=embed)
+                    logger.info("✅ 起動通知送信成功")
+                else:
+                    logger.warning(f"⚠️ チャンネルが見つかりません: {log_channel_id}")
+            else:
+                logger.warning("⚠️ log_channel_idが設定されていません")
         except Exception as e:
-            logger.warning(f"起動通知送信エラー: {e}")
+            logger.error(f"❌ 起動通知送信エラー: {e}", exc_info=True)
 
     def is_admin(self, user_id: int) -> bool:
         """ユーザーが管理者かどうかチェック"""
