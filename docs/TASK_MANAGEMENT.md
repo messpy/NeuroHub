@@ -18,9 +18,10 @@
 | C005 | 仮想環境自動作成 | pip install検知時の自動venv作成 | AI | 🔄 進行中 | 即座 |
 | C006 | Ollama自動セットアップ | PCスペック検出、最適モデル選択、Modelfile生成 | AI | 🔄 進行中 | 即座 |
 | C007 | メインエージェント実装 | main.py: 意図判定→適切なagent呼び出し | AI | ✅ 完了 | 即座 |
+| C008 | MCPエージェント弱いLLM対応 | プロジェクト名生成エラー修正、正規表現ベース命名、構文エラー対策 | AI | ✅ 完了 | 即座 |
 | C001 | LLMエージェントのgit機能重複 | `generate_commit_message`がllm_agentとgit_agentに重複存在 | - | 📋 計画中 | 即座 |
-| C002 | git_smart_agentのチャンク処理失敗 | HuggingFace/Ollamaが英語応答、日本語指示無視 | - | � 計画中 | 即座 |
-| C003 | Geminiクォータ制限 | 1日250回制限で実用性低下 | - | � 計画中 | 即座 |
+| C002 | git_smart_agentのチャンク処理失敗 | HuggingFace/Ollamaが英語応答、日本語指示無視 | - | 📋 計画中 | 即座 |
+| C003 | Geminiクォータ制限 | 1日250回制限で実用性低下 | - | 📋 計画中 | 即座 |
 
 ### 🟡 High Priority
 
@@ -89,13 +90,14 @@ at
 | ✅ DONE-025 | MCP自動コーディング機能強化 | 2025-11-03 | Web/DB検索活用、自動エラー修正、詳細プロンプト構築実装 |
 | ✅ DONE-026 | LLMプロバイダー情報表示 | 2025-11-03 | LLM実行後にプロバイダー・モデル情報を表示する機能追加 |
 | ✅ DONE-027 | セキュアパスワード生成ツール | 2025-11-03 | 完全動作するサンプルツール作成、自動テスト確認済み |
+| ✅ DONE-028 | Web検索エラー修正とAI再解析フロー | 2025-11-03 | DuckDuckGoリダイレクト対応、AI→Web→AI統合フロー実装 |
+| ✅ DONE-029 | エージェント直接実行ガイド作成 | 2025-11-03 | AGENT_DIRECT_EXECUTION_GUIDE.md作成、全オプション・実行例完備 |
+| ✅ DONE-030 | アーキテクチャ設計書v2.0更新 | 2025-11-03 | フロー図・全オプション説明・包括的システム構成図追加 |
 
 ### 🔄 進行中課題
 
 | ID | 課題 | 詳細 | 担当 | 状態 | 期限 |
 |----|------|------|------|------|------|
-| **NEW-001** | Web Agent executeメソッド実装 | AttributeError: 'WebAgent' object has no attribute 'execute' | AI | � 調査中 | 即座 |
-| **NEW-003** | unified_interface.py WebAgent修正 | _execute_web内のexecuteメソッド呼び出しエラー修正 | AI | � 調査中 | 即座 |
 
 ### 🟢 優先度見直し済み
 
@@ -103,6 +105,9 @@ at
 |----|------|------|------|------|------|
 | **RESOLVED-001** | LLMエージェント確実動作 | ✅ Windows環境対応完了、韓国語翻訳テスト成功 | AI | ✅ 完了 | - |
 | **RESOLVED-002** | MCPエージェント確実動作 | ✅ generate モード動作確認、パスワードツール説明生成成功 | AI | ✅ 完了 | - |
+| **RESOLVED-003** | Web Agent execute実装 | ✅ unified_interface.py executeメソッド不足修正完了 | AI | ✅ 完了 | - |
+| **RESOLVED-004** | Web検索エラー修正 | ✅ DuckDuckGoリダイレクト対応、基本回答フォールバック実装 | AI | ✅ 完了 | - |
+| **RESOLVED-005** | AI→Web→AI再解析フロー | ✅ スマートWeb検索判定、LLM回答不十分時の自動Web検索実装 | AI | ✅ 完了 | - |
 
 ---
 
@@ -201,3 +206,4 @@ llm は　gemini huggingface ollama の3つを使用すること
 プロバイダ管理できる機構を追加すること
 requestment にpsutilがない
 servives の中にagentあるのはおかしいので名前を変えるもしくは統一すること
+他のプロバイダーやサービスが増える可能性があるため拡張性機能を持たせること
