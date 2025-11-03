@@ -28,7 +28,7 @@ class IntentDetector:
         """Initialize intent detector with keyword patterns."""
         self.patterns = {
             'weather': [
-                '天気', '気温', '降水', '予報', 'weather', 'temperature', 'forecast',
+                '天気', '気温', '降水', '予報',"今日の" 'weather', 'temperature', 'forecast',
                 '晴れ', '雨', '雪', '曇り', 'sunny', 'rain', 'snow'
             ],
             'web': [
@@ -38,7 +38,7 @@ class IntentDetector:
             'mcp': [
                 '開発', '作成', 'プログラム', 'コード', 'develop', 'code', 'create',
                 'プロジェクト', 'project', 'アプリ', 'app', 'cli', 'ツール', 'tool',
-                '実装', 'implement', 'ファイル作成', 'make file'
+                '実装', 'implement', 'ファイル作成', 'make file,作って'
             ],
             'git': [
                 'git', 'commit', 'push', 'pull', 'branch', 'コミット',
@@ -52,7 +52,7 @@ class IntentDetector:
             ],
             'config': [
                 '設定', 'config', 'configuration', '環境', 'environment',
-                'api key', 'token', 'パラメータ', 'parameter'
+                'api key', 'token', 'パラメータ', 'paramter',"何ができる"
             ]
         }
 
@@ -151,14 +151,14 @@ class AgentRouter:
             import subprocess
             import platform
             print("🛠️ MCP Agent - Code Generation & Project Development")
-            
+
             if platform.system() == "Windows":
                 cmd = f'wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_mcp.py generate \'{prompt}\'"'
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore')
             else:
                 cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_mcp.py generate '{prompt}'"
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash", encoding='utf-8', errors='ignore')
-            
+
             if result.returncode == 0 and result.stdout:
                 return result.stdout.strip()
             else:
@@ -175,14 +175,14 @@ class AgentRouter:
             import subprocess
             import platform
             print("🔧 Git Agent - Repository Management")
-            
+
             if platform.system() == "Windows":
                 cmd = f'wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_git.py --status"'
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             else:
                 cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_git.py --status"
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
-            
+
             if result.returncode == 0:
                 return result.stdout.strip()
             else:
@@ -199,7 +199,7 @@ class AgentRouter:
             import subprocess
             import platform
             print("💻 Command Agent - System Commands & Discord")
-            
+
             if platform.system() == "Windows":
                 # Check if it's a Discord command
                 if 'discord' in prompt.lower() or 'チャンネル' in prompt.lower():
@@ -214,7 +214,7 @@ class AgentRouter:
                 else:
                     cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_command.py '{prompt}'"
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
-            
+
             if result.returncode == 0:
                 return result.stdout.strip()
             else:
@@ -231,14 +231,14 @@ class AgentRouter:
             import subprocess
             import platform
             print("⚙️ Config Agent - Project Configuration")
-            
+
             if platform.system() == "Windows":
                 cmd = f'wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_config.py --status"'
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             else:
                 cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_config.py --status"
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
-            
+
             if result.returncode == 0:
                 return result.stdout.strip()
             else:
@@ -253,12 +253,12 @@ class AgentRouter:
         """Call LLM with specific provider in interactive mode."""
         try:
             import subprocess
-            
+
             # Interactive chat mode with provider
             print(f"🎯 Starting chat with {provider} provider")
             print("📝 Type 'quit' or 'exit' to end conversation")
             print()
-            
+
             while True:
                 # If it's the first prompt, use it
                 if prompt:
@@ -266,14 +266,14 @@ class AgentRouter:
                     prompt = None  # Clear after first use
                 else:
                     user_input = input("You: ").strip()
-                    
+
                 if user_input.lower() in ['quit', 'exit', 'q']:
                     print("👋 Goodbye!")
                     break
-                
+
                 if not user_input:
                     continue
-                    
+
                 try:
                     # Check if user wants to switch to specific agent
                     intent = self.intent_detector.detect(user_input)
@@ -281,7 +281,7 @@ class AgentRouter:
                         response = input(f"🤖 Switch to {intent} agent? (y/n): ").strip().lower()
                         if response in ['y', 'yes']:
                             return self.route(user_input)
-                    
+
                     # Call LLM with provider using unified interface
                     import platform
                     if platform.system() == "Windows":
@@ -290,20 +290,20 @@ class AgentRouter:
                     else:
                         cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 unified_interface.py '{user_input}'"
                         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash", encoding='utf-8', errors='ignore')
-                    
+
                     if result.returncode == 0:
                         print(f"{provider}: {result.stdout.strip()}")
                     else:
                         print(f"❌ Error: {result.stderr.strip()}")
-                        
+
                 except KeyboardInterrupt:
                     print("\n👋 Goodbye!")
                     break
                 except Exception as e:
                     print(f"❌ Error: {e}")
-            
+
             return "Chat session completed"
-            
+
         except Exception as e:
             print(f"⚠️ LLM provider error: {e}")
             print(f"ℹ️ You can use: python services/llm/llm_cli.py '{prompt}' --provider {provider}")
@@ -316,7 +316,7 @@ class AgentRouter:
             import subprocess
             import os
             import platform
-            
+
             # Determine if running on Windows or Linux
             if platform.system() == "Windows":
                 # Use WSL command on Windows
@@ -326,7 +326,7 @@ class AgentRouter:
                 # Direct execution on Linux
                 cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 unified_interface.py '{prompt}'"
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash", encoding='utf-8', errors='ignore')
-            
+
             if result.returncode == 0 and result.stdout:
                 return result.stdout.strip()
             else:
@@ -342,7 +342,7 @@ class AgentRouter:
         try:
             import subprocess
             import platform
-            
+
             # Create temp test file for reliable execution
             temp_file_content = f'''#!/usr/bin/env python3
 import sys
@@ -355,12 +355,17 @@ try:
     result = gc.infer("{prompt}")
     if result.is_success:
         print(result.content)
+        print("\\n" + "="*60)
+        print("🔧 プロバイダー情報:")
+        print(f"   📡 Provider: Gemini")
+        print(f"   🤖 Model: gemini-2.0-flash-exp")
+        print("="*60)
     else:
         print(f"Error: {{result.error}}")
 except Exception as e:
     print(f"Exception: {{e}}")
 '''
-            
+
             if platform.system() == "Windows":
                 with open("temp_llm_test.py", "w", encoding="utf-8") as f:
                     f.write(temp_file_content)
@@ -371,14 +376,14 @@ except Exception as e:
                     f.write(temp_file_content)
                 cmd = 'cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 temp_llm_test.py'
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash", encoding='utf-8', errors='ignore')
-            
+
             # Clean up temp file
             try:
                 import os
                 os.remove("temp_llm_test.py")
             except:
                 pass
-            
+
             if result.returncode == 0 and result.stdout:
                 return result.stdout.strip()
             else:
