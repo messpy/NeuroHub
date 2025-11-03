@@ -1,19 +1,22 @@
-def main():
-    expression = args.expression
+#!/usr/bin/env python3
+
+import sys
+import os
+
+def main(input_file):
+    with open(input_file, "r") as file:
+        data = file.read()
+        result = main(data)
     
-    try:
-        expression = expression.replace(" ", "")
-        
-        if not expression.isnumeric():
-            print("Error: Invalid input.")
-            return
-        
-        # 適切な計算式の表現を求める
-        result = eval(expression)
-        print(f"{expression} = {result}")
-    
-    except Exception as e:
-        print(e)
+    print(f"Input data: {data}")
+    print(f"Result: {result}")
 
 if __name__ == "__main__":
-    main()
+    input_file = sys.argv[1]
+    if os.path.exists(input_file):
+        with open(input_file, "r") as file:
+            data = file.read()
+            result = main(data)
+        
+        print(f"Input data: {data}")
+        print(f"Result: {result}")

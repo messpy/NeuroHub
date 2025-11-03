@@ -1,7 +1,7 @@
-# calculator_app
+# hello_world
 
 ## プロジェクト概要
-数字を入れると前の数字を足す計算アプリを作って
+"Hello, World!"を出力するだけの関数hello_world()を作成し、main関数で呼び出してください。argparseは使用しないでください。
 
 ## プロジェクトファイル
 - main.py - メインエントリーポイント
@@ -20,11 +20,11 @@ python3 main.py
 
 ### WSL環境での実行
 ```bash
-wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub/services/mcp/generated_projects/calculator_app && python3 main.py"
+wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub/services/mcp/generated_projects/hello_world && python3 main.py"
 ```
 
 ## ログ
-ログファイル: logs/calculator_app/*.log
+ログファイル: logs/hello_world/*.log
 
 ## 開発環境
 - OS: Linux (WSL推奨)

@@ -1,7 +1,7 @@
-# calculator_app
+# password_generator
 
 ## プロジェクト概要
-数字を入れると前の数字を足す計算アプリを作って
+パスワード生成を５個作成するもの
 
 ## プロジェクトファイル
 - main.py - メインエントリーポイント
@@ -20,11 +20,11 @@ python3 main.py
 
 ### WSL環境での実行
 ```bash
-wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub/services/mcp/generated_projects/calculator_app && python3 main.py"
+wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub/services/mcp/generated_projects/password_generator && python3 main.py"
 ```
 
 ## ログ
-ログファイル: logs/calculator_app/*.log
+ログファイル: logs/password_generator/*.log
 
 ## 開発環境
 - OS: Linux (WSL推奨)

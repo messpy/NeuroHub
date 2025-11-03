@@ -18,6 +18,7 @@ NeuroHubは、AI駆動のコミットメッセージ生成、チャンク処理�
 - **llm_agent**: 3プロバイダー統合管理（Gemini、HuggingFace、Ollama）・チャンク処理対応
 - **command_agent**: 安全なコマンド実行とログ管理
 - **config_agent**: 設定管理とYAML生成
+- **mcp_agent**: 🔥 プロンプトからコード自動生成・品質チェック・自動修正ループ対応
 
 ### 🌐 MCP強化システム（services/mcp/）✨ NEW
 - **mcp_enhanced**: データベース統合MCPサーバー・14種類のメソッド対応
@@ -313,6 +314,11 @@ python agents/git_smart_agent.py
 # LLMプロバイダーテスト（チャンク処理対応）
 python agents/llm_agent.py
 
+# MCPエージェント - プロンプトからコード自動生成
+python agents/agent_mcp.py generate "パスワード管理ツールを作って" --provider ollama
+python agents/agent_mcp.py project "Webアプリケーション" --project-name my_app
+python agents/agent_mcp.py "計算機アプリ" --provider gemini  # 短縮形
+
 # チャンク処理機能の使用
 python tools/agent_cli.py chunk --file large_file.txt --chunk-size 400
 python tools/agent_cli.py chunk --text "長いテキスト内容..." --chunk-size 300
@@ -544,7 +550,8 @@ NeuroHub/
 │   ├── git_smart_agent.py    # AI Git統合
 │   ├── llm_agent.py          # マルチLLM管理
 │   ├── command_agent.py      # コマンド実行
-│   └── config_agent.py       # 設定管理
+│   ├── config_agent.py       # 設定管理
+│   └── agent_mcp.py          # 🔥 MCP自動コード生成
 ├── services/                  # 🔧 マイクロサービス
 │   ├── agent/                # 独立ユーティリティ
 │   │   ├── weather_agent.py  # 天気予報
@@ -567,6 +574,7 @@ NeuroHub/
 ├── docs/                     # 📚 ドキュメント
 │   ├── MCP_ENHANCEMENT.md    # MCP設計書 ✨NEW
 │   ├── DATABASE_DESIGN.md    # DB設計書 ✨NEW
+│   ├── MCP_AGENT_DESIGN.md   # MCPエージェント設計書 🔥NEW
 │   └── ARCHITECTURE_DESIGN.md # システム設計書
 └── venv_linux/               # 🐧 Linux仮想環境
 ```
@@ -576,6 +584,7 @@ NeuroHub/
 ### ✅ 完全動作確認済み
 - **MCP強化システム**: データベース統合・LLM自発調査・NatureRemo連携 ✨NEW
 - **データベース管理**: 27テーブル統一CRUD・ナレッジベース・LLM履歴追跡 ✨NEW
+- **MCPエージェント**: プロンプト自動コード生成・品質チェック・自動修正ループ 🔥NEW
 - **LLMAgent**: 3プロバイダー統合・自動フォールバック・チャンク処理
 - **git_smart_agent**: AIコミットメッセージ生成・大規模変更対応
 - **プロバイダー接続**: Gemini、HuggingFace、Ollama

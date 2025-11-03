@@ -254,7 +254,7 @@ class MCPAgent(BaseAgent):
         try:
             # 設計書作成
             design_document = self._create_design_document(request, request.project_name)
-            
+
             # メインコード生成
             main_result = self._generate_main_code(request, design_document)
             main_file = project_dir / f"main.py"
@@ -283,10 +283,10 @@ class MCPAgent(BaseAgent):
 
             # プロジェクトテスト
             test_success = self._test_generated_project(project_dir)
-            
+
             # 期待値との比較検証
             validation_success, issues, suggestions = self._validate_against_expectations(project_dir, design_document)
-            
+
             if not validation_success and len(issues) > 2:
                 return self._regenerate_project_with_fixes(request, request.project_name, issues, design_document)
 
@@ -348,7 +348,7 @@ class MCPAgent(BaseAgent):
 
 ## コード要件
 - #!/usr/bin/env python3
-- # -*- coding: utf-8 -*-  
+- # -*- coding: utf-8 -*-
 - 必要なimport文を含める
 - 適切な関数定義
 - if __name__ == "__main__": の構造
@@ -391,33 +391,33 @@ class MCPAgent(BaseAgent):
     def _generate_project_name(self, prompt: str) -> str:
         """プロジェクト名生成"""
         print("🤖 [AI Thinking...] プロジェクト名を正規表現で解析中...")
-        
+
         # 基本的な正規化
         name = re.sub(r'[^\w\s]', '', prompt.lower())
         name = re.sub(r'\s+', '_', name.strip())
         name = name[:50]  # 長さ制限
-        
+
         if not name:
             name = f"project_{hash(prompt) % 10000:04d}"
-        
+
         return self._validate_and_fix_project_name(name)
 
     def _validate_and_fix_project_name(self, name: str) -> str:
         """プロジェクト名検証・修正"""
         # 予約語チェック
         python_keywords = ['and', 'as', 'assert', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'exec', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'not', 'or', 'pass', 'print', 'raise', 'return', 'try', 'while', 'with', 'yield']
-        
+
         if name in python_keywords:
             name = f"{name}_app"
-        
+
         # 数字から始まる場合の修正
         if name and name[0].isdigit():
             name = f"app_{name}"
-        
+
         # 空の場合のデフォルト
         if not name:
             name = "default_project"
-        
+
         return name
 
     # ========================================================================
@@ -565,10 +565,10 @@ class MCPAgent(BaseAgent):
     def _save_generated_code(self, code: str, request: MCPRequest, project_name: str) -> List[str]:
         """生成されたコードを保存"""
         files_created = []
-        
+
         # 拡張子決定
         extension = '.py' if request.language == 'python' else '.txt'
-        
+
         if request.output_path:
             output_file = Path(request.output_path)
             output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -580,10 +580,10 @@ class MCPAgent(BaseAgent):
             output_file = project_dir / f"main{extension}"
             output_file.write_text(code, encoding='utf-8')
             files_created.append(str(output_file))
-            
+
         print(f"✅ [File Created] {files_created[-1]}")
         self.logger.info(f"コード保存: {files_created[-1]}")
-        
+
         return files_created
 
     def _save_readme(self, project_name: str, readme_content: str) -> str:
@@ -599,7 +599,7 @@ class MCPAgent(BaseAgent):
         print("\n" + "=" * 60)
         print("=== 🎉 生成結果 ===")
         print("=" * 60)
-        
+
         # 実行テスト
         for file_path in files_created:
             if file_path.endswith('.py'):
@@ -612,19 +612,19 @@ class MCPAgent(BaseAgent):
     # ========================================================================
     # 省略された関数群（元のコードから移植する必要あり）
     # ========================================================================
-    
+
     def _strict_syntax_check(self, code: str, language: str) -> List[str]:
         """構文チェック（省略 - 元のコードから移植）"""
         pass
-    
+
     def _strict_execution_test(self, code: str) -> dict:
         """実行テスト（省略 - 元のコードから移植）"""
         pass
-    
+
     def _calculate_code_quality_score(self, code: str) -> int:
         """品質スコア計算（省略 - 元のコードから移植）"""
         pass
-    
+
     # 他の必要な関数も同様に移植...
 
 
