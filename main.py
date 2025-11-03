@@ -149,14 +149,20 @@ class AgentRouter:
         """Call MCP agent."""
         try:
             import subprocess
+            import platform
             print("🛠️ MCP Agent - Code Generation & Project Development")
-            cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_mcp.py generate '{prompt}'"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
             
-            if result.returncode == 0:
+            if platform.system() == "Windows":
+                cmd = f'wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_mcp.py generate \'{prompt}\'"'
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore')
+            else:
+                cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_mcp.py generate '{prompt}'"
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash", encoding='utf-8', errors='ignore')
+            
+            if result.returncode == 0 and result.stdout:
                 return result.stdout.strip()
             else:
-                print(f"❌ MCP Error: {result.stderr.strip()}")
+                print(f"❌ MCP Error: {result.stderr.strip() if result.stderr else 'No output'}")
                 return None
         except Exception as e:
             print(f"⚠️ MCP agent error: {e}")
@@ -167,9 +173,15 @@ class AgentRouter:
         """Call git agent."""
         try:
             import subprocess
+            import platform
             print("🔧 Git Agent - Repository Management")
-            cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_git.py --status"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+            
+            if platform.system() == "Windows":
+                cmd = f'wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_git.py --status"'
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            else:
+                cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_git.py --status"
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
             
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -185,14 +197,23 @@ class AgentRouter:
         """Call command agent."""
         try:
             import subprocess
+            import platform
             print("💻 Command Agent - System Commands & Discord")
-            # Check if it's a Discord command
-            if 'discord' in prompt.lower() or 'チャンネル' in prompt.lower():
-                cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 services/discord/bot_message_sender.py '{prompt}'"
-            else:
-                cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_command.py '{prompt}'"
             
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+            if platform.system() == "Windows":
+                # Check if it's a Discord command
+                if 'discord' in prompt.lower() or 'チャンネル' in prompt.lower():
+                    cmd = f'wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 services/discord/bot_message_sender.py \'{prompt}\'"'
+                else:
+                    cmd = f'wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_command.py \'{prompt}\'"'
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            else:
+                # Check if it's a Discord command
+                if 'discord' in prompt.lower() or 'チャンネル' in prompt.lower():
+                    cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 services/discord/bot_message_sender.py '{prompt}'"
+                else:
+                    cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_command.py '{prompt}'"
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
             
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -208,9 +229,15 @@ class AgentRouter:
         """Call config agent."""
         try:
             import subprocess
+            import platform
             print("⚙️ Config Agent - Project Configuration")
-            cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_config.py --status"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+            
+            if platform.system() == "Windows":
+                cmd = f'wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_config.py --status"'
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            else:
+                cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 agents/agent_config.py --status"
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
             
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -256,8 +283,13 @@ class AgentRouter:
                             return self.route(user_input)
                     
                     # Call LLM with provider using unified interface
-                    cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 unified_interface.py '{user_input}'"
-                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+                    import platform
+                    if platform.system() == "Windows":
+                        cmd = f'wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 unified_interface.py \'{user_input}\'"'
+                        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore')
+                    else:
+                        cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 unified_interface.py '{user_input}'"
+                        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash", encoding='utf-8', errors='ignore')
                     
                     if result.returncode == 0:
                         print(f"{provider}: {result.stdout.strip()}")
@@ -282,19 +314,77 @@ class AgentRouter:
         print("🤔 Intent unclear, using LLM fallback...")
         try:
             import subprocess
-            # Call LLM CLI using unified interface
-            cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 unified_interface.py '{prompt}'"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+            import os
+            import platform
             
-            if result.returncode == 0:
+            # Determine if running on Windows or Linux
+            if platform.system() == "Windows":
+                # Use WSL command on Windows
+                cmd = f'wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 unified_interface.py \'{prompt}\'"'
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore')
+            else:
+                # Direct execution on Linux
+                cmd = f"cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 unified_interface.py '{prompt}'"
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash", encoding='utf-8', errors='ignore')
+            
+            if result.returncode == 0 and result.stdout:
                 return result.stdout.strip()
             else:
-                print(f"❌ LLM Error: {result.stderr.strip()}")
-                return None
+                print(f"❌ LLM Error: {result.stderr.strip() if result.stderr else 'No output'}")
+                # Fallback: Try direct LLM call
+                return self._direct_llm_call(prompt)
         except Exception as e:
             print(f"⚠️ LLM fallback error: {e}")
-            print("ℹ️ You can use: python services/llm/llm_cli.py '<prompt>'")
-            return None
+            return self._direct_llm_call(prompt)
+
+    def _direct_llm_call(self, prompt: str) -> str:
+        """Direct LLM call without unified interface."""
+        try:
+            import subprocess
+            import platform
+            
+            # Create temp test file for reliable execution
+            temp_file_content = f'''#!/usr/bin/env python3
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from services.ai.provider_gemini import GeminiConfig
+    gc = GeminiConfig()
+    result = gc.infer("{prompt}")
+    if result.is_success:
+        print(result.content)
+    else:
+        print(f"Error: {{result.error}}")
+except Exception as e:
+    print(f"Exception: {{e}}")
+'''
+            
+            if platform.system() == "Windows":
+                with open("temp_llm_test.py", "w", encoding="utf-8") as f:
+                    f.write(temp_file_content)
+                cmd = 'wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 temp_llm_test.py"'
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore')
+            else:
+                with open("temp_llm_test.py", "w", encoding="utf-8") as f:
+                    f.write(temp_file_content)
+                cmd = 'cd /mnt/c/Users/kenny/sandbox/NeuroHub && source venv_linux/bin/activate && export PYTHONPATH=/mnt/c/Users/kenny/sandbox/NeuroHub && python3 temp_llm_test.py'
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash", encoding='utf-8', errors='ignore')
+            
+            # Clean up temp file
+            try:
+                import os
+                os.remove("temp_llm_test.py")
+            except:
+                pass
+            
+            if result.returncode == 0 and result.stdout:
+                return result.stdout.strip()
+            else:
+                return f"❌ LLM処理エラー: {result.stderr.strip() if result.stderr else 'No output'}"
+        except Exception as e:
+            return f"❌ 直接LLM呼び出しエラー: {e}"
 
 
 def main():
