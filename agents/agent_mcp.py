@@ -189,6 +189,11 @@ class MCPAgent(BaseAgent):
             self.logger.info("自動デバッグモード: エラーが消えるまでループ実行")
             code = self._comprehensive_auto_fix_loop(code, request)
 
+        # 🎯 実装完了後レビュー（新規追加）
+        print("🔍 [AI Final Review] 実装完了後レビュー開始...")
+        code = self._post_implementation_review(code, request)
+        print("✅ [AI Final Review] 実装完了後レビュー完了")
+
         # ファイル保存
         files_created = []
         
@@ -241,15 +246,50 @@ class MCPAgent(BaseAgent):
         print(f"📄 FILES: {', '.join([Path(f).name for f in files_created])}")
         print("="*60)
 
-        # 実行テスト
+        # 🧪 詳細実行テスト
         if extension == '.py':
             print("\n=== 🧪 実行テスト ===")
-            test_result = self._test_python_file(output_file if request.output_path else project_dir / f"main{extension}")
-            if test_result['success']:
+            test_file = output_file if request.output_path else project_dir / f"main{extension}"
+            
+            # WSLでの実行テスト実行
+            print(f"📁 [Test Location] {test_file}")
+            print(f"🐧 [Test Environment] WSL環境での実行テスト")
+            
+            # 複数のテストコマンドを実行
+            test_commands = [
+                ("--help", "ヘルプ表示テスト"),
+                ("-h", "短縮ヘルプテスト"),
+                ("", "引数なし実行テスト")
+            ]
+            
+            test_results = []
+            for cmd_args, test_desc in test_commands:
+                print(f"\n🔍 [Test Case] {test_desc}")
+                
+                # WSLでの実行コマンド構築
+                wsl_path = str(test_file).replace('C:\\', '/mnt/c/').replace('\\', '/')
+                full_command = f"wsl bash -c \"cd /mnt/c/Users/kenny/sandbox/NeuroHub && python3 '{wsl_path}' {cmd_args}\""
+                print(f"💻 [Command] {full_command}")
+                
+                test_result = self._detailed_execution_test(test_file, cmd_args, test_desc)
+                test_results.append(test_result)
+                
+                if test_result['success']:
+                    print(f"✅ [Test OK] {test_desc} 成功")
+                    if test_result['output']:
+                        print(f"📄 [Output] {test_result['output'][:200]}...")
+                else:
+                    print(f"❌ [Test Failed] {test_desc} 失敗")
+                    print(f"🔧 [Error] {test_result['error']}")
+            
+            # 総合テスト結果
+            success_count = sum(1 for r in test_results if r['success'])
+            print(f"\n� [Test Summary] {success_count}/{len(test_results)} テストケース成功")
+            
+            if success_count > 0:
                 print(f"✅ [Test OK] 構文チェック成功")
             else:
-                print(f"❌ [Test Failed] {test_result['error']}")
-                print(f"🔧 [AI Analysis] 構文エラー検出: {test_result['error']}")
+                print(f"❌ [Test Failed] 全テストケース失敗")
 
         # AIレビュー
         print(f"\n=== 🤖 AIレビュー ({self.provider}) ===")
@@ -732,36 +772,59 @@ README内容:
         ))
 
     def _build_system_message(self, request: MCPRequest) -> str:
-        """システムメッセージ構築（弱いLLM対応強化）"""
+        """システムメッセージ構築（品質重視・弱いLLM対応強化）"""
         base_message = f"""あなたは世界最高レベルの{request.language}プログラマーです。
 
-## 厳重な基本方針（必須）
-- 実行可能なPythonコードのみを出力
-- コメント行や説明文は絶対に含めない
-- `python script.py`のような実行コマンドは書かない
-- #!/usr/bin/env python3 で開始
-- 全ての関数は適切にインデント
+## 🚨 最重要ルール（品質重視モード）
+- 実行可能で完璧なPythonコードのみを出力
+- 全ての必要なimport文を忘れずに含める
+- 未定義変数は絶対に使用しない
+- 全ての変数は使用前に定義する
 
-## 弱いLLM向け重要ルール
-1. ❌ 絶対にしてはいけないこと:
-   - `python example_project.py` のような実行コマンドを含める
-   - 説明文やマークダウンを混入させる
-   - インデントを間違える
-   - import文を忘れる
+## ❌ 絶対禁止事項（弱いLLM向け）
+1. `python script.py` のような実行コマンドを含める
+2. 説明文やマークダウンを混入させる
+3. import文を忘れる（json, typing, sys, argparseなど）
+4. 未定義の変数や属性を使用する
+5. インデントを間違える
 
-2. ✅ 必ず含めること:
-   - #!/usr/bin/env python3
-   - # -*- coding: utf-8 -*-
-   - 必要なimport文
-   - main()関数定義
-   - if __name__ == "__main__": main()
+## ✅ 必須要件（品質スコア85%以上）
+1. #!/usr/bin/env python3
+2. # -*- coding: utf-8 -*-
+3. 必要なimport文（json使うならimport json）
+4. typing使うなら from typing import Dict, List, Union
+5. main()関数定義
+6. if __name__ == "__main__": main()
+7. 全ての変数は使用前に定義
+8. argparseを正しく設定（add_argumentで引数定義）
 
-## コード生成要件
-1. 必要なimportステートメントを含む
-2. main関数または実行可能なコード
-3. 適切な関数・クラス設計
-4. docstring完備
-5. 型ヒント使用（Python）
+## 計算機アプリ特別要件
+- 四則演算機能（+, -, *, /）を実装
+- エラーハンドリング（try-except）
+- 対話型またはコマンドライン引数対応
+- 実際に計算できる機能
+
+## コード構造テンプレート
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import argparse
+import sys
+# その他必要なimport
+
+def calculate(a: float, b: float, operation: str) -> float:
+    # 実際の計算機能
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(...) # 適切な引数定義
+    args = parser.parse_args()
+    # メイン処理
+
+if __name__ == "__main__":
+    main()
+```
 6. PEP 8準拠（Python）
 7. コマンドライン引数処理（argparse使用）
 8. 例外処理とエラーメッセージ
@@ -1062,12 +1125,35 @@ README内容:
         return name
 
     def _create_design_document(self, request: MCPRequest, project_name: str) -> str:
-        """設計書を作成（弱いLLM対応・簡潔プロンプト）"""
+        """設計書を作成（2回レビュー付き・弱いLLM対応）"""
         try:
-            print("📋 [AI Thinking...] 設計書作成中...")
+            print("📋 [AI Design Phase 1] 初期設計書作成中...")
             
-            # 弱いLLMのためのシンプルなプロンプト
-            design_prompt = f"""プロジェクト名: {project_name}
+            # 第1回：初期設計書作成
+            initial_design = self._create_initial_design(request, project_name)
+            print("✅ [AI Design Phase 1] 初期設計書完成")
+            
+            print("🔍 [AI Review Phase 1] 第1回レビュー実行中...")
+            # 第1回レビュー
+            reviewed_design = self._review_design_document(initial_design, request, 1)
+            print("✅ [AI Review Phase 1] 第1回レビュー完了")
+            
+            print("🔍 [AI Review Phase 2] 第2回レビュー実行中...")
+            # 第2回レビュー（最終確認）
+            final_design = self._review_design_document(reviewed_design, request, 2)
+            print("✅ [AI Review Phase 2] 最終レビュー完了")
+            
+            print("🎯 [AI Design Complete] 2回レビュー済み設計書完成")
+            return final_design
+
+        except Exception as e:
+            self.logger.error(f"設計書作成エラー: {e}")
+            print(f"❌ [AI Design Error] 設計書作成失敗: {e}")
+            return self._create_fallback_design_document(project_name, request.prompt)
+
+    def _create_initial_design(self, request: MCPRequest, project_name: str) -> str:
+        """初期設計書を作成"""
+        design_prompt = f"""プロジェクト名: {project_name}
 要求: {request.prompt}
 
 設計書を作成してください:
@@ -1116,31 +1202,63 @@ README内容:
 - クラッシュなし
 
 上記の形式で回答してください。"""
+        
+        # 正しいLLMRequest形式
+        request_design = LLMRequest(
+            prompt=design_prompt,
+            system_message="あなたは技術文書作成の専門家です。簡潔で分かりやすい設計書を作成してください。",
+            temperature=0.3,
+            max_tokens=1000
+        )
+        response = self.llm_agent.generate_text(request_design)
+        
+        if response.is_success:
+            print("✅ [AI Generated] LLMで設計書作成成功")
+            return response.content.strip()
+        else:
+            print("⚠️ [AI Fallback] フォールバック設計書使用")
+            return self._create_fallback_design_document(project_name, request.prompt)
+
+    def _review_design_document(self, design: str, request: MCPRequest, review_round: int) -> str:
+        """設計書レビュー（指定回数）"""
+        try:
+            print(f"🔍 [AI Review {review_round}] レビュー実行中...")
             
-            # 正しいLLMRequest形式
-            request_design = LLMRequest(
-                prompt=design_prompt,
-                system_message="あなたは技術文書作成の専門家です。簡潔で分かりやすい設計書を作成してください。",
-                temperature=0.3,
-                max_tokens=1000
+            review_prompt = f"""以下の設計書をレビューしてください（{review_round}回目）：
+
+{design}
+
+レビュー観点：
+1. 機能仕様の完全性
+2. インターフェース設計の妥当性
+3. エラーハンドリングの適切性
+4. 実装可能性
+5. テスト項目の網羅性
+
+改善点があれば修正した設計書を出力してください。
+問題なければ「レビュー承認」と記載してから元の設計書を出力してください。"""
+
+            request_review = LLMRequest(
+                prompt=review_prompt,
+                system_message="あなたは経験豊富なソフトウェア設計レビューアです。品質向上のための建設的な指摘をしてください。",
+                temperature=0.2,
+                max_tokens=1500
             )
-            response = self.llm_agent.generate_text(request_design)
+            
+            response = self.llm_agent.generate_text(request_review)
             
             if response.is_success:
-                print("✅ [AI Generated] LLMで設計書作成成功")
-                return response.content.strip()
+                reviewed_content = response.content.strip()
+                print(f"✅ [AI Review {review_round}] レビュー完了")
+                return reviewed_content
             else:
-                print("⚠️ [AI Fallback] フォールバック設計書使用")
-                return self._create_fallback_design_document(project_name, request.prompt)
+                print(f"⚠️ [AI Review {review_round}] レビュー失敗、元設計書を使用")
+                return design
                 
         except Exception as e:
-            self.logger.warning(f"設計書作成エラー: {e}")
-            print(f"❌ [AI Error] 設計書作成エラー: {e}")
-            return self._create_fallback_design_document(project_name, request.prompt)
-                
-        except Exception as e:
-            self.logger.warning(f"設計書作成エラー: {e}")
-            return self._create_fallback_design_document(project_name, request.prompt)
+            self.logger.warning(f"設計書レビューエラー (Round {review_round}): {e}")
+            print(f"❌ [AI Review {review_round}] レビューエラー: {e}")
+            return design
 
     def _create_fallback_design_document(self, project_name: str, prompt: str) -> str:
         """フォールバック設計書を作成"""
@@ -1271,6 +1389,60 @@ wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub/services/mcp/generated_proje
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
+    def _detailed_execution_test(self, file_path: Path, args: str, test_desc: str) -> dict:
+        """詳細実行テスト（WSL対応）"""
+        try:
+            import subprocess
+            import platform
+            
+            # WSLパス変換
+            wsl_path = str(file_path).replace('C:\\', '/mnt/c/').replace('\\', '/')
+            
+            # プラットフォーム対応コマンド構築
+            if platform.system() == 'Windows':
+                # WSLでの実行
+                command = f"wsl bash -c \"cd /mnt/c/Users/kenny/sandbox/NeuroHub && python3 '{wsl_path}' {args}\""
+                shell_command = ['powershell', '-Command', command]
+            else:
+                # 直接実行（Linux/Mac）
+                shell_command = ['python3', str(file_path)] + args.split() if args else ['python3', str(file_path)]
+            
+            print(f"⚡ [Executing] {' '.join(shell_command) if isinstance(shell_command, list) else shell_command}")
+            
+            # 実行
+            result = subprocess.run(
+                shell_command,
+                capture_output=True, 
+                text=True, 
+                timeout=10,
+                shell=not isinstance(shell_command, list)
+            )
+            
+            return {
+                'success': result.returncode == 0,
+                'output': result.stdout,
+                'error': result.stderr,
+                'returncode': result.returncode,
+                'test_description': test_desc
+            }
+            
+        except subprocess.TimeoutExpired:
+            return {
+                'success': False,
+                'output': '',
+                'error': 'テスト実行タイムアウト（10秒）',
+                'returncode': -1,
+                'test_description': test_desc
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'実行エラー: {str(e)}',
+                'returncode': -1,
+                'test_description': test_desc
+            }
+
     def _validate_against_expectations(self, project_path: Path, design_doc: str) -> tuple[bool, list[str], list[str]]:
         """期待値との比較検証"""
         issues = []
@@ -1400,70 +1572,394 @@ wsl bash -c "cd /mnt/c/Users/kenny/sandbox/NeuroHub/services/mcp/generated_proje
         return self._generate_project(improved_request)
 
     def _comprehensive_auto_fix_loop(self, code: str, request: MCPRequest) -> str:
-        """包括的な自動修正ループ - エラーが消えるまで最大10回試行"""
+        """包括的な自動修正ループ - 品質重視で厳格な検証"""
         try:
-            max_attempts = 10
+            max_attempts = 5  # 品質重視のため試行回数を減らし、各修正を厳格に検証
             current_code = code
+            previous_codes = set()  # 無限ループ防止
 
-            self.logger.info(f"🔄 自動修正開始: 最大{max_attempts}回試行")
+            self.logger.info(f"🔄 品質重視自動修正開始: 最大{max_attempts}回試行")
+            print(f"🔧 [AI Quality Mode] 品質重視の厳格な修正開始...")
 
             for attempt in range(max_attempts):
                 self.logger.info(f"📝 修正試行 {attempt + 1}/{max_attempts}")
+                print(f"🔍 [AI Checking] 修正試行 {attempt + 1}/{max_attempts}")
 
-                # 1. 構文チェック
-                syntax_errors = self._check_syntax_errors(current_code, request.language)
+                # 無限ループ検出
+                code_hash = hash(current_code)
+                if code_hash in previous_codes:
+                    self.logger.warning("🔄 同一コード検出: 修正ループを停止")
+                    print("⚠️ [AI Loop Detected] 修正ループ検出、停止")
+                    break
+                previous_codes.add(code_hash)
+
+                # 1. 厳格な構文チェック
+                syntax_errors = self._strict_syntax_check(current_code, request.language)
                 if syntax_errors:
                     self.logger.warning(f"構文エラー検出: {len(syntax_errors)}件")
+                    print(f"❌ [AI Error] 構文エラー {len(syntax_errors)}件検出")
                     for error in syntax_errors:
                         self.logger.warning(f"  - {error}")
+                        print(f"   - {error}")
 
-                    # 構文エラー修正
-                    fixed_code = self._fix_syntax_errors(current_code, syntax_errors, request)
-                    if fixed_code != current_code:
+                    # 厳格な構文修正
+                    fixed_code = self._strict_syntax_fix(current_code, syntax_errors, request)
+                    if self._validate_fix_quality(current_code, fixed_code, syntax_errors):
                         current_code = fixed_code
                         self.logger.info("✅ 構文エラー修正適用")
+                        print("✅ [AI Fixed] 構文エラー修正成功")
                         continue
+                    else:
+                        self.logger.warning("❌ 修正品質不良: 構文修正をスキップ")
+                        print("❌ [AI Quality] 修正品質不良、スキップ")
 
-                # 2. 実行テスト
+                # 2. 厳格な実行テスト
                 if request.language == 'python':
-                    execution_errors = self._test_code_execution(current_code)
-                    if execution_errors:
-                        self.logger.warning(f"実行エラー検出: {len(execution_errors)}件")
-                        for error in execution_errors:
-                            self.logger.warning(f"  - {error}")
+                    execution_result = self._strict_execution_test(current_code)
+                    if not execution_result['success']:
+                        self.logger.warning(f"実行エラー検出: {execution_result['error']}")
+                        print(f"❌ [AI Runtime] 実行エラー: {execution_result['error']}")
 
-                        # 実行エラー修正
-                        fixed_code = self._fix_execution_errors(current_code, execution_errors, request)
-                        if fixed_code != current_code:
+                        # 厳格な実行修正
+                        fixed_code = self._strict_execution_fix(current_code, execution_result['error'], request)
+                        if self._validate_execution_improvement(current_code, fixed_code):
                             current_code = fixed_code
                             self.logger.info("✅ 実行エラー修正適用")
+                            print("✅ [AI Fixed] 実行エラー修正成功")
                             continue
+                        else:
+                            self.logger.warning("❌ 修正効果なし: 実行修正をスキップ")
+                            print("❌ [AI Quality] 修正効果なし、スキップ")
 
-                # 3. 品質チェック
-                quality_issues = self._check_code_quality(current_code, request.language)
-                if quality_issues:
-                    self.logger.info(f"品質改善項目: {len(quality_issues)}件")
+                # 3. 最終品質検証
+                quality_score = self._calculate_code_quality_score(current_code)
+                if quality_score >= 85:  # 85%以上の品質を要求
+                    self.logger.info(f"🎉 高品質修正完了: {attempt + 1}回で品質スコア{quality_score}%")
+                    print(f"🎉 [AI Success] 高品質修正完了 (品質スコア: {quality_score}%)")
+                    break
+                else:
+                    print(f"📊 [AI Quality] 現在の品質スコア: {quality_score}% (目標: 85%)")
 
-                    # 重要な品質問題のみ修正
-                    critical_issues = [issue for issue in quality_issues if 'import' in issue or 'function' in issue]
-                    if critical_issues:
-                        fixed_code = self._fix_quality_issues(current_code, critical_issues, request)
-                        if fixed_code != current_code:
-                            current_code = fixed_code
-                            self.logger.info("✅ 品質改善適用")
-                            continue
-
-                # 4. エラーなし: 成功
-                self.logger.info(f"🎉 自動修正完了: {attempt + 1}回で修正完了")
-                break
+                # 4. 基本的な完全性チェック
+                if self._is_code_basically_complete(current_code):
+                    self.logger.info(f"✅ 基本修正完了: {attempt + 1}回で基本品質達成")
+                    print(f"✅ [AI Complete] 基本修正完了 ({attempt + 1}回)")
+                    break
 
             else:
-                self.logger.warning(f"⚠️ 自動修正上限到達: {max_attempts}回で完全修正できませんでした")
+                self.logger.warning(f"⚠️ 修正上限到達: {max_attempts}回で目標品質に未達")
+                print(f"⚠️ [AI Limit] 修正上限到達、現在の状態で完了")
 
+            # 最終検証
+            final_score = self._calculate_code_quality_score(current_code)
+            print(f"📊 [AI Final] 最終品質スコア: {final_score}%")
+            
             return current_code
 
         except Exception as e:
             self.logger.error(f"自動修正ループエラー: {e}")
+            print(f"❌ [AI Error] 自動修正エラー: {e}")
+            return code
+
+    def _strict_syntax_check(self, code: str, language: str) -> List[str]:
+        """厳格な構文チェック"""
+        errors = []
+        try:
+            if language == 'python':
+                compile(code, '<string>', 'exec')
+        except SyntaxError as e:
+            error_msg = f"SyntaxError: {e.msg}"
+            if e.lineno:
+                error_msg += f" (line {e.lineno})"
+            errors.append(error_msg)
+        except Exception as e:
+            errors.append(f"CompileError: {str(e)}")
+        return errors
+
+    def _strict_execution_test(self, code: str) -> dict:
+        """厳格な実行テスト（Windows対応）"""
+        try:
+            import tempfile
+            import subprocess
+            import platform
+
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as tmp:
+                tmp.write(code)
+                tmp.flush()
+
+                # Windows環境ではpythonを使用
+                python_cmd = 'python' if platform.system() == 'Windows' else 'python3'
+
+                # 基本的な実行テスト
+                result = subprocess.run(
+                    [python_cmd, tmp.name, '--help'],
+                    capture_output=True, text=True, timeout=10
+                )
+
+                # ファイル削除
+                import os
+                os.unlink(tmp.name)
+
+                return {
+                    'success': result.returncode == 0,
+                    'error': result.stderr if result.returncode != 0 else None,
+                    'output': result.stdout
+                }
+
+        except Exception as e:
+            return {'success': False, 'error': str(e), 'output': ''}
+
+    def _strict_syntax_fix(self, code: str, errors: List[str], request: MCPRequest) -> str:
+        """厳格な構文修正"""
+        fixed_code = code
+        
+        for error in errors:
+            if 'was never closed' in error:
+                # 括弧の未閉じを修正
+                open_parens = code.count('(')
+                close_parens = code.count(')')
+                if open_parens > close_parens:
+                    fixed_code += ')' * (open_parens - close_parens)
+            
+            elif 'invalid syntax' in error and 'line' in error:
+                # 特定行の修正
+                try:
+                    import re
+                    line_match = re.search(r'line (\d+)', error)
+                    if line_match:
+                        line_num = int(line_match.group(1)) - 1
+                        lines = fixed_code.split('\n')
+                        if 0 <= line_num < len(lines):
+                            problematic_line = lines[line_num]
+                            # 明らかな問題を修正
+                            if problematic_line.strip().startswith('python '):
+                                lines[line_num] = f"# {problematic_line}"  # コメント化
+                            fixed_code = '\n'.join(lines)
+                except:
+                    pass
+        
+        return fixed_code
+
+    def _strict_execution_fix(self, code: str, error: str, request: MCPRequest) -> str:
+        """厳格な実行修正"""
+        fixed_code = code
+        
+        if 'ModuleNotFoundError' in error:
+            # 必要なimportを追加
+            missing_modules = []
+            import re
+            module_match = re.search(r"No module named '(\w+)'", error)
+            if module_match:
+                module = module_match.group(1)
+                if f'import {module}' not in fixed_code:
+                    # ファイル先頭にimport追加
+                    lines = fixed_code.split('\n')
+                    import_line = f'import {module}'
+                    
+                    # shebangやencoding行の後に追加
+                    insert_pos = 0
+                    for i, line in enumerate(lines):
+                        if line.startswith('#!') or 'coding:' in line:
+                            insert_pos = i + 1
+                        else:
+                            break
+                    
+                    lines.insert(insert_pos, import_line)
+                    fixed_code = '\n'.join(lines)
+        
+        return fixed_code
+
+    def _validate_fix_quality(self, original: str, fixed: str, errors: List[str]) -> bool:
+        """修正品質の検証"""
+        if original == fixed:
+            return False  # 修正されていない
+        
+        # 基本的な品質チェック
+        if len(fixed) < len(original) * 0.5:
+            return False  # 大幅に短くなった（削除しすぎ）
+        
+        if len(fixed) > len(original) * 2:
+            return False  # 大幅に長くなった（追加しすぎ）
+        
+        return True
+
+    def _validate_execution_improvement(self, original: str, fixed: str) -> bool:
+        """実行改善の検証"""
+        if original == fixed:
+            return False
+        
+        # 簡単な改善チェック
+        original_test = self._strict_execution_test(original)
+        fixed_test = self._strict_execution_test(fixed)
+        
+        return fixed_test['success'] or (not original_test['success'] and fixed_test['error'] != original_test['error'])
+
+    def _calculate_code_quality_score(self, code: str) -> int:
+        """コード品質スコア計算（厳格版・実行重視）"""
+        score = 100
+        
+        # 基本的な品質チェック
+        if 'import' not in code:
+            score -= 30  # import文なし（重要）
+        
+        if 'def ' not in code:
+            score -= 25  # 関数定義なし（重要）
+        
+        if 'if __name__ == "__main__"' not in code:
+            score -= 15  # メイン実行ブロックなし
+        
+        if len(code.strip()) < 100:
+            score -= 30  # コードが短すぎ（実用性なし）
+        
+        # 構文エラーチェック（厳格）
+        syntax_errors = self._strict_syntax_check(code, 'python')
+        if syntax_errors:
+            score -= len(syntax_errors) * 40  # 構文エラーあり（重大）
+        
+        # 未定義変数チェック
+        if 'json' in code and 'import json' not in code:
+            score -= 30  # jsonを使用してるがimportなし
+            
+        if 'Dict[' in code and 'from typing import' not in code:
+            score -= 25  # Dict型ヒントを使用してるがimportなし
+            
+        if 'Union[' in code and 'from typing import' not in code:
+            score -= 25  # Union型ヒントを使用してるがimportなし
+            
+        # 未定義変数問題
+        lines = code.split('\n')
+        for line in lines:
+            if 'result_list.append' in line and 'result_list = ' not in code:
+                score -= 30  # 未定義の変数を使用
+                
+            if 'args.options' in line and '.add_argument' not in code:
+                score -= 25  # 定義されていないargument
+                
+            if 'args.py' in line:
+                score -= 25  # 間違った属性名
+        
+        # 実用性チェック
+        if 'calculator' in code.lower() or '計算' in code:
+            # 計算機アプリなのに計算機能がない
+            if '+' not in code and '-' not in code and '*' not in code and '/' not in code:
+                score -= 40
+        
+        # 🚨 実行可能性の厳格チェック（新規追加）
+        try:
+            exec_test = self._strict_execution_test(code)
+            if not exec_test['success']:
+                score -= 50  # 実行できない場合は大幅減点
+                self.logger.warning(f"実行テスト失敗: {exec_test['error']}")
+        except:
+            score -= 50  # 実行テストでエラー
+        
+        # 🚨 コード論理性チェック（新規追加）
+        # 再帰的な無限ループを検出
+        if 'evaluate_expression(expression)' in code:
+            # evaluate_expression関数内でevaluate_expression(expression)を呼ぶ = 無限ループ
+            func_lines = []
+            in_evaluate_func = False
+            for line in lines:
+                if 'def evaluate_expression(' in line:
+                    in_evaluate_func = True
+                elif line.strip().startswith('def ') and in_evaluate_func:
+                    break
+                elif in_evaluate_func:
+                    func_lines.append(line)
+            
+            # evaluate_expression関数内でevaluate_expression(expression)を呼んでいる
+            func_body = '\n'.join(func_lines)
+            if 'evaluate_expression(expression)' in func_body:
+                score -= 60  # 無限ループは致命的
+                self.logger.warning("無限ループ検出: evaluate_expression内でevaluate_expression(expression)呼び出し")
+        
+        return max(0, score)
+
+    def _is_code_basically_complete(self, code: str) -> bool:
+        """基本的な完全性チェック"""
+        # 最低限の要件
+        has_import = 'import' in code
+        has_function = 'def ' in code
+        has_main = 'if __name__ == "__main__"' in code
+        no_syntax_errors = len(self._strict_syntax_check(code, 'python')) == 0
+        
+        return has_import and has_function and has_main and no_syntax_errors
+
+    def _post_implementation_review(self, code: str, request: MCPRequest) -> str:
+        """実装完了後の最終レビュー"""
+        try:
+            print("🔍 [AI Post Review] 実装コードの最終レビュー実行中...")
+            
+            # 現在の品質スコアを計算
+            quality_score = self._calculate_code_quality_score(code)
+            print(f"📊 [AI Quality Check] 実装品質スコア: {quality_score}%")
+            
+            if quality_score >= 85:
+                print("✅ [AI Quality Approved] 高品質実装確認（85%以上）")
+                return code
+            
+            # 品質が不十分な場合、レビューによる改善を試行
+            review_prompt = f"""以下の実装コードをレビューして改善してください：
+
+```python
+{code}
+```
+
+要求仕様: {request.prompt}
+
+レビュー観点：
+1. 構文エラーの有無
+2. 実行可能性
+3. 機能の完全性
+4. エラーハンドリング
+5. コードの品質
+
+現在の品質スコア: {quality_score}%
+目標: 85%以上
+
+改善されたコードを出力してください。"""
+
+            request_review = LLMRequest(
+                prompt=review_prompt,
+                system_message="あなたは熟練のコードレビューアです。実行可能で高品質なコードに改善してください。",
+                temperature=0.2,
+                max_tokens=2000
+            )
+            
+            response = self.llm_agent.generate_text(request_review)
+            
+            if response.is_success:
+                reviewed_code = response.content.strip()
+                
+                # コードブロックから抽出
+                if '```python' in reviewed_code:
+                    start = reviewed_code.find('```python') + 9
+                    end = reviewed_code.find('```', start)
+                    if end > start:
+                        reviewed_code = reviewed_code[start:end].strip()
+                elif '```' in reviewed_code:
+                    start = reviewed_code.find('```') + 3
+                    end = reviewed_code.find('```', start)
+                    if end > start:
+                        reviewed_code = reviewed_code[start:end].strip()
+                
+                # レビュー後の品質スコアチェック
+                new_quality_score = self._calculate_code_quality_score(reviewed_code)
+                print(f"📊 [AI Review Result] レビュー後品質スコア: {new_quality_score}%")
+                
+                if new_quality_score > quality_score:
+                    print("✅ [AI Review Success] レビューにより品質向上")
+                    return reviewed_code
+                else:
+                    print("⚠️ [AI Review Warning] レビュー効果なし、元コード使用")
+                    return code
+            else:
+                print("❌ [AI Review Failed] レビュー失敗、元コード使用")
+                return code
+                
+        except Exception as e:
+            self.logger.warning(f"実装後レビューエラー: {e}")
+            print(f"❌ [AI Review Error] レビューエラー: {e}")
             return code
 
     def _test_code_execution(self, code: str) -> List[str]:
@@ -2058,13 +2554,6 @@ def main():
         print("\nメタデータ:")
         for key, value in result.metadata.items():
             print(f"  {key}: {value}")
-
-    # コード表示（generateモード）
-    if mode == 'generate' and result.success and not args.output:
-        print("\n生成コード:")
-        print("-" * 60)
-        print(result.content)
-        print("-" * 60)
 
     sys.exit(0 if result.success else 1)
 
