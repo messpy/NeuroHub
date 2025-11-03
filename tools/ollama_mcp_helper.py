@@ -14,18 +14,18 @@ from datetime import datetime
 
 class OllamaMCPHelper:
     """Ollama MCP実装補助クラス"""
-    
+
     def __init__(self, db_path: str = "data/ollama_mcp_helper.db"):
         """
         初期化
-        
+
         Args:
             db_path: ヘルパーDB のパス
         """
         self.db_path = db_path
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self._init_database()
-    
+
     def _init_database(self):
         """ヘルパーデータベースの初期化"""
         with sqlite3.connect(self.db_path) as conn:
@@ -39,7 +39,7 @@ class OllamaMCPHelper:
                     requirements TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
-                
+
                 CREATE TABLE IF NOT EXISTS ollama_tips (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     tip_category TEXT NOT NULL,
@@ -48,7 +48,7 @@ class OllamaMCPHelper:
                     example_code TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
-                
+
                 CREATE TABLE IF NOT EXISTS common_errors (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     error_type TEXT NOT NULL,
@@ -58,18 +58,18 @@ class OllamaMCPHelper:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
-    
-    def add_mcp_pattern(self, category: str, pattern_name: str, 
-                       description: str, code_template: str, 
+
+    def add_mcp_pattern(self, category: str, pattern_name: str,
+                       description: str, code_template: str,
                        requirements: str = ""):
         """MCPパターンをDBに追加"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
-                INSERT INTO mcp_patterns 
+                INSERT INTO mcp_patterns
                 (category, pattern_name, description, code_template, requirements)
                 VALUES (?, ?, ?, ?, ?)
             """, (category, pattern_name, description, code_template, requirements))
-    
+
     def get_mcp_patterns(self, category: str = None) -> List[Dict[str, Any]]:
         """MCPパターンを取得"""
         with sqlite3.connect(self.db_path) as conn:
@@ -84,17 +84,17 @@ class OllamaMCPHelper:
                     "SELECT * FROM mcp_patterns ORDER BY category, created_at DESC"
                 )
             return [dict(row) for row in cursor.fetchall()]
-    
-    def add_ollama_tip(self, tip_category: str, title: str, 
+
+    def add_ollama_tip(self, tip_category: str, title: str,
                       content: str, example_code: str = ""):
         """Ollama使用のコツをDBに追加"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
-                INSERT INTO ollama_tips 
+                INSERT INTO ollama_tips
                 (tip_category, title, content, example_code)
                 VALUES (?, ?, ?, ?)
             """, (tip_category, title, content, example_code))
-    
+
     def get_ollama_tips(self, category: str = None) -> List[Dict[str, Any]]:
         """Ollama使用のコツを取得"""
         with sqlite3.connect(self.db_path) as conn:
@@ -109,31 +109,31 @@ class OllamaMCPHelper:
                     "SELECT * FROM ollama_tips ORDER BY tip_category, created_at DESC"
                 )
             return [dict(row) for row in cursor.fetchall()]
-    
+
     def add_common_error(self, error_type: str, error_message: str,
                         solution: str, prevention_tip: str = ""):
         """よくあるエラーと解決策をDBに追加"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
-                INSERT INTO common_errors 
+                INSERT INTO common_errors
                 (error_type, error_message, solution, prevention_tip)
                 VALUES (?, ?, ?, ?)
             """, (error_type, error_message, solution, prevention_tip))
-    
+
     def search_error_solution(self, error_keyword: str) -> List[Dict[str, Any]]:
         """エラーキーワードで解決策を検索"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute("""
-                SELECT * FROM common_errors 
+                SELECT * FROM common_errors
                 WHERE error_message LIKE ? OR solution LIKE ?
                 ORDER BY created_at DESC
             """, (f"%{error_keyword}%", f"%{error_keyword}%"))
             return [dict(row) for row in cursor.fetchall()]
-    
+
     def generate_password_manager_prompt(self) -> str:
         """Ollama用最適化パスワードマネージャープロンプトを生成"""
-        
+
         # 基本要件
         base_requirements = """
 # Ollama MCP パスワードマネージャー実装
@@ -159,7 +159,7 @@ class OllamaMCPHelper:
             structure_info = """
 ### 基本構造
 - src/: メインロジック
-- api/: FastAPI エンドポイント  
+- api/: FastAPI エンドポイント
 - cli/: コマンドラインインターフェース
 - tests/: テストファイル
 """
@@ -210,7 +210,7 @@ SQLite、FastAPI、Click、cryptographyを使用して、以下のファイル�
 def initialize_helper_data():
     """ヘルパーデータの初期化"""
     helper = OllamaMCPHelper()
-    
+
     # MCPパターンの追加
     helper.add_mcp_pattern(
         "password_manager",
@@ -219,7 +219,7 @@ def initialize_helper_data():
         """
 class PasswordManager:
     '''完全なパスワードマネージャークラス'''
-    
+
     def __init__(self, db_path: str = "passwords.db"):
         '''初期化メソッド'''
         try:
@@ -227,7 +227,7 @@ class PasswordManager:
             self._setup_database()
         except Exception as e:
             raise RuntimeError(f"初期化エラー: {e}")
-    
+
     def _setup_database(self) -> None:
         '''データベースセットアップ'''
         try:
@@ -238,9 +238,9 @@ class PasswordManager:
 """,
         "sqlite3, typing"
     )
-    
+
     helper.add_mcp_pattern(
-        "password_manager", 
+        "password_manager",
         "エラーハンドリング",
         "Ollama実装でエラーを避けるためのパターン",
         """
@@ -249,11 +249,11 @@ def safe_operation(self, data: str) -> Optional[str]:
     try:
         if not data:
             raise ValueError("データが空です")
-        
+
         # メイン処理
         result = self._process_data(data)
         return result
-        
+
     except ValueError as e:
         self.logger.error(f"値エラー: {e}")
         return None
@@ -263,7 +263,7 @@ def safe_operation(self, data: str) -> Optional[str]:
 """,
         "logging, typing"
     )
-    
+
     # Ollamaのコツを追加
     helper.add_ollama_tip(
         "mcp_implementation",
@@ -273,70 +273,70 @@ def safe_operation(self, data: str) -> Optional[str]:
 def example_function(param: str) -> str:
     """
     関数の説明
-    
+
     Args:
         param: パラメータの説明
-        
+
     Returns:
         戻り値の説明
-        
+
     Raises:
         ValueError: エラーの説明
     """
     pass
 '''
     )
-    
+
     helper.add_ollama_tip(
         "mcp_implementation",
         "型ヒント完備",
         "from typing import List, Dict, Optional, Any を使用し、すべての引数と戻り値に型を指定する",
         "from typing import List, Dict, Optional, Any, Union"
     )
-    
+
     # 共通エラーと解決策を追加
     helper.add_common_error(
         "MCP実装",
-        "関数またはクラス定義がありません", 
+        "関数またはクラス定義がありません",
         "すべての関数定義で def キーワードを使用し、クラス定義で class キーワードを使用する。コロン(:)を忘れずに記述する",
         "class MyClass: と def my_function(): の形式を確認"
     )
-    
+
     helper.add_common_error(
         "MCP実装",
         "docstringが不足している可能性があります",
         "三重引用符（\"\"\"）を使用してdocstringを追加する。関数・クラスの直後に配置する",
         "def function():\\n    \"\"\"関数の説明\"\"\"\\n    pass の形式"
     )
-    
+
     helper.add_common_error(
-        "MCP実装", 
+        "MCP実装",
         "エラーハンドリングが不足している可能性があります",
         "try-except文を使用してエラーハンドリングを追加する。適切な例外クラスを指定する",
         "重要な処理はtry-except文で囲み、ログ出力も追加"
     )
-    
+
     print("✅ Ollama MCP ヘルパーデータの初期化完了")
     return helper
 
 if __name__ == "__main__":
     helper = initialize_helper_data()
-    
+
     print("\n📋 利用可能なMCPパターン:")
     patterns = helper.get_mcp_patterns()
     for pattern in patterns:
         print(f"  - {pattern['pattern_name']}: {pattern['description']}")
-    
+
     print("\n💡 Ollama実装のコツ:")
     tips = helper.get_ollama_tips()
     for tip in tips:
         print(f"  - {tip['title']}: {tip['content']}")
-    
+
     print("\n🔧 Ollama最適化プロンプト生成...")
     prompt = helper.generate_password_manager_prompt()
-    
+
     # プロンプトをファイルに保存
     with open("ollama_mcp_prompt.txt", "w", encoding="utf-8") as f:
         f.write(prompt)
-    
+
     print("✅ ollama_mcp_prompt.txt に最適化プロンプトを保存しました")

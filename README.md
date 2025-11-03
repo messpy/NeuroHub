@@ -27,6 +27,14 @@ NeuroHubは、AI駆動のコミットメッセージ生成、チャンク処理�
 - **advanced_validator**: 5回連続成功検証システム・統計レポート機能
 - **標準フロー準拠**: MCPプロトコル完全対応・エラーハンドリング
 
+### 🔐 MCPパスワードマネージャー（projects/）🆕
+- **password_manager_ollama**: Ollama単体実装パスワードマネージャー
+- **暗号化機能**: Fernet暗号化・PBKDF2キー生成・マスターパスワード対応
+- **データベース管理**: SQLite3バックエンド・CRUD操作完全対応
+- **CLI インターフェース**: 直感的メニュー操作・安全な入力処理
+- **品質保証**: 100% docstring・型ヒント完備・包括的エラーハンドリング
+- **構文エラー完全排除**: 自動import文追加・品質改善ツール統合
+
 ### 💾 統合データベースシステム（services/db/）
 - **database_manager**: 27テーブル統一CRUD操作・安全なSQL実行
 - **knowledge_manager**: ナレッジベース管理・全文検索・関連質問
@@ -41,6 +49,8 @@ NeuroHubは、AI駆動のコミットメッセージ生成、チャンク処理�
 ### 🔧 コマンドラインツール（tools/）
 - **git_commit_ai**: 軽量Gitコミット支援
 - **project_organizer**: プロジェクト構造管理
+- **package_manager**: 安全なパッケージ管理・仮想環境自動作成・危険コマンド拒否
+- **mcp_quality_improver**: MCP生成コード品質改善・import文自動追加・構文チェック
 
 ## 🚀 クイックスタート
 
@@ -653,6 +663,58 @@ print(wrapped)
 ```bash
 # IP位置推定天気
 python services/agent/weather_agent.py
+```
+
+### 🔐 MCPパスワードマネージャー（Ollama実装）
+
+```bash
+# MCPパスワードマネージャーの実行
+python projects/password_manager_ollama.py
+# マスターパスワードを入力してください: ********
+
+# メニュー操作例
+# 1. パスワード追加
+#    サイト名: github.com
+#    ユーザー名: myuser
+#    パスワード: mypassword123
+#    メモ: 開発用アカウント
+#    ✅ パスワードが追加されました
+
+# 2. パスワード取得
+#    サイト名: github.com
+#    📝 サイト: github.com
+#    👤 ユーザー: myuser
+#    🔑 パスワード: mypassword123
+#    📄 メモ: 開発用アカウント
+
+# MCPエージェント経由での生成（品質改善付き）
+python agents/agent_mcp.py generate ollama_mcp_prompt.txt --output projects/new_password_manager.py --provider ollama
+# → 自動import文追加
+# → 構文エラー完全排除
+# → docstring自動生成
+# → 品質チェック実行
+```
+
+### 📦 安全なパッケージ管理
+
+```bash
+# パッケージ管理システム
+python tools/package_manager.py
+
+# 危険コマンドは自動拒否
+# 🚫 コマンド拒否: 危険コマンド検出: rm -rf
+
+# pip実行は自動で仮想環境に切り替え
+# 🔧 仮想環境でpip実行: venv_linux/Scripts/pip.exe install requests
+# ✅ pip実行成功
+
+# コード品質改善
+python tools/mcp_quality_improver.py test_code.py
+# ✅ ファイル改善完了: 5項目
+#   - import文追加: from typing import Dict
+#   - import文追加: class DatabaseError(Exception): pass
+#   - 基本docstring追加
+```
 
 # 都市指定
 python services/agent/weather_agent.py "Tokyo"

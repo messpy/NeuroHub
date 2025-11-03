@@ -67,7 +67,7 @@ class EnhancedFeatures(PluginBase, commands.Cog):
         # 通知チャンネル取得
         admin_config = getattr(self.bot, 'config', {}).get('admin', {})
         notification_channel_id = admin_config.get('notification_channel_id')
-        
+
         if not notification_channel_id:
             return
 
@@ -78,7 +78,7 @@ class EnhancedFeatures(PluginBase, commands.Cog):
         # ボイスチャンネル参加
         if before.channel is None and after.channel is not None:
             self.voice_sessions[member.id] = datetime.now()
-            
+
             embed = discord.Embed(
                 title="🎤 ボイスチャンネル参加",
                 description=f"{member.mention} が **{after.channel.name}** に参加しました",
@@ -95,13 +95,13 @@ class EnhancedFeatures(PluginBase, commands.Cog):
         elif before.channel is not None and after.channel is None:
             join_time = self.voice_sessions.pop(member.id, None)
             duration = ""
-            
+
             if join_time:
                 delta = datetime.now() - join_time
                 hours, remainder = divmod(int(delta.total_seconds()), 3600)
                 minutes, seconds = divmod(remainder, 60)
                 duration = f"\n滞在時間: {hours}時間{minutes}分{seconds}秒"
-            
+
             embed = discord.Embed(
                 title="👋 ボイスチャンネル退出",
                 description=f"{member.mention} が **{before.channel.name}** から退出しました{duration}",
@@ -147,7 +147,7 @@ class EnhancedFeatures(PluginBase, commands.Cog):
             title=f"🖼️ {member.display_name} のアバター",
             color=discord.Color.blue()
         )
-        
+
         if member.avatar:
             embed.set_image(url=member.avatar.url)
             embed.add_field(name="ダウンロード", value=f"[クリックしてダウンロード]({member.avatar.url})")
@@ -352,7 +352,7 @@ class EnhancedFeatures(PluginBase, commands.Cog):
             description=guild.description or "サーバーの説明なし",
             color=discord.Color.gold()
         )
-        
+
         if guild.icon:
             embed.set_thumbnail(url=guild.icon.url)
 

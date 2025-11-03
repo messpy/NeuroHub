@@ -179,6 +179,16 @@ class MCPAgent(BaseAgent):
             files_created.append(str(output_file))
             self.logger.info(f"コード保存: {output_file}")
 
+            # 品質改善適用（.py拡張子の場合）
+            if str(output_file).endswith('.py'):
+                try:
+                    improved_code, improvements = self._improve_code_quality(code)
+                    if improvements:
+                        output_file.write_text(improved_code, encoding='utf-8')
+                        self.logger.info(f"品質改善適用: {len(improvements)}項目")
+                except Exception as e:
+                    self.logger.warning(f"品質改善エラー: {e}")
+
         # バリデーション
         warnings = []
         if request.validate:
@@ -666,6 +676,34 @@ README内容:
             return '\n'.join(sorted(external_libs))
 
         return ""
+
+    def _improve_code_quality(self, code: str) -> tuple[str, list[str]]:
+        """
+        コード品質改善
+
+        Args:
+            code: 改善対象コード
+
+        Returns:
+            改善後のコード, 改善項目リスト
+        """
+        try:
+            # tools/mcp_quality_improver.pyから改善機能をインポート
+            import sys
+            from pathlib import Path
+            tools_path = Path(__file__).parent.parent / "tools"
+            sys.path.insert(0, str(tools_path))
+
+            from mcp_quality_improver import CodeImprover
+
+            improver = CodeImprover()
+            improved_code, improvements = improver.improve_code(code)
+
+            return improved_code, improvements
+
+        except Exception as e:
+            self.logger.warning(f"品質改善ツール実行エラー: {e}")
+            return code, []
 
 
 def main():

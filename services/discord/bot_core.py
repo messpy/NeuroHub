@@ -181,7 +181,7 @@ class NeuroHubBot(commands.Bot):
 
             # プラグイン読み込み
             await self.plugin_manager.load_all_plugins()
-            
+
             # コマンドリスト表示（デバッグ用）
             logger.info(f"📋 登録コマンド数: {len(self.commands)}")
             for cmd in self.commands:
@@ -341,13 +341,13 @@ class NeuroHubBot(commands.Bot):
         try:
             admin_config = self.config.get('admin', {})
             log_channel_id = admin_config.get('log_channel_id')
-            
+
             logger.info(f"📢 起動通知送信開始 - チャンネルID: {log_channel_id}")
 
             if log_channel_id:
                 channel = self.get_channel(int(log_channel_id))
                 logger.info(f"📢 チャンネル取得: {channel}")
-                
+
                 if channel:
                     embed = discord.Embed(
                         title="🚀 NeuroHub Bot 起動",

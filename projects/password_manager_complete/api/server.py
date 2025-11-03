@@ -109,15 +109,15 @@ class HealthResponse(BaseModel):
 async def get_password_manager() -> PasswordManager:
     """
     パスワードマネージャーインスタンスの取得
-    
+
     Returns:
         PasswordManager: パスワードマネージャーインスタンス
-        
+
     Raises:
         HTTPException: 初期化エラー
     """
     global password_manager
-    
+
     if password_manager is None:
         try:
             # 環境変数からマスターパスワードを取得
@@ -130,32 +130,32 @@ async def get_password_manager() -> PasswordManager:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"パスワードマネージャー初期化エラー: {e}"
             )
-    
+
     return password_manager
 
 async def verify_token(credentials: HTTPAuthorizationCredentials = Security(security)):
     """
     認証トークンの検証
-    
+
     Args:
         credentials: 認証情報
-        
+
     Returns:
         str: 検証済みトークン
-        
+
     Raises:
         HTTPException: 認証エラー
     """
     # 簡単な認証（本番環境ではJWTやOAuth2を使用）
     expected_token = os.getenv("API_TOKEN", "password_manager_token_123")
-    
+
     if credentials.credentials != expected_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="無効な認証トークン",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     return credentials.credentials
 
 # API エンドポイント
@@ -183,7 +183,7 @@ async def health_check():
     try:
         # パスワードマネージャーの状態確認
         manager = await get_password_manager()
-        
+
         return HealthResponse(
             status="healthy",
             timestamp=datetime.now().isoformat(),
@@ -204,12 +204,12 @@ async def add_password(
 ):
     """
     パスワードエントリの追加
-    
+
     Args:
         entry_request: パスワードエントリ情報
         manager: パスワードマネージャーインスタンス
         token: 認証トークン
-        
+
     Returns:
         APIResponse: 追加結果
     """
@@ -220,7 +220,7 @@ async def add_password(
             password=entry_request.password,
             notes=entry_request.notes
         )
-        
+
         if success:
             return APIResponse(
                 success=True,
@@ -235,7 +235,7 @@ async def add_password(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="パスワードエントリの追加に失敗しました"
             )
-            
+
     except Exception as e:
         logger.error(f"パスワード追加エラー: {e}")
         raise HTTPException(
@@ -252,27 +252,27 @@ async def get_password(
 ):
     """
     パスワードエントリの取得
-    
+
     Args:
         site: サイト名
         username: ユーザー名（オプション）
         manager: パスワードマネージャーインスタンス
         token: 認証トークン
-        
+
     Returns:
         PasswordEntryWithPassword: パスワードエントリ
     """
     try:
         entry_data = manager.get_password(site, username)
-        
+
         if entry_data is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"パスワードエントリが見つかりません: {site}"
             )
-        
+
         return PasswordEntryWithPassword(**entry_data)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -289,17 +289,17 @@ async def list_passwords(
 ):
     """
     パスワードエントリ一覧の取得
-    
+
     Args:
         manager: パスワードマネージャーインスタンス
         token: 認証トークン
-        
+
     Returns:
         List[PasswordEntryResponse]: パスワードエントリ一覧
     """
     try:
         entries = manager.list_entries()
-        
+
         response_entries = []
         for entry in entries:
             response_entries.append(PasswordEntryResponse(
@@ -310,9 +310,9 @@ async def list_passwords(
                 created_at=entry.get('created_at'),
                 updated_at=entry.get('updated_at')
             ))
-        
+
         return response_entries
-        
+
     except Exception as e:
         logger.error(f"パスワード一覧取得エラー: {e}")
         raise HTTPException(
@@ -329,19 +329,19 @@ async def delete_password(
 ):
     """
     パスワードエントリの削除
-    
+
     Args:
         site: サイト名
         username: ユーザー名（オプション）
         manager: パスワードマネージャーインスタンス
         token: 認証トークン
-        
+
     Returns:
         APIResponse: 削除結果
     """
     try:
         success = manager.delete_password(site, username)
-        
+
         if success:
             return APIResponse(
                 success=True,
@@ -356,7 +356,7 @@ async def delete_password(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"削除対象のパスワードエントリが見つかりません: {site}"
             )
-            
+
     except HTTPException:
         raise
     except Exception as e:
@@ -382,7 +382,7 @@ async def global_exception_handler(request, exc):
 def create_app() -> FastAPI:
     """
     FastAPI アプリケーションの作成
-    
+
     Returns:
         FastAPI: 設定済みアプリケーション
     """
@@ -392,16 +392,16 @@ if __name__ == "__main__":
     try:
         print("=== パスワードマネージャー API サーバー ===")
         print("サーバー起動中...")
-        
+
         # 環境変数の確認
         host = os.getenv("API_HOST", "127.0.0.1")
         port = int(os.getenv("API_PORT", "8000"))
-        
+
         print(f"サーバーアドレス: http://{host}:{port}")
         print(f"API ドキュメント: http://{host}:{port}/docs")
         print("認証トークン: MASTER_PASSWORD 環境変数を設定してください")
         print("API トークン: API_TOKEN 環境変数を設定してください")
-        
+
         # サーバー起動
         uvicorn.run(
             "server:app",
@@ -410,7 +410,7 @@ if __name__ == "__main__":
             reload=True,  # 開発時のみ
             log_level="info"
         )
-        
+
     except KeyboardInterrupt:
         print("\nサーバーを停止しました")
     except Exception as e:

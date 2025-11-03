@@ -52,11 +52,11 @@ def setup_logging() -> logging.Logger:
 
 class PasswordManager:
     """完全なパスワードマネージャークラス"""
-    
+
     def __init__(self, db_path: str = "data/passwords.db", master_password: str = None):
         """
         パスワードマネージャーの初期化
-        
+
         Args:
             db_path: データベースファイルのパス
             master_password: マスターパスワード
@@ -68,7 +68,7 @@ class PasswordManager:
             self.logger.info("パスワードマネージャー初期化完了")
         except Exception as e:
             raise RuntimeError(f"初期化エラー: {e}")
-    
+
     def add_password(self, site: str, username: str, password: str) -> bool:
         """パスワードエントリの追加"""
         try:

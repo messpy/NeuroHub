@@ -3,16 +3,16 @@
 """
 test_remo_debug.py
 
-Nature Remo デバッグ用テスト
-APIレスポンスとデバイス状態を詳細確認
+Remo信号送信デバッグ
+ランプが点滅しない原因を調査 - OFFボタン集中テスト
 """
 
 import os
 import sys
 import time
-import json
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError
+from json import loads, dumps
 from dotenv import load_dotenv
 
 # .env読み込み
@@ -23,215 +23,200 @@ REMO_API_KEY = os.getenv('REMO_API')
 BASE_URL = "https://api.nature.global/1/"
 
 
-def debug_api_call(method, endpoint, data=None):
-    """API呼び出しのデバッグ情報を表示"""
-    url = f"{BASE_URL}{endpoint}"
-    headers = {"Authorization": f"Bearer {REMO_API_KEY}"}
+def test_off_button():
+    """OFFボタンテスト"""
+    print("\n" + "="*70)
+    print("  🔍 OFFボタンテスト")
+    print("="*70)
 
-    print(f"\n{'='*60}")
-    print(f"API呼び出し: {method} {endpoint}")
-    print(f"{'='*60}")
-    print(f"URL: {url}")
-    print(f"Headers: Authorization: Bearer {REMO_API_KEY[:10]}...")
-
-    if data:
-        print(f"Data: {data}")
+    appliance_id = "afca7f43-d75b-4be1-aa5c-fc608b5acc4b"
 
     try:
-        if method == "GET":
-            request = Request(url, headers=headers)
-        elif method == "POST":
-            if isinstance(data, str):
-                data = data.encode()
-            request = Request(url, data=data, headers=headers, method='POST')
+        url = f"{BASE_URL}appliances/{appliance_id}/light"
+        headers = {
+            "Authorization": f"Bearer {REMO_API_KEY}",
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
 
+        data = "button=off".encode()
+
+        print(f"\n📤 送信情報:")
+        print(f"   URL: {url}")
+        print(f"   Authorization: Bearer {REMO_API_KEY[:10]}...")
+        print(f"   Content-Type: application/x-www-form-urlencoded")
+        print(f"   Body: button=off")
+
+        request = Request(url, data=data, headers=headers, method='POST')
+
+        print(f"\n⏳ 送信中...")
         with urlopen(request) as response:
-            response_data = response.read().decode()
-            status_code = response.status
+            result = loads(response.read().decode())
 
-            print(f"\n✅ レスポンス:")
-            print(f"Status: {status_code}")
-            print(f"Body: {response_data[:200]}...")
+        print(f"\n✅ HTTPステータス: 200")
+        print(f"\nレスポンス:")
+        print(dumps(result, indent=2, ensure_ascii=False))
 
-            try:
-                json_data = json.loads(response_data)
-                return json_data
-            except:
-                return response_data
+        print(f"\n" + "="*70)
+        print(f"  ⚠️ 重要な確認")
+        print(f"="*70)
+        print(f"\n1. Remoデバイスの赤外線LEDは点滅しましたか？")
+        print(f"   - 点滅した → API正常動作、照明側の問題")
+        print(f"   - 点滅しなかった → APIが信号を送信していない")
+
+        return True
 
     except HTTPError as e:
-        print(f"\n❌ HTTPエラー:")
-        print(f"Status: {e.code}")
-        print(f"Reason: {e.reason}")
-        error_body = e.read().decode()
-        print(f"Body: {error_body}")
-        return None
+        print(f"\n❌ HTTPエラー: {e.code} - {e.reason}")
+        print(f"   Body: {e.read().decode()}")
+        return False
     except Exception as e:
         print(f"\n❌ エラー: {e}")
-        return None
+        return False
 
 
-def get_devices():
-    """デバイス情報を取得"""
-    print("\n" + "="*60)
-    print("🔌 Remoデバイス情報")
-    print("="*60)
+def check_ir_signals():
+    """IR家電の信号を確認して'202'を探す"""
+    print("\n" + "="*70)
+    print("  🔍 IR家電の信号確認（'202'を探す）")
+    print("="*70)
 
-    devices = debug_api_call("GET", "devices")
+    try:
+        url = f"{BASE_URL}appliances"
+        headers = {"Authorization": f"Bearer {REMO_API_KEY}"}
 
-    if devices:
+        request = Request(url, headers=headers)
+        with urlopen(request) as response:
+            appliances = loads(response.read().decode())
+
+        # IR家電だけをフィルタ
+        ir_appliances = [app for app in appliances if app.get('type') == 'IR']
+
+        print(f"\n✅ IR家電数: {len(ir_appliances)}")
+
+        found_202 = False
+
+        for i, app in enumerate(ir_appliances, 1):
+            nickname = app.get('nickname', '')
+            signals = app.get('signals', [])
+
+            print(f"\nIR家電 {i}: {nickname}")
+            print(f"  信号数: {len(signals)}")
+
+            # 全信号をチェック
+            for signal in signals:
+                signal_name = signal.get('name', '')
+                signal_id = signal.get('id', '')
+
+                # '202'を探す
+                if '202' in signal_name or '202' in signal_id:
+                    found_202 = True
+                    print(f"\n  🎯 '202'発見！")
+                    print(f"     家電: {nickname}")
+                    print(f"     信号ID: {signal_id}")
+                    print(f"     信号名: {signal_name}")
+                    print(f"     イメージ: {signal.get('image', 'なし')}")
+
+                # 先頭3個だけ表示（全部は多すぎる）
+                if signals.index(signal) < 3:
+                    print(f"     信号{signals.index(signal)+1}: {signal_name}")
+
+            if len(signals) > 3:
+                print(f"     ... 他 {len(signals)-3} 個の信号")
+
+        if not found_202:
+            print(f"\n⚠️ '202'という信号は見つかりませんでした")
+
+        return found_202
+
+    except Exception as e:
+        print(f"\n❌ エラー: {e}")
+        return False
+
+
+def check_devices():
+    """Remoデバイス状態を確認"""
+    print("\n" + "="*70)
+    print("  🔍 Remoデバイス状態")
+    print("="*70)
+
+    try:
+        url = f"{BASE_URL}devices"
+        headers = {"Authorization": f"Bearer {REMO_API_KEY}"}
+
+        request = Request(url, headers=headers)
+        with urlopen(request) as response:
+            devices = loads(response.read().decode())
+
+        print(f"\n✅ デバイス数: {len(devices)}")
+
         for i, device in enumerate(devices, 1):
-            print(f"\n{i}. {device.get('name')}")
-            print(f"   ID: {device.get('id')}")
-            print(f"   MAC: {device.get('mac_address')}")
-            print(f"   ファームウェア: {device.get('firmware_version')}")
-            print(f"   シリアル: {device.get('serial_number')}")
+            print(f"\nデバイス {i}:")
+            print(f"  名前: {device.get('name')}")
+            print(f"  ID: {device.get('id')}")
+            print(f"  MAC: {device.get('mac_address')}")
+            print(f"  ファームウェア: {device.get('firmware_version')}")
 
-            # 最新イベント
-            events = device.get('newest_events', {})
-            if events:
-                print(f"   最新イベント:")
-                for event_type, event_data in events.items():
-                    print(f"     {event_type}: {event_data}")
+            # 最新イベント（最後に通信した時刻）
+            newest_events = device.get('newest_events', {})
+            if 'te' in newest_events:
+                created_at = newest_events['te'].get('created_at')
+                print(f"  最終通信: {created_at}")
+                print(f"  温度: {newest_events['te'].get('val')}°C")
 
-    return devices
+            if 'hu' in newest_events:
+                print(f"  湿度: {newest_events['hu'].get('val')}%")
 
-
-def get_appliances():
-    """家電一覧を取得"""
-    print("\n" + "="*60)
-    print("🏠 家電一覧")
-    print("="*60)
-
-    appliances = debug_api_call("GET", "appliances")
-
-    if appliances:
-        for i, appliance in enumerate(appliances, 1):
-            print(f"\n{i}. {appliance.get('nickname')}")
-            print(f"   ID: {appliance.get('id')}")
-            print(f"   タイプ: {appliance.get('type')}")
-            print(f"   モデル: {appliance.get('model')}")
-            print(f"   デバイスID: {appliance.get('device', {}).get('id')}")
-
-            # 照明の詳細情報
-            if appliance.get('type') == 'LIGHT':
-                light = appliance.get('light', {})
-                print(f"   照明状態:")
-                print(f"     state: {light.get('state', {})}")
-
-                buttons = light.get('buttons', [])
-                print(f"   ボタン ({len(buttons)}個):")
-                for btn in buttons:
-                    print(f"     - {btn.get('label')} (name: {btn.get('name')}, image: {btn.get('image', 'なし')[:20]}...)")
-
-    return appliances
-
-
-def test_light_control_with_debug(appliance_id, button_name):
-    """照明制御のデバッグ"""
-    print("\n" + "="*60)
-    print(f"💡 照明制御テスト: {button_name}")
-    print("="*60)
-
-    endpoint = f"appliances/{appliance_id}/light"
-    data = f"button={button_name}"
-
-    result = debug_api_call("POST", endpoint, data)
-
-    return result
-
-
-def check_signal_send():
-    """信号送信履歴を確認（可能であれば）"""
-    print("\n" + "="*60)
-    print("📡 信号送信履歴")
-    print("="*60)
-
-    # Remo 1以降では信号送信履歴は取得できないが、試してみる
-    signals = debug_api_call("GET", "1/signals")
-
-    if signals:
-        print(f"✅ 信号履歴取得成功: {len(signals)}件")
-    else:
-        print("⚠️ 信号履歴は取得できません（Remo 1以降では非対応）")
+    except Exception as e:
+        print(f"\n❌ エラー: {e}")
 
 
 def main():
     """メイン処理"""
-    print("\n" + "="*60)
-    print("  🔍 Nature Remo デバッグテスト")
-    print("="*60)
+    print("\n" + "="*70)
+    print("  🔧 Nature Remo デバッグツール")
+    print("  問題: Remoランプが全く点滅しない → 信号が送信されていない")
+    print("="*70)
 
-    if not REMO_API_KEY:
-        print("❌ REMO_API環境変数が設定されていません")
-        return
+    print(f"\n✅ API Key確認: {REMO_API_KEY[:10]}...")
 
-    # 1. デバイス情報確認
-    devices = get_devices()
+    # 1. デバイス状態確認
+    check_devices()
 
-    # 2. 家電一覧確認
-    appliances = get_appliances()
+    # 2. OFFボタンテスト
+    test_off_button()
 
-    # 3. TAKIZUMI検索
-    light = None
-    for appliance in appliances:
-        if appliance.get('type') == 'LIGHT' and appliance.get('nickname') == 'TAKIZUMI':
-            light = appliance
-            break
+    # 3. IR家電の'202'信号確認
+    found_202 = check_ir_signals()
 
-    if not light:
-        print("\n❌ TAKIZUMI が見つかりません")
-        return
+    # 結果まとめ
+    print("\n" + "="*70)
+    print("  📝 調査結果まとめ")
+    print("="*70)
 
-    appliance_id = light.get('id')
-    print(f"\n✅ TAKIZUMI検出: ID={appliance_id}")
+    print("\n🔍 判明した事実:")
+    print("   1. Cloud APIはHTTPステータス200を返す（API呼び出し成功）")
+    print("   2. レスポンスに照明状態が含まれる（power, brightness更新）")
+    print("   3. Remoランプが点滅しない → 実際には信号を送信していない")
 
-    # 4. 照明制御テスト
-    print("\n" + "="*60)
-    print("  照明制御実行")
-    print("="*60)
-
-    # ONテスト
-    print("\n1️⃣ 照明ON実行中...")
-    result_on = test_light_control_with_debug(appliance_id, "on")
-
-    if result_on is not None:
-        print("✅ ON信号送信成功")
+    if found_202:
+        print(f"\n✅ '202'信号を発見しました！")
+        print(f"   Remoアプリの'202'はこの信号かもしれません")
     else:
-        print("❌ ON信号送信失敗")
+        print(f"\n⚠️ '202'信号は見つかりませんでした")
 
-    # 5秒待機
-    print("\n⏳ 5秒待機...")
-    time.sleep(5)
+    print("\n💡 考えられる原因:")
+    print("   1. API KeyがRead-Only権限（信号送信不可）")
+    print("   2. Cloud APIは状態更新のみで実際の信号送信は別処理")
+    print("   3. TAKIZUMIが別のデバイスに紐付いている")
+    print("   4. ネットワーク設定の問題")
 
-    # OFFテスト
-    print("\n2️⃣ 照明OFF実行中...")
-    result_off = test_light_control_with_debug(appliance_id, "off")
+    print("\n🔧 次のステップ:")
+    print("   1. Remoアプリで'202'の詳細確認（スクリーンショット）")
+    print("   2. API Keyの権限確認（Read/Write）")
+    print("   3. ローカルAPI経由での送信テスト")
+    print("   4. 別の家電（エアコン、テレビ）でランプ点滅確認")
 
-    if result_off is not None:
-        print("✅ OFF信号送信成功")
-    else:
-        print("❌ OFF信号送信失敗")
-
-    # 5. 最終確認
-    print("\n" + "="*60)
-    print("  最終確認")
-    print("="*60)
-
-    print("\n📊 実行結果:")
-    print(f"   デバイス数: {len(devices) if devices else 0}")
-    print(f"   家電数: {len(appliances) if appliances else 0}")
-    print(f"   TAKIZUMI ID: {appliance_id}")
-    print(f"   ON信号: {'✅ 成功' if result_on is not None else '❌ 失敗'}")
-    print(f"   OFF信号: {'✅ 成功' if result_off is not None else '❌ 失敗'}")
-
-    print("\n💡 確認事項:")
-    print("   1. 実際に照明がON/OFFされましたか？")
-    print("   2. Remoデバイスのランプが点滅しましたか？")
-    print("   3. 照明がRemoアプリで正しく登録されていますか？")
-    print("   4. Remoと照明の間に障害物はありませんか？")
-
-    print("\n✅ デバッグテスト完了")
+    print("\n✅ デバッグ完了")
 
 
 if __name__ == "__main__":

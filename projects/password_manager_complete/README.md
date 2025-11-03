@@ -117,7 +117,7 @@ curl -X POST http://localhost:8000/passwords \\
   -H "Content-Type: application/json" \\
   -d '{
     "site": "example.com",
-    "username": "user@example.com", 
+    "username": "user@example.com",
     "password": "secure_password",
     "notes": "重要なアカウント"
   }'
